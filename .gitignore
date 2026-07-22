@@ -106,16 +106,7 @@ desktop.ini
 .claude/settings.local.json
 
 # ---- Planning / research notes (local, not tracked) ----
-project2_biomedical_attribution_rag_implementation_plan.md
-related_work.md
-learning_roadmap.md
+docs/
 
 # ---- Teaching workspace (/teach skill — local study materials, not tracked) ----
-MISSION.md
-RESOURCES.md
-GLOSSARY.md
-NOTES.md
-reference/
-lessons/
-learning-records/
-assets/
+teach/
