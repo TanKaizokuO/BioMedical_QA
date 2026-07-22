@@ -1,0 +1,109 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+pip-wheel-metadata/
+
+# ---- Virtual environments ----
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-env/
+
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+*.key
+secrets.*
+credentials.json
+
+# ---- Notebooks ----
+.ipynb_checkpoints/
+*.nbconvert.ipynb
+
+# ---- Testing / linting / type-checking caches ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ---- ML / data artifacts (biomedical RAG) ----
+# Datasets & corpora (PubMed, PubMedQA, BioASQ, etc.) — track via download scripts, not git
+data/
+datasets/
+corpus/
+*.jsonl
+*.parquet
+*.arrow
+*.csv
+*.tsv
+
+# Retrieval indexes & embeddings (BM25 / dense / FAISS)
+indexes/
+index/
+*.faiss
+*.index
+*.bin
+embeddings/
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# Model checkpoints & weights (MedCPT, rerankers, NLI verifiers)
+models/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.gguf
+.cache/
+hf_cache/
+transformers_cache/
+
+# Experiment outputs / runs / logs
+outputs/
+results/
+runs/
+logs/
+*.log
+wandb/
+mlruns/
+lightning_logs/
+tensorboard/
+
+# ---- Editors / IDE ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Claude Code (keep shared project config, ignore local overrides) ----
+.claude/settings.local.json
+
+# ---- Planning / research notes (local, not tracked) ----
+project2_biomedical_attribution_rag_implementation_plan.md
+project2_related_work_and_learning_roadmap.md
