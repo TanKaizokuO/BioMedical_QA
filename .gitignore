@@ -28,6 +28,7 @@ secrets.*
 credentials.json
 
 # ---- Notebooks ----
+notebooks/
 .ipynb_checkpoints/
 *.nbconvert.ipynb
 
