@@ -22,10 +22,35 @@ An honest audit, because the plan's stated starting point is optimistic:
 | Asset | Reality | Consequence |
 |---|---|---|
 | "Existing RAG-over-PubMedQA pipeline, Slice 2 bug fixed" | Lives in **`~/Code/Research/RAG_Debate_Agent`**, not this repo. The fix (`e936d30`, index `pqa_labeled` not `pqa_artificial`) was applied to `rag_baseline.py` but **never re-executed**. `pubmedqa_baseline_v2` does not exist. | **Retired 2026-07-31 (ADR-0007).** No inherited retrieval measurement exists, and none is worth producing — a re-run would score hit@5 over the 1,000 gold contexts, which ADR-0003 rules out as a lexical gimme. `pubmedqa_baseline_v2` is **cancelled as a deliverable**. **G1 begins from zero by design, not by neglect.** Reference material extracted to [`docs/harvest/`](docs/harvest/README.md); the base repo is read-only history. |
-| Retriever stack in that repo | ChromaDB + `all-MiniLM-L6-v2`, dense-only, top-5. No BM25, no RRF, no reranker. | Does not match the architecture the paper needs (hybrid + rerank). Porting it buys almost nothing. |
-| Generation stack in that repo | Local Ollama `qwen2.5:7b`, **~88s/query** (range 61–110s), CPU. | ~~#1 schedule risk~~ — **retired.** An **exclusive RTX A4000 (16 GB)** is available; generation moves there (ADR-0004). |
+| Retriever stack in that repo | ChromaDB + `all-MiniLM-L6-v2`, dense-only, top-5. No BM25, no RRF, no reranker. | Does not match the architecture the paper needs (hybrid + rerank). Porting it buys almost nothing. **But rebuilding from the notebooks is not free either** — see the promotion table below. |
+| Generation stack in that repo | Local Ollama `qwen2.5:7b`, **~88s/query** (range 61–110s), CPU. | **The 88s/query risk is retired** — generation moves to the exclusive RTX A4000 (ADR-0004). **The row is not.** Two things are still unestablished, both due at **G0 (Aug 2)**: (a) *which* 8B AWQ model — unchosen, and to be judged on **citation-format compliance**, not benchmark scores; (b) **no successful vLLM load on the A4000 has ever been recorded.** No document in this repo evidences that the box is reachable, driver-current, or able to hold ~9 GB of co-resident models. The laptop has **no CUDA fallback**, so (b) gates literally everything downstream and is the true first measurement — run it *before* the bake-off, not as part of it. SSH access being set up 2026-07-31. |
 | This repo (`BioMedical_QA`) | Planning docs + 8 taught lessons + **8 runnable notebooks** already implementing BM25-from-scratch, MedCPT, RRF, cross-encoder rerank, citation P/R, decompose-then-verify, AUROC/calibration/CIs, Krippendorff's α, and a **working miniature eval harness** (`08_6_reproducible_eval_harness.ipynb`). | The notebooks *are* the codebase seed. `08_6` is the harness skeleton; promote it to `src/`. |
 | Paper | Not started. No skeleton. Claim ledger now **cut to 5 tables** (§1); venue locked (§6). | Started in Week 0 — the paper is written **backwards from its tables**, not at the end. |
+
+> **Next re-audit: 2026-08-23 (at G1).** §0 is a dated snapshot, not a standing description. The
+> implementation plan's §4 went stale precisely because nothing ever forced it to be re-read; this
+> line is that mechanism. Re-audit early if any gate slips.
+
+### Notebook → module promotion, and what does **not** survive the move
+
+"The notebooks *are* the codebase seed" is true and is the soft spot in row 4. **Every notebook runs
+on a toy or simulated corpus** — that is correct for teaching and wrong for 2M abstracts. The
+promotion work is real work; this table is what makes it estimable rather than a surprise in W2.
+
+| Notebook | Promotes to | Scale/fidelity assumption that breaks |
+|---|---|---|
+| `01_1_retrieval_foundations` | `retrieve.py` | **N = 12 toy corpus.** `BM25Scratch` is pedagogical and **does not ship** — `bm25s` does (`rank_bm25` is borderline at 2M, §3). The MedCPT cells are marked *"run this when you have the model + network"*, i.e. **never executed**. |
+| `02_1_chunking_granularity` | `chunk.py` | Uses **`all-MiniLM-L6-v2` as a stand-in** for MedCPT. Chunk boundaries validated against a toy corpus say nothing about `(chunker, τ)` behaviour at 2M, and nothing here emits the **char offsets** citations require. |
+| `03_2_citation_precision_recall` | `scoring/citation.py` | Sound at any scale — pure functions over labels. But **φ is `cross-encoder/nli-deberta-v3-xsmall`, not MiniCheck**; the verifier swap is real work, and the ≤3-citation cap semantics must come from `CONTEXT.md`, not from the notebook. |
+| `04_3_decompose_then_verify` | `decompose.py`, `verify.py` | Toy claims, MiniCheck **discussed but not run**. Decontextualization (the `CONTEXT.md` unit) is the hard part and is not implemented here. |
+| `05_4_evaluation_auroc_calibration_ci` | `scoring/calibration.py` | **Simulated score vectors** (`A_hit[:160] = True`). Scale-free, so it promotes nearly as-is — the risk is that it has never seen a real, skewed score distribution. |
+| `06_5_negation_numbers_scope` | failure-mode analysis, not a module | Toy strata, hand-built. Becomes an **analysis over real gold-set claims** in W6; there is no code to promote, only a taxonomy. |
+| `07_4_human_eval_agreement` | `scoring/agreement.py` | Simulated 240 items — and, importantly, **3 labels**, while `CONTEXT.md` freezes a **4-way `support_label`** with a binary collapse for G4's α. **The notebook's label cardinality is wrong for this project.** Fix on promotion, not later: the collapse rule is what G4 gates on. |
+| `08_6_reproducible_eval_harness` | `harness.py`, `config.py`, `schema.py` | Simulated n = 200, records held **in memory**; must become streamed `records.jsonl`. Its `sha256(json.dumps(cfg, sort_keys=True))` config hash is exactly the run-manifest primitive — and the answer to the base repo's count-based staleness bug (`docs/harvest/README.md`). |
+
+**Not in any notebook, therefore net-new code in W1–W2:** the 2M corpus build and its
+checkpoint/resume encode job, `backends.py`, `generate.py` (joint claim-grounded generation and both
+baselines behind one API), and the cost/seed loop.
 
 ### Hardware (established, do not re-look-up)
 

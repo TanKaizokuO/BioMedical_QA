@@ -3,14 +3,18 @@ name = "biomedical-qa"
 version = "0.1.0"
 requires-python = ">=3.12,<3.14"
 dependencies = [
+    "anthropic",          # Opus 5 judge baseline (C5) — ADR-0004
+    "bm25s",              # lexical retrieval; replaces rank-bm25, which is borderline at 2M (§3)
     "datasets>=5.0.0",
+    "httpx",              # transport to the vLLM server on the A4000 (see note below)
     "ipykernel>=7.3.0",
+    "krippendorff",       # inter-annotator agreement, gate G4
     "matplotlib>=3.11.1",
     "numpy>=2.5.1",
     "pandas>=3.0.3",
-    "rank-bm25>=0.2.2",
     "scikit-learn>=1.9.0",
     "sentence-transformers>=5.6.0",
+    "statsmodels",        # Wilson intervals on gate proportions — Wald is not acceptable (§4 Phase 1)
     "torch>=2.13.0",
     "transformers>=5.14.1",
 ]
@@ -18,4 +22,12 @@ dependencies = [
 [dependency-groups]
 dev = [
     "nbconvert>=7.17.1",
+    "pytest",             # the frozen schema needs a round-trip test or it is only a convention
 ]
+
+# NOTE: `vllm` is deliberately NOT a dependency of this project — not even in an optional group.
+# vllm pins torch to an exact version, which conflicts with `torch>=2.13.0` above; adding it makes
+# the resolver backtrack to vllm 0.2.5 (Dec 2023) and drag `pydantic` down to 1.10.x for the entire
+# workspace. Instead, vllm runs on the A4000 as a standalone OpenAI-compatible server in its own
+# environment, and `backends.py` talks to it over HTTP — which is what ADR-0004 means by "a config
+# flag, not a second implementation." The generator backend is a network boundary, not an import.
