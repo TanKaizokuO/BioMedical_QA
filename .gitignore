@@ -106,7 +106,13 @@ desktop.ini
 .claude/settings.local.json
 
 # ---- Planning / research notes (local, not tracked) ----
-docs/
+# docs/* rather than docs/ — git will not descend into an excluded directory, so the
+# negations below only work if the exclusion is on the contents, not the directory itself.
+docs/*
+# Tracked exceptions: decision records, and the frozen reference material harvested from
+# the retired base pipeline (ADR-0007) — the source repo may be deleted, so this is the backup.
+!docs/adr/
+!docs/harvest/
 
 # ---- Teaching workspace (/teach skill — local study materials, not tracked) ----
 teach/

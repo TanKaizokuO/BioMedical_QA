@@ -21,7 +21,7 @@ An honest audit, because the plan's stated starting point is optimistic:
 
 | Asset | Reality | Consequence |
 |---|---|---|
-| "Existing RAG-over-PubMedQA pipeline, Slice 2 bug fixed" | Lives in **`~/Code/Research/RAG_Debate_Agent`**, not this repo. The fix (`e936d30`, index `pqa_labeled` not `pqa_artificial`) was applied to `rag_baseline.py` but **never re-executed**. `pubmedqa_baseline_v2` does not exist. | **hit@5 is currently unmeasured, not "nearly 90%."** Treat the gate as un-attempted. |
+| "Existing RAG-over-PubMedQA pipeline, Slice 2 bug fixed" | Lives in **`~/Code/Research/RAG_Debate_Agent`**, not this repo. The fix (`e936d30`, index `pqa_labeled` not `pqa_artificial`) was applied to `rag_baseline.py` but **never re-executed**. `pubmedqa_baseline_v2` does not exist. | **Retired 2026-07-31 (ADR-0007).** No inherited retrieval measurement exists, and none is worth producing — a re-run would score hit@5 over the 1,000 gold contexts, which ADR-0003 rules out as a lexical gimme. `pubmedqa_baseline_v2` is **cancelled as a deliverable**. **G1 begins from zero by design, not by neglect.** Reference material extracted to [`docs/harvest/`](docs/harvest/README.md); the base repo is read-only history. |
 | Retriever stack in that repo | ChromaDB + `all-MiniLM-L6-v2`, dense-only, top-5. No BM25, no RRF, no reranker. | Does not match the architecture the paper needs (hybrid + rerank). Porting it buys almost nothing. |
 | Generation stack in that repo | Local Ollama `qwen2.5:7b`, **~88s/query** (range 61–110s), CPU. | ~~#1 schedule risk~~ — **retired.** An **exclusive RTX A4000 (16 GB)** is available; generation moves there (ADR-0004). |
 | This repo (`BioMedical_QA`) | Planning docs + 8 taught lessons + **8 runnable notebooks** already implementing BM25-from-scratch, MedCPT, RRF, cross-encoder rerank, citation P/R, decompose-then-verify, AUROC/calibration/CIs, Krippendorff's α, and a **working miniature eval harness** (`08_6_reproducible_eval_harness.ipynb`). | The notebooks *are* the codebase seed. `08_6` is the harness skeleton; promote it to `src/`. |
@@ -156,6 +156,14 @@ means promoting code that does.
 
 Harvest only these from `RAG_Debate_Agent`: the PubMedQA loading logic, the gold-passage tracking
 fields added in `e936d30`, and the latency-benchmark methodology in `benchmark.py`.
+
+> **Discharged 2026-07-31 (ADR-0007).** All three are extracted into
+> [`docs/harvest/`](docs/harvest/README.md), each with the caveats on what survives the move to the
+> 2M corpus. The base repo is now **read-only history**: nothing imports from it, no number it
+> produced enters this repo or the paper, and it may be archived or deleted without effect. It is
+> also not to be re-run — see ADR-0007 for why a starting hit@5 from it would be worse than none.
+> One lesson came with them: **index freshness is a content hash, never a document count** — a
+> `count == 1000` idempotency check is what let the original bug survive.
 
 **Deliverable of Week 0** — the repo skeleton, derived from Lesson 8's harness design:
 

@@ -1,0 +1,325 @@
+commit e936d302e6f82bf16f7a9c43d3a1ecf2d6114fa2
+Author: TanKaizokuO <tanishqbhattacharjee22@gmail.com>
+Date:   Thu Jul 2 15:54:25 2026 +0530
+
+    refactor: update baseline to index pqa_labeled for improved RAG relevance and add gold-passage retrieval metrics.
+
+diff --git a/rag_baseline.py b/rag_baseline.py
+index ae47213..614cb86 100644
+--- a/rag_baseline.py
++++ b/rag_baseline.py
+@@ -18,12 +18,16 @@ NUM_PREDICT = 300
+ THINK = False
+ 
+ TOP_K = 5
+-INDEX_SIZE = 1000
++INDEX_SIZE = 1000   # matches pqa_labeled train split size exactly
+ EVAL_SIZE = 50
+ 
+ CHROMA_DIR = "chroma_db"
+-COLLECTION = "pubmedqa_baseline"
+-OUTPUT_FILE = "outputs/slice2_baseline.json"
++COLLECTION = "pubmedqa_baseline_v2"  # NEW collection name — don't reuse the old
++                                       # 1000-doc pqa_artificial collection, or the
++                                       # count==1000 idempotency check will wrongly
++                                       # skip re-indexing and you'll silently keep
++                                       # querying the broken data.
++OUTPUT_FILE = "outputs/slice2_baseline_fixed.json"
+ 
+ OLLAMA_API = "http://localhost:11434/api/generate"
+ 
+@@ -39,69 +43,68 @@ Answer:"""
+ # =====================================================================
+ # Initialization
+ # =====================================================================
+-# Set up ChromaDB and embedding function
+-# The all-MiniLM-L6-v2 model is public, so HF_TOKEN is optional but used if present
+ chroma_client = chromadb.PersistentClient(path=CHROMA_DIR)
+ emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
+ 
+ 
+ def load_and_index():
+-    """Loads pqa_artificial and indexes into ChromaDB (idempotent)."""
+-    print(f"\n--- 1. Loading & Indexing Data ({INDEX_SIZE} docs) ---")
+-    
++    """Loads pqa_labeled (the SAME pool the eval questions are drawn from) and
++    indexes into ChromaDB (idempotent).
++
++    ROOT CAUSE FIX: the original script indexed pqa_artificial (a disjoint,
++    ~211k-row synthetic set) while evaluating against pqa_labeled questions.
++    Since pqa_labeled's own `context` field IS the gold supporting abstract
++    for each of its questions, indexing pqa_labeled directly guarantees every
++    eval question has a genuinely relevant document in the index.
++    """
++    print(f"\n--- 1. Loading & Indexing Data ({INDEX_SIZE} docs from pqa_labeled) ---")
++
+     collection = chroma_client.get_or_create_collection(name=COLLECTION, embedding_function=emb_fn)
+-    
++
+     current_count = collection.count()
+     print(f"Collection '{COLLECTION}' currently has {current_count} documents.")
+-    
++
+     if current_count == INDEX_SIZE:
+         print("Idempotency check passed (count == INDEX_SIZE). Skipping indexing.")
+         return collection
+-        
++
+     if current_count > 0:
+         print("Count is not exactly INDEX_SIZE. Deleting and recreating collection...")
+         chroma_client.delete_collection(name=COLLECTION)
+         collection = chroma_client.get_or_create_collection(name=COLLECTION, embedding_function=emb_fn)
+-        
+-    print(f"Downloading/loading PubMedQA (pqa_artificial)... taking {INDEX_SIZE}")
+-    # Using streaming so we don't download the whole 211k rows
+-    ds = load_dataset("qiaojin/PubMedQA", "pqa_artificial", split="train", streaming=True)
+-    
++
++    print("Loading PubMedQA (pqa_labeled, train split — only 1000 rows, no need to stream)...")
++    ds = load_dataset("qiaojin/PubMedQA", "pqa_labeled", split="train")
++
+     docs = []
+     ids = []
+-    
+-    count = 0
++
+     for row in ds:
+-        # Each row has a 'pubid' (often string) and 'context' (dict) or 'abstract'
+-        # pubmed_qa 'context' format: dict with 'contexts' list and 'labels' list
+-        # We will just concatenate the contexts to form the passage.
+         if 'contexts' in row['context']:
+             passage = " ".join(row['context']['contexts'])
+         else:
+-             passage = str(row['context']) # Fallback
+-             
++            passage = str(row['context'])  # fallback
++
+         doc_id = str(row['pubid'])
+-        
++
+         docs.append(passage)
+         ids.append(doc_id)
+-        
+-        count += 1
+-        if count >= INDEX_SIZE:
++
++        if len(docs) >= INDEX_SIZE:
+             break
+-            
+-    print(f"Adding {len(docs)} documents to ChromaDB. This will download the embedding model if first run...")
+-    
+-    # Batch the upsert just to be safe
++
++    print(f"Adding {len(docs)} documents to ChromaDB...")
++
+     batch_size = 250
+     for i in range(0, len(docs), batch_size):
+-        batch_docs = docs[i:i+batch_size]
+-        batch_ids = ids[i:i+batch_size]
++        batch_docs = docs[i:i + batch_size]
++        batch_ids = ids[i:i + batch_size]
+         collection.upsert(
+             documents=batch_docs,
+             ids=batch_ids
+         )
+         print(f"  Upserted {i + len(batch_docs)} / {len(docs)}")
+-        
++
+     print(f"Indexing complete. Final count: {collection.count()}")
+     return collection
+ 
+@@ -115,14 +118,13 @@ def retrieve(query, collection, k=TOP_K):
+         query_texts=[query],
+         n_results=k
+     )
+-    
++
+     passages = []
+-    # Results is a dict with lists of lists. Since we pass 1 query, index 0.
+     if results['documents'] and len(results['documents']) > 0:
+         doc_list = results['documents'][0]
+         id_list = results['ids'][0]
+-        dist_list = results['distances'][0] if results['distances'] else [0]*len(doc_list)
+-        
++        dist_list = results['distances'][0] if results['distances'] else [0] * len(doc_list)
++
+         for doc, doc_id, dist in zip(doc_list, id_list, dist_list):
+             passages.append({
+                 "id": doc_id,
+@@ -131,18 +133,16 @@ def retrieve(query, collection, k=TOP_K):
+             })
+     return passages
+ 
++
+ def baseline_answer(query, collection):
+     """Retrieve, construct prompt, and call Ollama."""
+     t0 = time.time()
+-    
+-    # 1. Retrieve
++
+     retrieved = retrieve(query, collection, k=TOP_K)
+-    
+-    # 2. Construct context
++
+     context_text = "\n\n".join([f"[{i+1}] {p['passage']}" for i, p in enumerate(retrieved)])
+     prompt = PROMPT_TEMPLATE.format(context=context_text, query=query)
+-    
+-    # 3. Call model
++
+     payload = {
+         "model": MODEL,
+         "prompt": prompt,
+@@ -152,17 +152,17 @@ def baseline_answer(query, collection):
+         }
+     }
+     if THINK is not None:
+-         payload["think"] = THINK
+-         
++        payload["think"] = THINK
++
+     try:
+         resp = requests.post(OLLAMA_API, json=payload, timeout=120)
+         resp.raise_for_status()
+         answer = resp.json().get("response", "").strip()
+     except Exception as e:
+         answer = f"[ERROR calling Ollama]: {e}"
+-        
++
+     latency = time.time() - t0
+-    
++
+     return {
+         "answer": answer,
+         "retrieved_passages": retrieved,
+@@ -175,92 +175,79 @@ def baseline_answer(query, collection):
+ 
+ def main():
+     os.makedirs("outputs", exist_ok=True)
+-    
++
+     collection = load_and_index()
+-    
++
+     print(f"\n--- 2. Loading Eval Data ({EVAL_SIZE} docs) ---")
+-    # Load pqa_labeled (has ~1k items total, not streaming to easily take first EVAL_SIZE)
+-    # The 'test' split usually has 500, 'train' has some. We'll just grab the 'train' split which has 1000.
+     eval_ds = load_dataset("qiaojin/PubMedQA", "pqa_labeled", split="train")
+     eval_items = []
+-    
++
+     for i, row in enumerate(eval_ds):
+         if i >= EVAL_SIZE:
+-             break
++            break
+         eval_items.append({
+             "query_id": str(row['pubid']),
+             "query": row['question']
+         })
+-        
++
+     print(f"Loaded {len(eval_items)} evaluation questions.")
+-    
+-    # Check for overlap
+-    indexed_data = collection.get() # Gets all indexed data
+-    indexed_ids = set(indexed_data['ids']) if indexed_data and 'ids' in indexed_data else set()
+-    
+-    overlap_count = 0
+-    for item in eval_items:
+-        if item['query_id'] in indexed_ids:
+-             overlap_count += 1
+-             
+-    print(f"Overlap check: {overlap_count} eval questions found in index.")
+-    
+-    print(f"\n--- 3. Running RAG Baseline ---")
++
++    print(f"\n--- 3. Running RAG Baseline (with gold-passage hit tracking) ---")
+     results_out = []
+     total_time = 0
+-    
++    gold_hits = 0
++
+     for i, item in enumerate(eval_items):
+         q_id = item['query_id']
+         q_text = item['query']
+         print(f"[{i+1}/{EVAL_SIZE}] Q: {q_text[:60]}...")
+-        
+-        overlap_caveat = (q_id in indexed_ids)
+-        
++
+         result = baseline_answer(q_text, collection)
+         total_time += result['latency_seconds']
+-        
++
++        retrieved_ids = [p['id'] for p in result['retrieved_passages']]
++        gold_retrieved = q_id in retrieved_ids
++        gold_rank = (retrieved_ids.index(q_id) + 1) if gold_retrieved else None
++        if gold_retrieved:
++            gold_hits += 1
++
+         record = {
+             "query_id": q_id,
+             "query": q_text,
+             "retrieved_passages": result["retrieved_passages"],
+             "answer": result["answer"],
+             "latency_seconds": result["latency_seconds"],
+-            "overlap_caveat": overlap_caveat
++            # NOTE: overlap_caveat now correctly reflects that the gold doc IS
++            # in the index by design (that's the fix) — this is expected/desired,
++            # not leakage, since we're testing whether retrieval finds it.
++            "overlap_caveat": True,
++            "gold_pubid": q_id,
++            "gold_retrieved": gold_retrieved,
++            "gold_rank": gold_rank
+         }
+         results_out.append(record)
+-        
++
+     with open(OUTPUT_FILE, "w") as f:
+         json.dump(results_out, f, indent=2)
+-        
++
+     print(f"\nSaved results to {OUTPUT_FILE}")
+-    
+-    # Summary
++
+     avg_latency = total_time / len(results_out) if len(results_out) > 0 else 0
+-    print("\n" + "="*50)
++    hit_rate = gold_hits / len(results_out) if len(results_out) > 0 else 0
++
++    print("\n" + "=" * 50)
+     print("SUMMARY")
+-    print("="*50)
++    print("=" * 50)
+     print(f"Model: {MODEL}")
+     print(f"Queries evaluated: {len(results_out)}")
+     print(f"Total time: {total_time:.2f} s")
+     print(f"Avg latency per query: {avg_latency:.2f} s")
+-    
+-    # Extrapolation
+-    print("\nSlice 6+7 total model calls (honest estimate):")
+-    print("  600 questions × 1 call  (single-agent baseline)   =   600 calls")
+-    print("  600 questions × 3 calls (3-agent pipeline)         = 1,800 calls")
+-    print("  ─────────────────────────────────────────────────────────────────")
+-    print("  Slice 6 subtotal                                   = 2,400 calls")
+-    print("")
+-    print("  Slice 7 ablation A: No Critic (Generator + Verifier)     = 1,200 calls")
+-    print("  Slice 7 ablation B: No Verifier (Generator + Critic)       = 1,200 calls")
+-    print("  ─────────────────────────────────────────────────────────────────")
+-    print("  Slice 7 subtotal                                   = 2,400 calls")
+-    print("")
+-    print("  TOTAL Slice 6+7                                    = 4,800 calls")
+-    
+-    est_hours = (4800 * avg_latency) / 3600
+-    print(f"  At {avg_latency:.2f}s/call → estimated {est_hours:.1f} hours")
+-    print("="*50)
++    print(f"Gold-passage hit rate @ top-{TOP_K}: {hit_rate:.1%} ({gold_hits}/{len(results_out)})")
++    print("  (This should be high, ~90%+, if retrieval is working correctly now.")
++    print("   If it's still low, something else is wrong — stop and investigate")
++    print("   before proceeding to Slice 3.)")
++    print("=" * 50)
++
+ 
+ if __name__ == "__main__":
+-    main()
++    main()
+\ No newline at end of file
