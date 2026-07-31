@@ -23,7 +23,7 @@ An honest audit, because the plan's stated starting point is optimistic:
 |---|---|---|
 | "Existing RAG-over-PubMedQA pipeline, Slice 2 bug fixed" | Lives in **`~/Code/Research/RAG_Debate_Agent`**, not this repo. The fix (`e936d30`, index `pqa_labeled` not `pqa_artificial`) was applied to `rag_baseline.py` but **never re-executed**. `pubmedqa_baseline_v2` does not exist. | **Retired 2026-07-31 (ADR-0007).** No inherited retrieval measurement exists, and none is worth producing — a re-run would score hit@5 over the 1,000 gold contexts, which ADR-0003 rules out as a lexical gimme. `pubmedqa_baseline_v2` is **cancelled as a deliverable**. **G1 begins from zero by design, not by neglect.** Reference material extracted to [`docs/harvest/`](docs/harvest/README.md); the base repo is read-only history. |
 | Retriever stack in that repo | ChromaDB + `all-MiniLM-L6-v2`, dense-only, top-5. No BM25, no RRF, no reranker. | Does not match the architecture the paper needs (hybrid + rerank). Porting it buys almost nothing. **But rebuilding from the notebooks is not free either** — see the promotion table below. |
-| Generation stack in that repo | Local Ollama `qwen2.5:7b`, **~88s/query** (range 61–110s), CPU. | **The 88s/query risk is retired** — generation moves to the exclusive RTX A4000 (ADR-0004). **The row is not.** Two things are still unestablished, both due at **G0 (Aug 2)**: (a) *which* 8B AWQ model — unchosen, and to be judged on **citation-format compliance**, not benchmark scores; (b) **no successful vLLM load on the A4000 has ever been recorded.** No document in this repo evidences that the box is reachable, driver-current, or able to hold ~9 GB of co-resident models. The laptop has **no CUDA fallback**, so (b) gates literally everything downstream and is the true first measurement — run it *before* the bake-off, not as part of it. SSH access being set up 2026-07-31. |
+| Generation stack in that repo | Local Ollama `qwen2.5:7b`, **~88s/query** (range 61–110s), CPU. | **The 88s/query risk is retired** — generation moves to the exclusive RTX A4000 (ADR-0004). **The row is not.** Two things are still unestablished, both due at **G0 (re-dated to Aug 4)**: (a) *which* 8B AWQ model — unchosen, and to be judged on **citation-format compliance**, not benchmark scores; (b) **no successful vLLM load on the A4000 has ever been recorded.** No document in this repo evidences that the box is reachable, driver-current, or able to hold ~9 GB of co-resident models. The laptop has **no CUDA fallback**, so (b) gates literally everything downstream and is the true first measurement — run it *before* the bake-off, not as part of it. **A4000 access starts Mon 2026-08-03** — the box is not available before then, which is why G0 moved. |
 | This repo (`BioMedical_QA`) | Planning docs + 8 taught lessons + **8 runnable notebooks** already implementing BM25-from-scratch, MedCPT, RRF, cross-encoder rerank, citation P/R, decompose-then-verify, AUROC/calibration/CIs, Krippendorff's α, and a **working miniature eval harness** (`08_6_reproducible_eval_harness.ipynb`). | The notebooks *are* the codebase seed. `08_6` is the harness skeleton; promote it to `src/`. |
 | Paper | Not started. No skeleton. Claim ledger now **cut to 5 tables** (§1); venue locked (§6). | Started in Week 0 — the paper is written **backwards from its tables**, not at the end. |
 
@@ -159,13 +159,28 @@ removes it.
 Total ~\$28 typical, ceiling ~\$125–185. Cost was *not* the deciding axis — all options were
 affordable; iteration friction and the seed plan were.
 
-> **Still open — decide by Aug 2:** *which* 8B AWQ model. Candidates should be judged on
+> **Still open — decide by Aug 4:** *which* 8B AWQ model. Candidates should be judged on
 > citation-format compliance, not general benchmark scores.
 
-**Gate G0 (by Aug 2):** the 8B generator is chosen, benchmarked on 10 real queries on the A4000, and
-the measured per-call latency written into this file. Also benchmark **MedCPT encode throughput on
-1,000 abstracts** to convert ADR-0003's encode estimates into measurements before committing to the
-2M encode.
+**Gate G0 (by Aug 4 — re-dated 2026-07-31):** the 8B generator is chosen, benchmarked on 10 real
+queries on the A4000, and the measured per-call latency written into this file. Also benchmark
+**MedCPT encode throughput on 1,000 abstracts** to convert ADR-0003's encode estimates into
+measurements before committing to the 2M encode.
+
+> **Why G0 moved, and why it costs nothing.** A4000 access starts **Mon Aug 3**, a day after G0's
+> original Aug 2 date, so the gate was unmeetable as written. It moves to **Aug 4** — Monday for the
+> preflight and install, Tuesday as buffer for a driver problem, which is the failure mode with the
+> longest tail.
+>
+> **The slip does not touch the critical path**, because every other Week 0 and W1 deliverable is
+> **CPU-only**: `src/biomedqa/` + `schema.py`, `paper/skeleton.md`, data load, and the split freeze
+> need no GPU. Aug 1–2 therefore goes to items 4 and 5 of §8, which were already due Aug 2, and G0
+> runs alongside W1's start rather than blocking it. Nothing is lost; the sequencing changes.
+>
+> **What it does consume is buffer.** W2 (Aug 10–16) contains the 2M encode, which must not begin
+> until G0's throughput measurement exists — that gap is now 6 days rather than 8. **G1 stays Aug
+> 23.** If the box is unusable on Aug 3, that is not a slip to absorb quietly: it invalidates
+> ADR-0004's compute decision, and the response is R1/R4 territory, not rescheduling.
 
 > Note: the verifier and reranker are small models and stay local — that's the point of C5. All three
 > (8B AWQ ~6 GB + MiniCheck-770M ~1.5 GB + cross-encoder ~1.3 GB ≈ 9 GB of 16 GB) are co-resident,
@@ -446,8 +461,8 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 
 | Week | Dates | Primary | Parallel | Due |
 |---|---|---|---|---|
-| **W0** | Jul 30 – Aug 2 | **Pick the 8B AWQ model + benchmark; MedCPT encode benchmark** | `paper/skeleton.md`; **send the annotator ask**; **start MedNLI/PhysioNet application** | **G0** |
-| **W1** | Aug 3–9 | `src/` skeleton, `config.py`, `schema.py` (per `CONTEXT.md`), data load, split freeze | Read/re-skim ALCE + MiniCheck with the schema in hand · distractor-pool construction | Splits frozen (Aug 7) |
+| **W0** | Jul 30 – Aug 2 | `src/biomedqa/` skeleton + `schema.py`; `paper/skeleton.md` — **all CPU-only; the A4000 is not available until Aug 3** | **Send the annotator ask**; **start MedNLI/PhysioNet application**; file the G0–G5 issues | (G0 moved → Aug 4) |
+| **W1** | Aug 3–9 | `config.py`, data load, split freeze · **Mon–Tue: A4000 preflight, generator bake-off, MedCPT throughput** | Read/re-skim ALCE + MiniCheck with the schema in hand · distractor-pool construction | **G0 (Aug 4)** · Splits frozen (Aug 7) |
 | **W2** | Aug 10–16 | Chunker sweep; **`bm25s`** + MedCPT + RRF; 2M encode | Harness: manifest, seed loop, cost log · **`backends.py` adapter (½ day)** | Table 1 rows 1–3 |
 | **W3** | Aug 17–23 | Cross-encoder rerank; gate measurement + Wilson CIs | Decomposition prompt drafting on dev · **start logging prompt-iteration budget** | **G1** · Table 1 complete |
 | **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip | Vanilla RAG + post-hoc baselines, **equal-effort protocol** | First end-to-end record |
@@ -533,7 +548,9 @@ things that cannot be compressed later.**
    Specimens Only Research" + Health Data Use Agreement 1.5.0. Human-reviewed and slow; it is G3
    insurance and useless if started in September. *(this week)*
 3. **Pick the 8B AWQ generator** and benchmark 10 real queries on the A4000; write measured latency
-   into §2. **Benchmark MedCPT encode on 1,000 abstracts** to convert §3's estimates. *(Today–Aug 2)*
+   into §2. **Benchmark MedCPT encode on 1,000 abstracts** to convert §3's estimates. Scripts are
+   written and committed (`scripts/g0_*`); this is now execution only. *(Aug 3–4 — the box is not
+   available before Mon Aug 3)*
 4. **Create `src/biomedqa/`** and promote `08_6_reproducible_eval_harness.ipynb` into `harness.py` +
    `schema.py`, with `schema.py` implementing `CONTEXT.md`'s four units. *(Aug 2)*
 5. **Create `paper/skeleton.md`** — nine sections, the cut claim ledger, **five** empty tables with
