@@ -303,12 +303,34 @@ plausible-but-wrong passages are available to cite.
 
 | Corpus | Encode (A4000, MedCPT fp16) | Embeddings fp16 | BM25 index | Peak disk |
 |---|---|---|---|---|
-| 1M | ~1 h | 1.5 GB | 1.2 GB | ~6 GB |
-| **2M (chosen)** | **~2 h** | 3 GB | 2.5 GB | ~12 GB |
-| 23.9M (full MedRAG) | ~16–24 h | 37 GB | 20–30 GB | ~300 GB — deferred to 2027 |
+| 1M | **49 min** | 1.4 GB | 1.2 GB | ~6 GB |
+| **2M (chosen)** | **1.6 h** | 2.9 GB | 2.5 GB | ~12 GB |
+| 23.9M (full MedRAG) | **19.3 h** | 34.2 GB | 20–30 GB | ~300 GB — deferred to 2027 |
 
-**Estimates, not measurements** — G0 converts them (§2). **`rank_bm25` is borderline at 2M: swap for
-`bm25s`** (Java 21 is present if Pyserini is preferred).
+**Measured at G0, 2026-08-04** — these are no longer estimates. MedCPT-Article-Encoder, fp16,
+`max_length=512`, over 1,000 `pqa_labeled` abstracts on the A4000 under WSL2:
+
+| batch | throughput | peak VRAM |
+|---|---|---|
+| 16 | 278.7 abstracts/s | 0.36 GB |
+| 32 | 342.4 abstracts/s | 0.51 GB |
+| **64 (best)** | **343.6 abstracts/s** | **0.80 GB** |
+
+Throughput saturates by batch 32; 64 buys nothing but costs no VRAM either. **Peak VRAM is 0.80 GB**,
+an order of magnitude below the budget in §2 — encode is not a memory-constrained job on this card.
+
+**R1 is discharged. The 2M encode lands at 1.6 h, comfortably inside R1's ~4 h trigger, so the 1M
+fallback is not needed and ADR-0003's 2M corpus proceeds as written.**
+
+> **What this measurement does not cover, and why it still matters.** The probe encodes
+> `pqa_labeled` abstracts, which may tokenise shorter than a real 2M PubMed dump — longer abstracts
+> encode proportionally slower. The extrapolation also assumes no I/O stall, which a 2M streaming
+> read will not fully honour. **Budget the W2 encode as a checkpoint/resume job regardless**; the
+> headroom (1.6 h against a 4 h trigger) is wide enough to absorb a 2× miss on both counts, which is
+> the actual reason R1 can be closed rather than merely deferred.
+
+**`rank_bm25` is borderline at 2M: swapped for `bm25s`** (Java 21 is present if Pyserini is
+preferred).
 
 ### Splits
 
@@ -550,7 +572,7 @@ restructuring if discovered late.
 
 | # | Risk | Trigger | Response |
 |---|---|---|---|
-| R1 | **Corpus / index build** — the 2M encode or `bm25s` index doesn't land | W2 encode exceeds ~4 h, or index build fails at 2M | Fall back to 1M distractors (~1 h encode) — still enough to make citation precision discriminate. **Never** fall back to the 1,000 gold contexts (ADR-0003) |
+| R1 | **Corpus / index build** — the 2M encode or `bm25s` index doesn't land | W2 encode exceeds ~4 h, or index build fails at 2M | **Encode half discharged at G0 (2026-08-04): measured 1.6 h for 2M, 343.6 abstracts/s.** The 1M fallback is not needed. *The `bm25s` half is still live* — no 2M index build has been attempted, so index failure remains the open leg of R1. **Never** fall back to the 1,000 gold contexts (ADR-0003) |
 | R2 | Retrieval gate stalls | G1 missed Aug 23 | Escalation ladder in Phase 1; ultimately relax to hit@10 and reframe as conditional attribution — **never** by tuning τ |
 | R3 | **Gold annotation slips** (highest-probability October surprise) | Not launched by Sep 13 | Cut gold set to 150 claims; **fall back to ADR-0006's protocol**: LLM-assisted pre-label (**not Opus 5** — it would contaminate the gold against the judge) + full human adjudication + blind self-agreement re-annotation ≥2 weeks apart → **intra-annotator** α. Report reduced *n* and wider CIs |
 | **R3b** | **Annotators never materialize** | Ask not accepted by ~Aug 20 | Same fallback as R3. **The ask goes out in W0 precisely to make this detectable in August, not September** |
