@@ -23,7 +23,7 @@ import json
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
-CONFIG_VERSION = "1.0.0"
+CONFIG_VERSION = "1.1.0"   # 1.1.0 adds ScoringConfig (ADR-0010). SCHEMA_VERSION is unaffected.
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +82,27 @@ class VerifierConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class ScoringConfig:
+    """Rules applied *after* a run, recorded so a number always states which rule produced it.
+
+    Nothing here changes what is written to `records.jsonl` — that is the whole point. A revised
+    rule re-*scores* existing records rather than forcing a re-*run*, which only works while the
+    rule lives in config and `scoring/` rather than in the schema (ADR-0010).
+    """
+
+    abstention_rule_version: str = "1.0.0"   # `scoring.abstention.ABSTENTION_RULE_VERSION`
+    # Citation-F1 is reported on both denominators, always — abstention-excluded as primary and
+    # abstention-included alongside it. No threshold gates the pair (ADR-0010): both are pure
+    # recomputations over identical records, so there is nothing to tune and nothing to defend.
+    report_both_abstention_denominators: bool = True
+    # Every interval clusters on the question, never the claim (ADR-0011). Claims within a question
+    # share passages, answer and topic; resampling them as independent units returns CIs that are
+    # too narrow. Flipping this to False exists only to reproduce the pre-ADR-0011 width in the W4
+    # dry-run — it is not a legitimate setting for any reported number.
+    bootstrap_cluster_on: str = "question"
+
+
+@dataclass(frozen=True, slots=True)
 class RunConfig:
     """The whole knob surface for one run."""
 
@@ -90,6 +111,7 @@ class RunConfig:
     retrieval: RetrievalConfig = field(default_factory=RetrievalConfig)
     generation: GenerationConfig = field(default_factory=GenerationConfig)
     verifier: VerifierConfig = field(default_factory=VerifierConfig)
+    scoring: ScoringConfig = field(default_factory=ScoringConfig)
     split: str = "dev"                       # "dev" | "test" — test runs late, once per seed
     config_version: str = CONFIG_VERSION
 
