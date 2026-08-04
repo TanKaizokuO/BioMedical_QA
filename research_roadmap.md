@@ -332,13 +332,41 @@ fallback is not needed and ADR-0003's 2M corpus proceeds as written.**
 **`rank_bm25` is borderline at 2M: swapped for `bm25s`** (Java 21 is present if Pyserini is
 preferred).
 
+### Distractor selection — **uniform random, seeded** (ADR-0012)
+
+ADR-0003 fixed the corpus *size* but never its **source or selection policy**, and the two gates pull
+the same knob in opposite directions: G1 (hit@5 ≥ 0.90) wants easy distractors, G2 (citation
+precision must discriminate) wants hard ones.
+
+- **Uniform random 2M from `MedRAG/pubmed`, seeded**, with the ID list committed and hashed into
+  `RunConfig.index_fingerprint()`. Uniform is unarguable to a reviewer; hand-picked hard negatives
+  look like a corpus engineered around the gold set.
+- **Deduplicate the gold contexts against the sample on PMID — W2 blocker, before the encode.**
+  PubMedQA contexts *are* PubMed abstracts, so `MedRAG/pubmed` very likely already contains them; a
+  naive union yields the same abstract under two `passage_id`s and **`gold_rank`/hit@5 silently
+  miscount**. This is the shape of the bug ADR-0007 exists to remember.
+- **W2–W3 confusability probe.** For ~100 dev questions: RRF-fused top-5 (no reranker until W3 —
+  re-confirm after), drop the gold, and score the question's **gold claims** against the **non-gold**
+  passages with the entailment model. Near-zero entailment means there is nothing plausible to
+  mis-cite and citation precision cannot discriminate. **No threshold is pre-committed** — the first
+  distribution is the first information anyone has about this quantity. Pulls MiniCheck forward from
+  Phase 3 (~½ day). If the pool is too easy: sample more densely **within the gold questions' own
+  MeSH terms — uniformly, seeded, declared** — never hand-picked.
+
+> **Why this probe and not a topic judge.** A judge asked *"is anything in the top-5 on the same
+> clinical topic?"* over a 2M biomedical corpus answers yes almost always, so a pre-committed
+> threshold against it buys false comfort. A distractor damages citation precision only if it
+> **plausibly entails a claim it should not** — that is what gets measured. It is also the **only
+> remaining monitor** on ADR-0003's failure mode, since ADR-0009 §6 declined an early citation-F1
+> read.
+
 ### Splits
 
 | Split | Contents | Purpose | Frozen by |
 |---|---|---|---|
 | **dev** | 100 PubMedQA `pqa_labeled` questions | All development, prompt iteration, threshold tuning | Aug 7 |
 | **test** | ~400–500 `pqa_labeled` questions, disjoint from dev | **Every number in the paper.** Run late, run once per system per seed. | Aug 7 |
-| **gold-attribution** | 60–100 dev+test answers, ~250–400 claims; **~75-claim overlap subset** triple-labeled | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
+| **gold-attribution** | **~4 claims × ~62 questions** ≈ 250 claims (ADR-0011); **~75-claim overlap subset across ~19 questions** triple-labeled | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
 | ~~transfer~~ | ~~BioASQ-Y/N~~ | **Cut with C8** (§1) | — |
 
 Record split membership by question ID in a checked-in JSON with a hash in every run manifest. **If G0
@@ -402,6 +430,33 @@ while the reranker is still being tuned.
    and prompt token budget (within ~10%) · **matched prompt-iteration budget, counted and reported**
    ("joint: 14 revisions; post-hoc: 14 revisions"). **Log the iteration count from W3 onward** — it
    cannot be reconstructed later.
+8. **Granularity parity — a measured diagnostic, reported *separately from* the four conditions
+   (ADR-0009).** Joint emits claims natively; post-hoc goes through `decompose.py`. Coarser post-hoc
+   claims are systematically harder to entail, so C2's gap could appear **without joint grounding
+   doing any work** — a bias pointing toward the hypothesis.
+   - It is **not** a fifth condition. The four above hold *by construction*; parity is an **outcome**
+     of prompt tuning. Listing it alongside them invites a reader to assume it holds and turns a
+     near-miss into a disclosed failure of our own protocol.
+   - Measured on **median words/claim** (± **15%**, dev only, pre-committed now and never revised
+     afterwards); **claims/query is reported, not gated**.
+   - **Only the post-hoc decomposer is tuned.** The joint prompt is out of bounds for the loop.
+   - **Exactly 10 iterations, or Aug 30, whichever comes first** — hard, parity achieved or not.
+   - **Fully blind: citation-F1 is not computed until the loop terminates.** First F1 ≈ **Aug 31**,
+     six days before G2 — **R5's response is decided in advance, not improvised.**
+   - Residual gap **favouring C2** → the **stratified robustness check (W9) becomes mandatory**;
+     running against C2 → note and proceed. The asymmetry is **pre-registered in the paper's
+     methods**, not only in the ADR.
+   - Parity tuning is a **third disclosed ledger line, charged to neither system** — sound because
+     the tuning is confined to the baseline, making reported baseline effort an *undercount*.
+9. **Decomposer / granularity freeze: Sep 3** — a named dated artifact, three days before G2,
+   protecting the gold set that launches Sep 7 (ADR-0005: changing granularity after W6 orphans it).
+   Annotation guidelines are written in two passes: **unit-independent rules from Aug 31**
+   (no-outside-knowledge, the SUPPORTED/PARTIAL boundary, hedging, numerics, jointly-necessary
+   citations); **worked examples Sep 3–6**, built from frozen decomposer output.
+10. **Abstention (ADR-0010, issue #9).** Abstention is **derived in `scoring/`, never stored** — no
+    schema field, `SCHEMA_VERSION` stays 1.0.0. Abstention claims leave the **citation-recall
+    denominator only** (precision is unaffected by construction). `abstention_rate` is a Table 2
+    column, and **citation-F1 is reported on both denominators, always** — no threshold.
 
 > **Gate G2 (by Sep 6): on dev, joint attribution beats post-hoc citation on citation-F1 by a margin
 > exceeding the paired-bootstrap CI, and ≥95% of emitted claims parse into the schema with resolvable
@@ -435,7 +490,9 @@ edge and it cannot be reconstructed after the fact.
    → appendix, §1).
 6. **AlignScore (~355M) as a second row in Table 3** — one extra inference pass, no new infra
    (~½ day). Gives C4 a comparison instead of a single point, and Fig. 3 a second cheap Pareto point.
-   **First thing to cut if W6 is tight.**
+   ~~First thing to cut if W6 is tight.~~ **Never cut** — since `315f77b` dropped the MedNLI
+   fine-tune, AlignScore is the **middle rung of R7's only remaining ladder**, and the cut would be
+   forced in W6, a week before G3 (Sep 20) says whether it is needed. See §8 rule 8.
 7. Biomedical degradation check: measure it and report it — a contribution, not an embarrassment.
 8. **Overhead measurement (C5, Table 4).** Tokens and \$ **primary**; wall-clock **secondary** —
    median of ≥5 clean runs on the exclusive A4000, spread shown, GPU otherwise idle, batch policy
@@ -467,8 +524,20 @@ supported because they are *true*, which biases exactly the number C4 depends on
 | Annotator 2 | overlap only (~75) | **~3 h** |
 | Annotator 3 | overlap only (~75) | **~3 h** |
 
+- **Sampling: ~4 claims per question across ~62 questions** (ADR-0011), **not** every claim of ~27
+  questions. At 9.2 claims/query a 250-claim budget otherwise covers only ~27 questions, and claims
+  within a question are correlated — they share the question, passages, answer and topic. The
+  250-claim budget is unchanged; question diversity rises ~2.3×. The overlap subset is sampled the
+  same way → **~75 claims across ~19 questions** instead of ~8, which is what makes a clustered
+  bootstrap (§8 rule 10) mean anything.
+  > ⚠ **Open:** ADR-0006's **~3 h** ask was derived for ~75 claims, **not** re-derived for 19
+  > questions' worth of reading rather than 8. Per-question context-switching is real load.
+  > **Re-derive before the two annotators confirm** (issue #7) — revising the ask upward after
+  > someone accepts is the worst available outcome.
 - **The annotation unit is the (claim, cited span) pair** — 75 overlap claims ≈ 150–225 pair
   judgements plus 75 union judgements. This is why the ask is ~3 h, not ~1–2 h.
+- **Guidelines must say what to do with a sampled abstention claim** — at ~4 claims/question one can
+  be drawn (ADR-0010).
 - Labels are **4-way** (`SUPPORTED`/`PARTIAL`/`NOT_SUPPORTED`/`CONTRADICTED`) plus `claim_validity`.
   See [`CONTEXT.md`](CONTEXT.md). **Never collapse at write time** — an annotator cannot be re-run.
 - Report **Krippendorff's α with a bootstrap CI** (on ~75 units it is not a point estimate), the
@@ -480,12 +549,22 @@ supported because they are *true*, which biases exactly the number C4 depends on
 - Annotation UI: a static HTML form writing JSONL is sufficient — the `teach/assets` machinery is a
   fine starting point. Do not build a tool.
 
-> **Gate G4 (by Sep 27): ≥250 claims labeled, α ≥ 0.6 on the overlap subset — computed on the
-> binary collapse** (SUPPORTED+PARTIAL vs NOT_SUPPORTED+CONTRADICTED), the quantity C4 consumes.
-> The 4-way ordinal α is reported as a secondary number.
+> **Gate G4 (by Sep 27): ≥250 claims labeled, and the *point* estimate α ≥ 0.6 on the overlap
+> subset — computed on the binary collapse** (SUPPORTED+PARTIAL vs NOT_SUPPORTED+CONTRADICTED), the
+> quantity C4 consumes. The 4-way ordinal α is reported as a secondary number.
+> **The clustered bootstrap CI is always reported, with its cluster count (~19) stated**, and is
+> never used to soften the point.
 > *If α < 0.6:* the guidelines are ambiguous, not the annotators. Revise guidelines, re-annotate the
 > overlap. Report the final α whatever it is — a low α honestly reported with the ceiling stated is
-> publishable; a hidden one is not.
+> publishable; a hidden one is not. **This is the sole re-pilot trigger** (ADR-0011 dropped a second,
+> CI-based one); it lands in **W9**.
+
+> **Why G4 gates on the point while G1 gates on point *and* Wilson lower bound.** Stated here so the
+> asymmetry reads as a reason rather than a convenience. G1's gate is a **proportion over 100
+> independent dev questions**, which supports a Wilson bound. G4's is **Krippendorff's α over ~19
+> question-clusters** (§8 rule 10), where the bootstrap interval is wide enough that gating on it
+> would make the gate a coin flip rather than a standard. We gate on the point and report the
+> interval with its cluster count, so a reader can see exactly why it is wide.
 
 ### Phase 5 — Full runs, baselines, ablations (Weeks 8–10, Sep 21 – Oct 11) → **all tables**
 
@@ -533,14 +612,14 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 |---|---|---|---|---|
 | **W0** | Jul 30 – Aug 2 | `src/biomedqa/` skeleton + `schema.py`; `paper/skeleton.md` — **all CPU-only; the A4000 is not available until Aug 3** | **Send the annotator ask**; **start MedNLI/PhysioNet application**; file the G0–G5 issues | (G0 moved → Aug 4) |
 | **W1** | Aug 3–9 | `config.py`, data load, split freeze · **Mon–Tue: A4000 preflight, generator bake-off, MedCPT throughput** | Read/re-skim ALCE + MiniCheck with the schema in hand · distractor-pool construction | **G0 (Aug 4)** · Splits frozen (Aug 7) |
-| **W2** | Aug 10–16 | Chunker sweep; **`bm25s`** + MedCPT + RRF; 2M encode | Harness: manifest, seed loop, cost log · **`backends.py` adapter (½ day)** | Table 1 rows 1–3 |
-| **W3** | Aug 17–23 | Cross-encoder rerank; gate measurement + Wilson CIs | Decomposition prompt drafting on dev · **start logging prompt-iteration budget** | **G1** · Table 1 complete |
-| **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip | Vanilla RAG + post-hoc baselines, **equal-effort protocol** | First end-to-end record |
-| **W5** | Aug 31 – Sep 6 | Decontextualization; granularity knob; citation P/R scorers (strict + lenient) | Verifier wiring begins; **cost instrumentation**; **annotation guidelines drafted**; MedNLI source confirmed | **G2** |
+| **W2** | Aug 10–16 | **PMID dedup (blocks the encode)**; chunker sweep; **`bm25s`** + MedCPT + RRF; 2M encode | Harness: manifest, seed loop, cost log · **`backends.py` adapter (½ day)** · **confusability probe — pulls MiniCheck forward, ~½ day** | Table 1 rows 1–3 |
+| **W3** | Aug 17–23 | Cross-encoder rerank; gate measurement + Wilson CIs | Decomposition prompt drafting on dev · **start logging prompt-iteration budget** · **re-confirm the probe post-rerank** | **G1** · Table 1 complete |
+| **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip · **granularity-parity loop, blind — hard stop at 10 iterations or Aug 30** | Vanilla RAG + post-hoc baselines, **equal-effort protocol** · **clustered-vs-unclustered CI dry-run** | First end-to-end record · **parity frozen** |
+| **W5** | Aug 31 – Sep 6 | Decontextualization; granularity knob; citation P/R scorers (strict + lenient) · **first citation-F1 ever computed (≈ Aug 31)** | Verifier wiring; **cost instrumentation**; **guidelines pass 1 from Aug 31, worked examples Sep 3–6** · ~~MedNLI source~~ | **G2** · **decomposer freeze Sep 3** |
 | **W6** | Sep 7–13 | MiniCheck + Opus 5 judge, identical APIs; AlignScore row | **Annotation pilot (10 claims, 3 annotators)** — tests the *guidelines* | Gold set launched |
 | **W7** | Sep 14–20 | Threshold sweep, AUROC, ECE; **overhead measurement (clean, GPU idle, ≥5 runs)** | Annotation in progress | **G3** · Table 4 draft |
 | **W8** | Sep 21–27 | **Code freeze + tag. Decide the frozen-run backend.** Test runs begin, seed 1 | Annotation completes | **G4** |
-| **W9** | Sep 28 – Oct 4 | Seeds 2–3, all systems; ablations; **swap check** | *Slack — absorbs Phase 3–5 slippage (BioASQ cut)* | Raw results |
+| **W9** | Sep 28 – Oct 4 | Seeds 2–3, all systems; ablations; **swap check** | ⚠ **Triple-booked:** stratified robustness check (ADR-0009, *likely* to trigger) · a G4 re-pilot if α < 0.6 · *and* its original role absorbing Phase 3–5 slippage | Raw results |
 | **W10** | Oct 5–11 | Significance tests, CIs; stratified error analysis (Table 5) | **Write Method + Setup** | **G5** · Tables 1–5 final |
 | **W11** | Oct 12–18 | Figures 1–3 | **Write Results + Analysis** | Results section |
 | **W12** | Oct 19–25 | Repo cleanup, reproducibility appendix, run-manifest export | **Write Related Work, Limitations, Ethics** | Full draft |
@@ -548,6 +627,11 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 | **W14** | Nov 2–8 | **Buffer.** Submit. | — | **Submitted** |
 
 W14 is real buffer, not a second W13. Something in Phases 3–5 will slip; this is where it lands.
+
+> ⚠ **W9 is over-committed and it is the only slack in the schedule.** It now carries three claims:
+> ADR-0009's stratified robustness check (whose triggering branch is the *likely* one, since joint
+> emits finer claims natively), a possible G4 re-pilot, and Phase 3–5 slippage. **Unresolved.** The
+> cut order (§8 rule 8) is the lever, and parity-loop iterations are the designated first cut.
 
 ---
 
@@ -572,14 +656,14 @@ restructuring if discovered late.
 
 | # | Risk | Trigger | Response |
 |---|---|---|---|
-| R1 | **Corpus / index build** — the 2M encode or `bm25s` index doesn't land | W2 encode exceeds ~4 h, or index build fails at 2M | **Encode half discharged at G0 (2026-08-04): measured 1.6 h for 2M, 343.6 abstracts/s.** The 1M fallback is not needed. *The `bm25s` half is still live* — no 2M index build has been attempted, so index failure remains the open leg of R1. **Never** fall back to the 1,000 gold contexts (ADR-0003) |
+| R1 | **Corpus / index build** — the 2M encode or `bm25s` index doesn't land | W2 encode exceeds ~4 h, or index build fails at 2M | **Encode half discharged at G0 (2026-08-04): measured 1.6 h for 2M, 343.6 abstracts/s.** The 1M fallback is not needed. *The `bm25s` half is still live* — no 2M index build has been attempted, so index failure remains the open leg of R1. **New in W2: PMID dedup must precede the encode** (ADR-0012) — a gold abstract present twice under two `passage_id`s makes `gold_rank`/hit@5 miscount silently, and the encode would have to be redone. **Never** fall back to the 1,000 gold contexts (ADR-0003) |
 | R2 | Retrieval gate stalls | G1 missed Aug 23 | Escalation ladder in Phase 1; ultimately relax to hit@10 and reframe as conditional attribution — **never** by tuning τ |
 | R3 | **Gold annotation slips** (highest-probability October surprise) | Not launched by Sep 13 | Cut gold set to 150 claims; **fall back to ADR-0006's protocol**: LLM-assisted pre-label (**not Opus 5** — it would contaminate the gold against the judge) + full human adjudication + blind self-agreement re-annotation ≥2 weeks apart → **intra-annotator** α. Report reduced *n* and wider CIs |
 | **R3b** | **Annotators never materialize** | Ask not accepted by ~Aug 20 | Same fallback as R3. **The ask goes out in W0 precisely to make this detectable in August, not September** |
 | R4 | Verifier too heavy → the cost modifier dies | Cost ratio < 10× at G3 | The headline is already attribution quality (ADR-0002), so this costs the subtitle, not the paper. Decide **by Sep 20** |
-| R5 | Joint ≈ post-hoc (null on C2) | G2 margin inside the CI | Check baseline fairness first (§4 Phase 2 — but note the equal-effort protocol makes an *artifactual* gap less likely, not more). If genuine, reposition around **C3 + C9** and publish C2 as a negative finding |
+| R5 | Joint ≈ post-hoc (null on C2) | G2 margin inside the CI | Check baseline fairness first (§4 Phase 2 — but note the equal-effort protocol makes an *artifactual* gap less likely, not more). If genuine, reposition around **C3 + C9** and publish C2 as a negative finding. **The response is decided before Aug 31, not on the day:** ADR-0009's blind parity loop means the first citation-F1 lands ≈ Aug 31 and G2 is Sep 6 — a **six-day window** with no earlier warning, since the burn-slice unblinding was declined. Clustering (§8 rule 10) also **widens** G2's margin, at an unchanged threshold |
 | R6 | Crowded lane — a 2026 paper lands on this exact combination | Any time | Re-run the literature check **Sep 1** and **Oct 15**; differentiate on the biomedical + generation-time + cheap axis, and cite explicitly |
-| R7 | Verifier degrades on biomedical text | Phase 3 measurement | **Expected, not exceptional** — MiniCheck is ANLI/synthetic-trained. Report the degradation, then mitigate. **The MedNLI fine-tune is off the table for this paper: the PhysioNet application was deliberately not started (decided 2026-08-04), and credentialing is slower than the remaining schedule.** The ladder is now **calibration/threshold → AlignScore (a W6 deliverable) → cheap-signal ensemble**, and it ends there. If all three leave AUROC < 0.75, G3 fails with no fourth option and C3 is reported as a negative result — which ADR-0002 already permits, since the headline is attribution quality and C3 is the modifier |
+| R7 | Verifier degrades on biomedical text | Phase 3 measurement | **Expected, not exceptional** — MiniCheck is ANLI/synthetic-trained. Report the degradation, then mitigate. **The MedNLI fine-tune is off the table for this paper: the PhysioNet application was deliberately not started (decided 2026-08-04), and credentialing is slower than the remaining schedule.** The ladder is now **calibration/threshold → AlignScore (a W6 deliverable) → cheap-signal ensemble**, and it ends there. **Because it ends there, AlignScore left the cut order and is now never-cut (§8 rule 8)** — it was simultaneously the ladder's middle rung and the first thing dropped when behind, and the cut fires in W6, a week before G3. If all three leave AUROC < 0.75, G3 fails with no fourth option and C3 is reported as a negative result — which ADR-0002 already permits, since the headline is attribution quality and C3 is the modifier |
 | R8 | Writing compressed into the last week | W10 Method not drafted | Method/Setup are written in W10 *by design*, while runs execute — protect that |
 | R9 | Scope creep (graph RAG, iterative retrieval, agents…) | Any new component after Sep 6 | **Hard freeze after G2.** New ideas go in a `future_work.md`, not the pipeline |
 | **R10** | **Decomposition quality confounds the headline** | Malformed/over-split claims move C2 and C3 for non-method reasons | The `claim_validity` flag (ADR-0005) makes it measurable: report the decomposition-error rate and, if needed, headline numbers over well-formed claims only |
@@ -599,11 +683,27 @@ restructuring if discovered late.
 6. **Cost is a first-class metric.** Logged per call, per run, always. **Tokens and \$ are primary.**
 7. **Baselines get equal effort, and the effort is logged.** Prompt-iteration counts are a reported
    number, not a good intention (§4 Phase 2).
-8. **Cut order when behind:** ~~BioASQ (C8)~~ *(already cut)* → AlignScore second row → seeds 3→2 on
-   ablations only → test set 500→300. **Never cut:** the gold set, the CIs, or the overhead
-   measurement.
+8. **Cut order when behind:** ~~BioASQ (C8)~~ *(already cut)* → ~~AlignScore second row~~
+   *(promoted to never-cut, below)* → seeds 3→2 on ablations only → test set 500→300 → iterations of
+   the granularity-parity loop (ADR-0009 §5's one-sided fallback already absorbs a miss).
+   **Never cut:** the gold set · the CIs · the overhead measurement · **AlignScore** · **ADR-0012's
+   confusability probe**.
+   > **Why AlignScore moved.** `315f77b` dropped the MedNLI fine-tune, leaving R7's ladder at three
+   > rungs — calibration/threshold → **AlignScore** → cheap-signal ensemble — with no fourth option.
+   > AlignScore was simultaneously the ladder's middle rung and the first thing cut when behind, and
+   > those conditions are positively correlated. Worse, the cut is triggered in **W6 (Sep 7–13)**
+   > while G3 is **Sep 20**, so it would be cut a week before you learn whether you need it, with no
+   > room to rebuild inside G3 → freeze (Sep 20–27). It costs ~½ day and one inference pass; as
+   > insurance against G3 failing with no options, it is the cheapest thing on this list.
 9. **`CONTEXT.md` is authoritative on the four units.** If code, guidelines, and prose disagree about
    what a claim is, `CONTEXT.md` wins and the others get fixed.
+10. **Every bootstrap cluster-resamples questions, never claims** (ADR-0011). Claims within a
+    question share passages, answer and topic; resampling them as independent units returns CIs that
+    are too narrow. This applies to **every** interval in the paper — G2's margin, G4's α, and every
+    CI in Tables 2–5 — and **every table caption naming a CI must name its resampling unit.**
+    Pairing is not clustering: pairing compares two systems on the same question, clustering makes
+    the question the resampling unit. **This widens intervals, including G2's, and the gate
+    thresholds are unchanged.**
 
 ---
 

@@ -56,6 +56,24 @@ malformed claim moves C2 and C3 for reasons unrelated to joint grounding. This f
 hidden confound into a **reportable decomposition-error rate**, and permits headline numbers to be
 computed over well-formed claims only.
 
+#### A claim that declines to answer is still `valid`
+
+You will occasionally meet a claim like *"The question of whether prophylaxis helps all patients is
+not addressed by the provided passages."* It carries **no citation**, because there is nothing for it
+to cite.
+
+**Mark it `valid`.** It is well-formed and self-contained — it just reports an absence instead of
+asserting a fact. It is a *correct* thing for a system to say, and marking it invalid would
+misattribute it to a decomposition failure.
+
+Note the difference from an ordinary negative claim. *"Metformin does not reduce mortality"* is a
+substantive assertion about the world and is labelled for support in the normal way; *"the passages
+do not mention mortality"* is a statement about the passages themselves. Only the second is a
+declining-to-answer claim.
+
+*(Scoring keeps these separate automatically and leaves them out of the citation-recall count —
+ADR-0010. Nothing about that changes what you do here.)*
+
 ---
 
 ### Citation
