@@ -579,7 +579,7 @@ restructuring if discovered late.
 | R4 | Verifier too heavy → the cost modifier dies | Cost ratio < 10× at G3 | The headline is already attribution quality (ADR-0002), so this costs the subtitle, not the paper. Decide **by Sep 20** |
 | R5 | Joint ≈ post-hoc (null on C2) | G2 margin inside the CI | Check baseline fairness first (§4 Phase 2 — but note the equal-effort protocol makes an *artifactual* gap less likely, not more). If genuine, reposition around **C3 + C9** and publish C2 as a negative finding |
 | R6 | Crowded lane — a 2026 paper lands on this exact combination | Any time | Re-run the literature check **Sep 1** and **Oct 15**; differentiate on the biomedical + generation-time + cheap axis, and cite explicitly |
-| R7 | Verifier degrades on biomedical text | Phase 3 measurement | **Expected, not exceptional** — MiniCheck is ANLI/synthetic-trained. Report the degradation, then mitigate (MedNLI fine-tune — **access applied for in W0**, since PhysioNet credentialing is human-reviewed and slow) |
+| R7 | Verifier degrades on biomedical text | Phase 3 measurement | **Expected, not exceptional** — MiniCheck is ANLI/synthetic-trained. Report the degradation, then mitigate. **The MedNLI fine-tune is off the table for this paper: the PhysioNet application was deliberately not started (decided 2026-08-04), and credentialing is slower than the remaining schedule.** The ladder is now **calibration/threshold → AlignScore (a W6 deliverable) → cheap-signal ensemble**, and it ends there. If all three leave AUROC < 0.75, G3 fails with no fourth option and C3 is reported as a negative result — which ADR-0002 already permits, since the headline is attribution quality and C3 is the modifier |
 | R8 | Writing compressed into the last week | W10 Method not drafted | Method/Setup are written in W10 *by design*, while runs execute — protect that |
 | R9 | Scope creep (graph RAG, iterative retrieval, agents…) | Any new component after Sep 6 | **Hard freeze after G2.** New ideas go in a `future_work.md`, not the pipeline |
 | **R10** | **Decomposition quality confounds the headline** | Malformed/over-split claims move C2 and C3 for non-method reasons | The `claim_validity` flag (ADR-0005) makes it measurable: report the decomposition-error rate and, if needed, headline numbers over well-formed claims only |
@@ -614,9 +614,12 @@ things that cannot be compressed later.**
 
 1. **⏰ Send the annotator ask** — two literate **non-experts**, ~3 h each, early September. Not a
    biomedical qualification. *(by ~Aug 6 — W6 pilot is Sep 7; this is the longest lead item)*
-2. **⏰ Start the MedNLI / PhysioNet application** — PhysioNet credentialing + CITI "Data or
-   Specimens Only Research" + Health Data Use Agreement 1.5.0. Human-reviewed and slow; it is G3
-   insurance and useless if started in September. *(this week)*
+2. ~~**Start the MedNLI / PhysioNet application**~~ — **DROPPED 2026-08-04, deliberately.** The
+   credentialing path (PhysioNet + CITI "Data or Specimens Only Research" + HDUA 1.5.0) is
+   human-reviewed and slower than the schedule that remains, and the fine-tune it enables never fit
+   its own window (G3 Sep 20 → freeze Sep 27, a week already holding code freeze, seed-1 test runs,
+   and annotation completion). Dropped with the consequence understood and accepted: **G3 has no
+   fourth fallback.** See R7. *Do not restart this in September — by then it buys nothing.*
 3. **Pick the 8B AWQ generator** and benchmark 10 real queries on the A4000; write measured latency
    into §2. **Benchmark MedCPT encode on 1,000 abstracts** to convert §3's estimates. Scripts are
    written and committed (`scripts/g0_*`); this is now execution only. *(Aug 3–4 — the box is not
