@@ -159,8 +159,56 @@ removes it.
 Total ~\$28 typical, ceiling ~\$125–185. Cost was *not* the deciding axis — all options were
 affordable; iteration friction and the seed plan were.
 
-> **Still open — decide by Aug 4:** *which* 8B AWQ model. Candidates should be judged on
-> citation-format compliance, not general benchmark scores.
+> **Candidates fixed 2026-08-04** (the winner is decided by the bake-off, not by this line):
+> **A — `Qwen/Qwen2.5-7B-Instruct-AWQ`** · **B — `hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4`**.
+>
+> A is **7B, not 8B** — a deliberate choice, not drift. ADR-0004's binding constraint is the ~6 GB
+> VRAM budget that leaves MiniCheck-770M and the cross-encoder co-resident, which a 7B AWQ meets.
+> B is from a **different model family on purpose**: two Qwen checkpoints would not separate
+> "this model follows the `[n]` format" from "this prompt elicits the format," and that confound is
+> exactly what the W8 backend decision and the swap check later depend on being ruled out.
+>
+> Ranked on **citation-format compliance**, not benchmark scores. Latency breaks ties only.
+
+#### G0 bake-off result — **DECIDED 2026-08-04: candidate B.**
+
+**Generator: `hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4`.**
+Measured on 10 real `pqa_labeled` questions (seed 20260731), vLLM 0.26.0 under WSL2 on the A4000,
+`--max-model-len 8192 --gpu-memory-utilization 0.85 VLLM_USE_V2_MODEL_RUNNER=0` (ADR-0008).
+
+| | A — Qwen2.5-7B-Instruct-AWQ | **B — Llama-3.1-8B-Instruct-AWQ-INT4** |
+|---|---|---|
+| median latency | 1.64 s (0.78–2.84) | **3.42 s (1.57–4.67)** |
+| throughput | 72.8 tok/s | 72.5 tok/s |
+| claims / query | 3.8 | **9.2** |
+| uncited claims | 1 of 38 | **1 of 92** |
+| over-cap · out-of-range · malformed | 0 · 0 · 0 | 0 · 0 · 0 |
+
+**The compliance column did not decide this, and should not be quoted as if it had.** Both models
+produced *exactly one* uncited claim, both on the same query (`pubid 10781708`), and in both cases
+the "violation" was a **correct abstention** — a statement that the passages do not answer the
+question, which by construction has nothing to cite. The 0.991 vs 0.983 spread is `1/92` vs `1/38`,
+a denominator artifact. See the scorer bug below.
+
+**B was chosen on attribution-unit conformance (ADR-0005).** At 3.8 claims/query, A emits compound,
+context-dependent claims — e.g. *"Among the patients with cancer, the incidence was 2.7%, compared
+to 0.3% in the non-cancer group"* is two facts in one and does not stand alone. B splits exactly
+that into two atomic, decontextualized claims. A also breaks format, appending prose outside the
+claim list. **Under-atomization is unrecoverable** — two claims cannot be recovered from one after
+the fact, and every ALCE precision/recall denominator is defined over that unit. B's opposite
+failure, over-atomizing (splitting `RR = 10.0` from its `95% CI`), is prompt-tunable.
+
+**Latency did not bind.** Projecting W5 at 500 questions × 3 systems × 3 seeds: ~4.3 h for B vs
+~2.1 h for A, both trivial on an exclusive GPU. Against the retired pipeline's 88 s/query, B is
+~26× faster. **D1's 88 s/query risk is now retired with a measurement, not an argument.**
+
+*Honest limit:* n = 10. The granularity difference is qualitative and consistent across all ten
+questions, so it is actionable. The compliance figures are **not** separable at this n and no claim
+rests on them.
+
+> **Scorer bug found by this run — fix before G2.** `score_compliance` counts an abstention as an
+> uncited claim. Left unfixed, Table 2 will penalise a system for correctly declining to answer and
+> reward one that confabulates a citation — inverting the property this paper exists to measure.
 
 **Gate G0 (by Aug 4 — re-dated 2026-07-31):** the 8B generator is chosen, benchmarked on 10 real
 queries on the A4000, and the measured per-call latency written into this file. Also benchmark
