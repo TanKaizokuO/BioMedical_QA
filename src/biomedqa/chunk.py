@@ -9,6 +9,11 @@ Design constraints that are already settled, so that implementing this is not a 
 - **Every emitted chunk carries its char offsets** into `Instance.abstract_text`. Citations are
   `{passage_id, char_start, char_end}` (`CONTEXT.md`); a chunker that loses offsets makes the
   attribution unit unrepresentable.
+- **Distractors are abstract prose with no title**, read through `corpus.passage_text` and never by
+  indexing a MedRAG field directly. Gold has no title — PubMedQA carries none — so a titled
+  distractor is a gold/distractor format difference in the space hit@5 is measured in. The gold
+  articles' *real* titles are not the repair: a PubMedQA question is its article's title verbatim
+  (measured, `corpus.py`), so titled gold turns G1 into a string match.
 - **Section labels survive.** `data.py` keeps PubMedQA's BACKGROUND/METHODS/RESULTS boundaries
   precisely so the section and sentence-window strategies can use them.
 - Promoted from `notebooks/02_1_chunking_granularity.ipynb`, which validates against a toy corpus

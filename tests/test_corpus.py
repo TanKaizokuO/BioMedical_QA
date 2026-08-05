@@ -10,6 +10,10 @@ whole reason ADR-0012 §1 made dedup a blocker rather than a cleanup:
 - `test_string_pmids_are_refused` — PubMedQA's `pubid` is int32 and `data.py` stringifies it;
   MedRAG's `PMID` is int64. A str-vs-int join matches nothing, reports "0 duplicates removed", and
   that reads as good news.
+- `test_a_contents_shaped_row_is_refused` — indexing MedRAG's `contents` instead of `content` gives
+  every distractor a title that no gold passage can have, since PubMedQA carries no title field.
+  The encode completes and hit@5 looks plausible, with a gold/distractor format difference sitting
+  in the space it is measured in.
 
 The rest pin the sample's *identity*, since `corpus_id` is a promise that a given seed reproduces a
 given ID list (`RunConfig.index_fingerprint()`).
@@ -23,11 +27,13 @@ import pytest
 
 from biomedqa.corpus import (
     GOLD_PMID_ARTIFACT_VERSION,
+    MEDRAG_TEXT_FIELD,
     MEDRAG_TOTAL_ROWS,
     PRESCAN_SIGMA,
     CorpusDraw,
     draw_corpus,
     load_gold_pmids,
+    passage_text,
     prescan_cutoff,
     selection_key,
     write_gold_pmids,
@@ -249,3 +255,47 @@ def test_the_draw_records_what_produced_it() -> None:
     assert draw.target_n == 100
     assert draw.n_scanned == 500
     assert len(draw.fingerprint) == 12
+
+
+# ---------------------------------------------------------------------------------------------
+# The third silent failure: the distractor text form.
+# ---------------------------------------------------------------------------------------------
+
+#: One real `MedRAG/pubmed` row, `chunk/pubmed23n0001.jsonl` line 1, content truncated to 180 chars
+#: and `contents` re-derived from the truncation. Real rather than invented because the whole point
+#: is what MedRAG's three text fields actually contain — a fixture could assert a convenient fiction.
+#: Verified over a full shard (15,377 rows, 15,377 distinct PMIDs, 2026-08-05):
+#: `contents == title + " " + content` in 5,000/5,000 checked, no empty titles, no empty content.
+REAL_MEDRAG_ROW = {
+    "id": "pubmed23n0001_0",
+    "title": "[Biochemical studies on camomile components/III. In vitro studies about the "
+             "antipeptic activity of (--)-alpha-bisabolol (author's transl)].",
+    "content": "(--)-alpha-Bisabolol has a primary antipeptic action depending on dosage, which is "
+               "not caused by an alteration of the pH-value. The proteolytic activity of pepsin "
+               "is reduced by 50 ",
+    "PMID": 21,
+}
+REAL_MEDRAG_ROW["contents"] = REAL_MEDRAG_ROW["title"] + " " + REAL_MEDRAG_ROW["content"]
+
+
+def test_the_indexed_field_is_title_free() -> None:
+    """Gold is title-free under every option — PubMedQA carries no title field — so `content` is
+    the only distractor form that reaches format parity with it."""
+    assert MEDRAG_TEXT_FIELD == "content"
+    text = passage_text(REAL_MEDRAG_ROW)
+    assert text == REAL_MEDRAG_ROW["content"]
+    assert REAL_MEDRAG_ROW["title"] not in text
+
+
+def test_a_contents_shaped_row_is_refused() -> None:
+    """The failure this guard exists for is silent: `contents` differs from `content` by ~9% of
+    characters at the front, the encode completes, hit@5 looks plausible, and an empty title is now
+    the one property every gold passage shares and no distractor has."""
+    row = dict(REAL_MEDRAG_ROW, content=REAL_MEDRAG_ROW["contents"])
+    with pytest.raises(ValueError, match="format signal"):
+        passage_text(row)
+
+
+def test_an_empty_abstract_is_refused() -> None:
+    with pytest.raises(ValueError, match="empty"):
+        passage_text(dict(REAL_MEDRAG_ROW, content="   "))

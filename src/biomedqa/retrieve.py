@@ -9,6 +9,13 @@ Settled decisions:
   needed; Java 21 is present.
 - **MedCPT is asymmetric**: `MedCPT-Query-Encoder` for queries, `MedCPT-Article-Encoder` for
   passages. Using one for both is a silent quality loss, not an error.
+- **Passages carry no titles, gold or distractor** (`corpus.py`, `chunk.py`). MedCPT's article
+  encoder is trained on the *(title, abstract)* pair, so this puts it off-distribution — uniformly,
+  which is the point. **The empty title segment needs one convention, applied to every passage:**
+  `tok("", abstract)` or single-segment `tok(abstract)`. Undecided; pick it by measuring dev hit@5
+  both ways at W2, and record it in the index fingerprint — it is part of the index's identity.
+  **Whatever is chosen, the title slot never receives the question.** `scripts/g0_medcpt_throughput.py`
+  passes `row["question"]` there as a throughput stand-in; copying that here would index the query.
 - The cascade is cheap-and-high-recall first (BM25 + dense → RRF over a ~100 pool), then expensive
   and high-precision (cross-encoder over that pool). Each stage is ablatable via `RetrievalConfig`,
   because Table 1 *is* those ablations.

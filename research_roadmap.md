@@ -345,6 +345,16 @@ precision must discriminate) wants hard ones.
   PubMedQA contexts *are* PubMed abstracts, so `MedRAG/pubmed` very likely already contains them; a
   naive union yields the same abstract under two `passage_id`s and **`gold_rank`/hit@5 silently
   miscount**. This is the shape of the bug ADR-0007 exists to remember.
+- **Passages are abstract prose with no titles — MedRAG's `content`, not `contents`.** PubMedQA
+  carries no title field, so gold is title-free whatever we do and the choice only ever concerns the
+  distractors; titled distractors would make the empty title slot a gold/distractor format signal in
+  the space hit@5 is measured in. Indexing the gold articles' real titles instead is the one clearly
+  wrong option: **a PubMedQA question is its article's title verbatim** — over 60 sampled gold PMIDs
+  the title covers the question's content tokens at median and mean 1.00, 60/60 at ≥ 0.8 (vs NCBI
+  esummary, 2026-08-05) — so titled gold makes G1 a string match rather than a measurement. The cost
+  is ~9% of corpus text and MedCPT off its trained *(title, abstract)* pair, symmetrically. The
+  property bought: **if dev hit@5 lands under 0.90, the only levers left are the retriever's** —
+  R2's ladder — because the corpus text cannot be quietly made easier to pass the gate.
 - **W2–W3 confusability probe.** For ~100 dev questions: RRF-fused top-5 (no reranker until W3 —
   re-confirm after), drop the gold, and score the question's **gold claims** against the **non-gold**
   passages with the entailment model. Near-zero entailment means there is nothing plausible to

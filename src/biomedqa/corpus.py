@@ -36,6 +36,25 @@ completes, the numbers look plausible, and nothing downstream can tell.
    which reads as good news. `draw_corpus` raises on non-`int` keys, and raises again if a full scan
    collides with *no* gold PMID at all.
 
+**Distractors are indexed as `content` — abstract prose, no title — because that is the only text
+form that reaches parity with gold.** MedRAG rows carry `title`, `content` (title-free) and
+`contents` (`title + " " + content`, verified on a real shard). PubMedQA has no title field and the
+gold copy is PubMedQA's (above), so **gold is title-free under every option** and the choice is only
+ever about the distractors. Indexing `contents` would make an empty title the one property every
+gold passage shares and no distractor has — a systematic format signal sitting in exactly the space
+hit@5 and ADR-0012 §2's confusability probe are measured in.
+
+The tempting repair — fetch the gold articles' real titles and index those — is the one option that
+is definitely wrong. **A PubMedQA question is its article's title, verbatim**: over 60 sampled gold
+PMIDs, the title covers the question's content tokens at median and mean 1.00, 60/60 at ≥ 0.8
+(`Instance.question` vs NCBI esummary, 2026-08-05). ADR-0003 called hit@5 here "a lexical gimme";
+it is stronger than that, and titled gold would make G1 a string match rather than a measurement.
+
+Dropping titles costs ~9% of the corpus text (median 88 title chars against 905 of content) and puts
+MedCPT off its trained (title, abstract) pair — symmetrically, for every passage. That is the price
+of the property that matters: if dev hit@5 comes in under 0.90, the only levers left are the
+retriever's, because the corpus text cannot be quietly made easier to pass a gate.
+
 Selection is **bottom-k on a keyed hash**, not reservoir sampling. Three properties follow, and the
 third is the reason it is worth the O(target_n) memory:
 
@@ -62,6 +81,10 @@ from .config import canonical_hash
 #: Read this glob, never the bare dataset id — see the module docstring's failure 1.
 MEDRAG_REPO = "MedRAG/pubmed"
 MEDRAG_DATA_FILES = "chunk/*.jsonl"
+
+#: The indexed text of a distractor. `content` is title-free; `contents` prepends the title, and
+#: gold has no title to match it with — see the module docstring. Read rows through `passage_text`.
+MEDRAG_TEXT_FIELD = "content"
 
 #: 23,898,701 snippets over 1,166 PMID-ordered shards (the dataset card, verified 2026-08-05). Any
 #: other scanned count means the glob missed shards or resolved to the partial parquet export.
@@ -210,6 +233,28 @@ def draw_corpus(
         n_gold_collisions=n_gold_collisions,
         fingerprint=canonical_hash(list(pmids)),
     )
+
+
+def passage_text(row: dict[str, Any]) -> str:
+    """The text one MedRAG row contributes to the index: abstract prose, never the title.
+
+    A one-field lookup is wrapped in a function because reading the wrong field is the third silent
+    failure this module has to make loud. `contents` differs from `content` by ~9% of characters at
+    the front, the run completes, hit@5 looks plausible — and every gold passage is now the only
+    kind of passage in the index with no title. The chunker and the encoder both read through here
+    so there is no second place to get it wrong.
+    """
+    text = row[MEDRAG_TEXT_FIELD]
+    title = row.get("title") or ""
+    if title and text.startswith(title):
+        raise ValueError(
+            f"row {row.get('PMID')!r}'s {MEDRAG_TEXT_FIELD!r} begins with its title, so it holds "
+            f"MedRAG's `contents` form. Gold has no title (PubMedQA carries none), so titled "
+            f"distractors are a gold/distractor format signal in the space hit@5 is measured in."
+        )
+    if not text.strip():
+        raise ValueError(f"row {row.get('PMID')!r} has empty {MEDRAG_TEXT_FIELD!r}")
+    return text
 
 
 def write_gold_pmids(pmids: Iterable[int], path: Path = GOLD_PMIDS_PATH) -> dict[str, Any]:
