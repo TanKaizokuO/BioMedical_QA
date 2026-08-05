@@ -44,8 +44,15 @@ htmlcov/
 .nox/
 
 # ---- ML / data artifacts (biomedical RAG) ----
-# Datasets & corpora (PubMed, PubMedQA, BioASQ, etc.) — track via download scripts, not git
-data/
+# Datasets & corpora (PubMed, PubMedQA, BioASQ, etc.) — track via download scripts, not git.
+# data/* rather than data/ — git will not descend into an excluded directory, so the negations
+# below only work if the exclusion is on the contents (the same reason docs/* is written that way).
+data/*
+# Tracked exceptions: the small identity artifacts whose hashes go into every run manifest. These
+# are membership lists, not data — splits.json is the frozen dev/test split (§3 requires it checked
+# in), and gold_pmids.json is the dedup key set (ADR-0012 §1).
+!data/splits.json
+!data/gold_pmids.json
 datasets/
 corpus/
 *.jsonl
