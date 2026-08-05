@@ -6,7 +6,7 @@
 2026-10-26 → 2026-11-06 (workshop, see §6)
 **Companions:** [`docs/project2_biomedical_attribution_rag_implementation_plan.md`](docs/project2_biomedical_attribution_rag_implementation_plan.md) (the *what*) ·
 [`docs/related_work.md`](docs/related_work.md) (the *against what*) · [`docs/learning_roadmap.md`](docs/learning_roadmap.md) (the *concepts*, now fully taught — 8 lessons)
-**Decisions:** [`CONTEXT.md`](CONTEXT.md) (domain language) · [`docs/adr/`](docs/adr/) (13 ADRs) ·
+**Decisions:** [`CONTEXT.md`](CONTEXT.md) (domain language) · [`docs/adr/`](docs/adr/) (14 ADRs) ·
 [`docs/grilling-handoff.md`](docs/grilling-handoff.md) (the reasoning behind them)
 
 > This document is the *execution* layer: what gets built, in what order, with which numeric gates,
