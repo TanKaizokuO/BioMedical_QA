@@ -163,6 +163,27 @@ def freeze_splits(
     return payload
 
 
+def gold_pool(path: Path = SPLITS_PATH) -> list[str]:
+    """The pubids the gold-attribution set is drawn from: everything in neither dev nor test.
+
+    §3 sizes the gold-attribution set at ~62 questions but never said *which* pool it comes from,
+    and the answer matters. If those questions were drawn from `test`, the human labels and every
+    headline number would share questions, so C4 ("does the cheap verifier agree with a human?")
+    would be measured on the same items the paper reports — the agreement and the result would no
+    longer be independent evidence.
+
+    `dev` (100) + `test` (400) leave **500 of the 1,000 `pqa_labeled` questions unassigned**, so
+    that independence is free. Drawing from `test` would buy nothing it does not already have.
+
+    Deliberately **derived, not frozen**: it is a function of `splits.json`, so it inherits that
+    file's hash and there is no second artifact to keep in sync. Requires the full 1,000-row load
+    only because the pool is defined by exclusion.
+    """
+    splits = load_splits(path)
+    assigned = set(splits["dev"]) | set(splits["test"])
+    return sorted(str(i.pubid) for i in load_instances() if str(i.pubid) not in assigned)
+
+
 def load_splits(path: Path = SPLITS_PATH) -> dict:
     """Read the frozen splits and verify the hash. The hash goes into every run manifest, so a
     silently edited split file cannot masquerade as the frozen one."""

@@ -366,7 +366,7 @@ precision must discriminate) wants hard ones.
 |---|---|---|---|
 | **dev** | 100 PubMedQA `pqa_labeled` questions | All development, prompt iteration, threshold tuning | Aug 7 |
 | **test** | ~400–500 `pqa_labeled` questions, disjoint from dev | **Every number in the paper.** Run late, run once per system per seed. | Aug 7 |
-| **gold-attribution** | **~4 claims × ~62 questions** ≈ 250 claims (ADR-0011); overlap subset **sized to a 3 h annotator budget at 2 claims/question** — ~19 questions / 38 claims at the measured citation rate (ADR-0013) — triple-labeled | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
+| **gold-attribution** | **~4 claims × ~62 questions** ≈ 250 claims (ADR-0011), drawn from the **500 questions in neither dev nor test** — `data.gold_pool()`, derived from `splits.json`, never a second frozen file. **Not from `test`:** C4 asks whether the cheap verifier agrees with a human, and if it were measured on the questions the paper reports, the agreement and the result would stop being independent evidence. The 500 are idle, so this costs nothing. Overlap subset **sized to a 3 h annotator budget at 2 claims/question** — ~19 questions / 38 claims at the measured citation rate (ADR-0013) — triple-labeled | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
 | ~~transfer~~ | ~~BioASQ-Y/N~~ | **Cut with C8** (§1) | — |
 
 Record split membership by question ID in a checked-in JSON with a hash in every run manifest. **If G0
@@ -529,6 +529,9 @@ subset is sized to it; it is never revised upward. Both annotators have accepted
 prohibition on upward revision is now live. The ~1 h pilot sitting was **never inside** ADR-0006's
 ~3 h — it is an uncosted session (W6 below), not a mis-estimate.
 
+- **Drawn from `data.gold_pool()`** — the 500 questions in neither dev nor test (§3). Never from
+  `test`: C4 and the headline numbers must not share questions, or the agreement stops being
+  independent evidence for the result. `tests/test_splits.py` asserts the disjointness.
 - **Sampling: ~4 claims per question across ~62 questions** (ADR-0011), **not** every claim of ~27
   questions. At 9.2 claims/query a 250-claim budget otherwise covers only ~27 questions, and claims
   within a question are correlated — they share the question, passages, answer and topic. The
