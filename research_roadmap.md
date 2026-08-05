@@ -332,7 +332,7 @@ fallback is not needed and ADR-0003's 2M corpus proceeds as written.**
 **`rank_bm25` is borderline at 2M: swapped for `bm25s`** (Java 21 is present if Pyserini is
 preferred).
 
-### Distractor selection — **uniform random, seeded** (ADR-0012)
+### Distractor selection — **uniform random, seeded** (ADR-0012; source and text form, ADR-0014)
 
 ADR-0003 fixed the corpus *size* but never its **source or selection policy**, and the two gates pull
 the same knob in opposite directions: G1 (hit@5 ≥ 0.90) wants easy distractors, G2 (citation
@@ -341,6 +341,13 @@ precision must discriminate) wants hard ones.
 - **Uniform random 2M from `MedRAG/pubmed`, seeded**, with the ID list committed and hashed into
   `RunConfig.index_fingerprint()`. Uniform is unarguable to a reviewer; hand-picked hard negatives
   look like a corpus engineered around the gold set.
+- **Read `data_files="chunk/*.jsonl"`, never the bare dataset id** (ADR-0014 §1). The Hub's
+  auto-converted parquet export of `MedRAG/pubmed` is **partial** — 2,209,839 rows of 23,898,701,
+  PMID-ascending, so the **oldest ~9% of PubMed**. It is within 10% of the 2M target, so the naive
+  load succeeds and yields pre-1990 abstracts against 1990s–2010s gold: separable by era alone, G1
+  excellent for the wrong reason, G2 with nothing plausible to mis-cite. `draw_corpus` refuses any
+  scan whose row count is not 23,898,701, and refuses a full scan that collides with **no** gold PMID
+  (the int32/int64 join failure, which otherwise reports "0 duplicates removed" and reads as success).
 - **Deduplicate the gold contexts against the sample on PMID — W2 blocker, before the encode.**
   PubMedQA contexts *are* PubMed abstracts, so `MedRAG/pubmed` very likely already contains them; a
   naive union yields the same abstract under two `passage_id`s and **`gold_rank`/hit@5 silently
@@ -638,7 +645,7 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 |---|---|---|---|---|
 | **W0** | Jul 30 – Aug 2 | `src/biomedqa/` skeleton + `schema.py`; `paper/skeleton.md` — **all CPU-only; the A4000 is not available until Aug 3** | **Send the annotator ask**; **start MedNLI/PhysioNet application**; file the G0–G5 issues | (G0 moved → Aug 4) |
 | **W1** | Aug 3–9 | `config.py`, data load, split freeze · **Mon–Tue: A4000 preflight, generator bake-off, MedCPT throughput** | Read/re-skim ALCE + MiniCheck with the schema in hand · distractor-pool construction | **G0 (Aug 4)** · Splits frozen (Aug 7) |
-| **W2** | Aug 10–16 | **PMID dedup (blocks the encode)**; chunker sweep; **`bm25s`** + MedCPT + RRF; 2M encode | Harness: manifest, seed loop, cost log · **`backends.py` adapter (½ day)** · **confusability probe — pulls MiniCheck forward, ~½ day** | Table 1 rows 1–3 |
+| **W2** | Aug 10–16 | **PMID dedup (blocks the encode)**; chunker sweep; **`bm25s`** + MedCPT + RRF; 2M encode; **empty title-segment convention — dev hit@5 measured both ways, then into the fingerprint** (ADR-0014 §3) | Harness: manifest, seed loop, cost log · **`backends.py` adapter (½ day)** · **confusability probe — pulls MiniCheck forward, ~½ day** | Table 1 rows 1–3 |
 | **W3** | Aug 17–23 | Cross-encoder rerank; gate measurement + Wilson CIs | Decomposition prompt drafting on dev · **start logging prompt-iteration budget** · **re-confirm the probe post-rerank** | **G1** · Table 1 complete |
 | **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip · **granularity-parity loop, blind — hard stop at 10 iterations or Aug 30** | Vanilla RAG + post-hoc baselines, **equal-effort protocol** · **clustered-vs-unclustered CI dry-run** | First end-to-end record · **parity frozen** |
 | **W5** | Aug 31 – Sep 6 | Decontextualization; granularity knob; citation P/R scorers (strict + lenient) · **first citation-F1 ever computed (≈ Aug 31)** | Verifier wiring; **cost instrumentation**; **guidelines pass 1 from Aug 31, worked examples Sep 3–6** · ~~MedNLI source~~ | **G2** · **decomposer freeze Sep 3** |
