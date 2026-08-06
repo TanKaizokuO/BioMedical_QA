@@ -25,7 +25,7 @@ import json
 
 import pytest
 
-from build_corpus import choose_one_row_per_pmid
+from build_corpus import choose_one_row_per_pmid, redraw_from_prescan
 from biomedqa.corpus import (
     GOLD_PMID_ARTIFACT_VERSION,
     MEDRAG_TEXT_FIELD,
@@ -358,3 +358,48 @@ def test_a_drawn_pmid_missing_from_the_superset_is_visible(tmp_path) -> None:
     prescan = tmp_path / "prescan.jsonl"
     prescan.write_text(json.dumps({"id": "a_1", "PMID": 1, "content": "x"}) + "\n")
     assert choose_one_row_per_pmid(prescan, {1, 2}) == {1: "a_1"}
+
+
+# ---------------------------------------------------------------------------------------------
+# `--from-prescan` — restating a completed scan, never manufacturing one.
+# ---------------------------------------------------------------------------------------------
+
+
+def _prescan(tmp_path, pmids, *, seed, target_n, n_scanned, collisions=85):
+    (tmp_path / "prescan.jsonl").write_text("".join(
+        json.dumps({"id": f"r_{p}", "title": "T", "content": "C" * (p % 7 + 1), "PMID": p}) + "\n"
+        for p in pmids))
+    (tmp_path / "corpus_manifest.json").write_text(json.dumps(
+        {"seed": seed, "target_n": target_n, "n_scanned": n_scanned,
+         "n_gold_collisions": collisions}))
+    return tmp_path
+
+
+def test_a_short_scan_cannot_be_laundered_through_the_prescan(tmp_path) -> None:
+    """The whole risk of a redraw path: it must not let a partial scan satisfy the row-count guard,
+    which is the one number evidencing the corpus is uniform over PubMed rather than its oldest 9%.
+    """
+    out = _prescan(tmp_path, range(100), seed=3, target_n=10, n_scanned=2_209_839)
+    with pytest.raises(SystemExit, match="cannot manufacture"):
+        redraw_from_prescan(out, gold_pmids={1}, target_n=10, seed=3)
+
+
+def test_a_prescan_cut_for_other_parameters_is_refused(tmp_path) -> None:
+    """The cutoff is a function of (seed, target_n). Against different ones the superset need not
+    contain the draw, and the shortfall would be silent."""
+    out = _prescan(tmp_path, range(100), seed=3, target_n=10, n_scanned=MEDRAG_TOTAL_ROWS)
+    with pytest.raises(SystemExit, match="different cutoff"):
+        redraw_from_prescan(out, gold_pmids={1}, target_n=10, seed=4)
+
+
+def test_the_redraw_carries_the_scan_and_collision_counts_forward(tmp_path) -> None:
+    """Recomputed from the superset both numbers would be wrong — ~8.5% of the scan and ~8.5% of the
+    collisions — and the manifest would understate the evidence the corpus rests on."""
+    cutoff, _ = prescan_cutoff(10, MEDRAG_TOTAL_ROWS)
+    inside = [p for p in range(200_000) if selection_key(p, seed=3) < cutoff]
+    out = _prescan(tmp_path, inside, seed=3, target_n=10, n_scanned=MEDRAG_TOTAL_ROWS,
+                   collisions=1000)
+    draw = redraw_from_prescan(out, gold_pmids={inside[0]}, target_n=10, seed=3)
+    assert draw.n_scanned == MEDRAG_TOTAL_ROWS
+    assert draw.n_gold_collisions == 1000
+    assert len(draw.pmids) == 10

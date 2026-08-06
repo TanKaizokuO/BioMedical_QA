@@ -18,6 +18,10 @@ the exact bottom-2M is taken from that. The scan itself still sees all 23,898,70
 that catches the partial-parquet trap**: just 3 of the 1,000 gold PMIDs fall inside the partial
 export's range, so the collision guard would see 3 collisions and happily pass.
 
+`--from-prescan` re-draws from the superset a **completed** scan already left on disk — minutes, no
+network. It is not a resume: it refuses to run unless the existing manifest records a full
+23,898,701-row scan. See `redraw_from_prescan`.
+
 **Not resumable, deliberately.** A mid-scan failure restarts the read. Resuming would mean either
 checkpointing the heap or trusting a partial scan, and a partial scan is precisely the failure the
 row-count guard exists to refuse — a resume bug would forge the one number that proves the corpus
@@ -28,6 +32,7 @@ a box that is otherwise idle. Nothing on the GPU is at risk either way.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
 from pathlib import Path
@@ -40,6 +45,7 @@ from biomedqa.corpus import (  # noqa: E402
     MEDRAG_REPO,
     MEDRAG_TOTAL_ROWS,
     TARGET_N,
+    CorpusDraw,
     draw_corpus,
     load_gold_pmids,
     prescan_cutoff,
@@ -64,6 +70,66 @@ def streaming_scan(out: Path, seed: int, cutoff: int):
             if n % 1_000_000 == 0:
                 print(f"  scanned {n:>12,} / {MEDRAG_TOTAL_ROWS:,}   kept {kept:>9,}", flush=True)
             yield row
+
+
+def redraw_from_prescan(out: Path, *, gold_pmids: set[int], target_n: int, seed: int) -> CorpusDraw:
+    """Re-draw from the superset a **completed** scan left on disk, without re-reading 54 GB.
+
+    This is not the resume path the module docstring refuses. A resume would let a *partial* scan
+    satisfy the row-count guard — forging the one number that evidences the corpus is uniform. This
+    refuses to run unless an existing `corpus_manifest.json` already records a full 23,898,701-row
+    scan, and it carries that count and its gold-collision count forward rather than recomputing
+    them from the superset, where both would be wrong. The redraw can only ever restate a scan that
+    already passed the guards; it cannot manufacture one.
+
+    Its own correctness is checked exactly rather than statistically: every drawn PMID's
+    `selection_key` must fall below the prescan cutoff. The prescan kept *every* row under that
+    cutoff, so if the whole draw is under it the superset provably contained the draw.
+
+    Used after 2026-08-05: the scan completed, the write step then found MedRAG's repeated PMIDs,
+    and only the draw needed redoing.
+    """
+    manifest_path = out / "corpus_manifest.json"
+    if not manifest_path.exists():
+        raise SystemExit(f"{manifest_path} is missing — --from-prescan needs a completed scan.")
+    prior = json.loads(manifest_path.read_text())
+    if prior.get("n_scanned") != MEDRAG_TOTAL_ROWS:
+        raise SystemExit(
+            f"the manifest records n_scanned={prior.get('n_scanned'):,}, not {MEDRAG_TOTAL_ROWS:,}. "
+            "--from-prescan restates a completed scan's guards; it cannot manufacture them. "
+            "Re-run the full scan."
+        )
+    if (prior.get("seed"), prior.get("target_n")) != (seed, target_n):
+        raise SystemExit(
+            f"the prescan was cut for seed={prior.get('seed')} target_n={prior.get('target_n'):,}, "
+            f"and this run asks for seed={seed} target_n={target_n:,}. A different cutoff means the "
+            "superset need not contain the draw. Re-run the full scan."
+        )
+
+    def prescan_rows():
+        with (out / "prescan.jsonl").open() as fh:
+            for line in fh:
+                yield json.loads(line)
+
+    n_rows = sum(1 for _ in prescan_rows())
+    draw = draw_corpus(prescan_rows(), gold_pmids=gold_pmids, target_n=target_n, seed=seed,
+                       expected_rows=n_rows)
+
+    cutoff, _ = prescan_cutoff(target_n, MEDRAG_TOTAL_ROWS)
+    worst = max(selection_key(p, seed=seed) for p in draw.pmids)
+    if worst >= cutoff:
+        raise SystemExit(
+            f"the draw reaches key {worst} at or past the prescan cutoff {cutoff}, so the superset "
+            "cannot be shown to contain it. Re-run the full scan."
+        )
+    print(f"prescan            : {n_rows:,} rows, draw sits {(cutoff - worst) / cutoff:.2%} inside "
+          f"the cutoff (scan of {MEDRAG_TOTAL_ROWS:,} rows carried from the manifest)")
+
+    return dataclasses.replace(
+        draw,
+        n_scanned=MEDRAG_TOTAL_ROWS,
+        n_gold_collisions=prior["n_gold_collisions"],
+    )
 
 
 def choose_one_row_per_pmid(prescan: Path, selected: set[int]) -> dict[int, str]:
@@ -103,22 +169,28 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=Path("data/corpus"))
     ap.add_argument("--seed", type=int, default=CORPUS_SEED)
     ap.add_argument("--target-n", type=int, default=TARGET_N)
+    ap.add_argument("--from-prescan", action="store_true",
+                    help="re-draw from the superset a completed scan left on disk, no network")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
     gold = load_gold_pmids()
-    cutoff, over = prescan_cutoff(args.target_n, MEDRAG_TOTAL_ROWS)
     print(f"gold PMIDs: {len(gold):,}  (dedup key set, ADR-0012 §1)")
-    print(f"streaming {MEDRAG_REPO}:{MEDRAG_DATA_FILES} — {MEDRAG_TOTAL_ROWS:,} rows")
-    print(f"prescan superset: ~{over:,} rows kept on disk for a {args.target_n:,} draw "
-          f"({(over - args.target_n) / args.target_n**0.5:.0f} sd headroom)\n")
 
-    draw = draw_corpus(
-        streaming_scan(args.out, args.seed, cutoff),
-        gold_pmids=gold,
-        target_n=args.target_n,
-        seed=args.seed,
-    )
+    if args.from_prescan:
+        draw = redraw_from_prescan(args.out, gold_pmids=gold, target_n=args.target_n,
+                                   seed=args.seed)
+    else:
+        cutoff, over = prescan_cutoff(args.target_n, MEDRAG_TOTAL_ROWS)
+        print(f"streaming {MEDRAG_REPO}:{MEDRAG_DATA_FILES} — {MEDRAG_TOTAL_ROWS:,} rows")
+        print(f"prescan superset: ~{over:,} rows kept on disk for a {args.target_n:,} draw "
+              f"({(over - args.target_n) / args.target_n**0.5:.0f} sd headroom)\n")
+        draw = draw_corpus(
+            streaming_scan(args.out, args.seed, cutoff),
+            gold_pmids=gold,
+            target_n=args.target_n,
+            seed=args.seed,
+        )
 
     print(f"\nscanned            : {draw.n_scanned:,}")
     print(f"gold collisions    : {draw.n_gold_collisions:,} of {len(gold):,} removed before the draw")
