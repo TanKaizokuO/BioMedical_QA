@@ -1,6 +1,9 @@
 # ADR-0014 — The corpus is read from the JSONL shards, and indexed as title-free abstract prose
 
 **Status:** Accepted · **Date:** 2026-08-05 · **Decided in:** W1 corpus build (Axis 3)
+**Amended 2026-08-06** — §2's uniqueness premise was wrong across shards; see *Amendment* under §2.
+The decision it supported is unchanged. This is the **first** in-place edit of an accepted ADR in
+this repo; it was made on the user's explicit instruction, in preference to an ADR-0015.
 **Refines** ADR-0012 §1, which fixed the distractor pool's *source and selection policy* but left
 both the **bytes read** and the **text indexed** unstated
 
@@ -50,6 +53,8 @@ traceback; do not work around it.**
 `content` is title-free and `contents == title + " " + content`; verified on a real shard
 (`chunk/pubmed23n0001.jsonl`, 5,000/5,000 rows, no empty titles, no empty content, 2026-08-05).
 A row is a whole article, not a snippet — 15,377 rows over 15,377 distinct PMIDs in that shard.
+*(That last clause is qualified by the Amendment below: whole-article holds; one-row-per-article
+does not.)*
 
 **Gold is title-free under every option.** PubMedQA has no title field, and the surviving gold copy
 is PubMedQA's because citations are char spans into `Instance.abstract_text` (ADR-0005; `corpus.py`).
@@ -65,6 +70,36 @@ over 60 sampled gold PMIDs, the title covers the question's content tokens at **
 60/60 at ≥ 0.8** (`Instance.question` vs NCBI esummary, 2026-08-05). ADR-0003 called retrieval here
 "a lexical gimme"; it is stronger than that — titled gold makes G1 a string match rather than a
 measurement.
+
+#### Amendment, 2026-08-06 — a row is a whole article, but an article is not one row
+
+**The sentence "15,377 rows over 15,377 distinct PMIDs" was measured on one shard, and uniqueness
+does not survive across them.** PubMed re-publishes revised records and MedRAG keeps every revision
+as its own row, so one article can arrive two or three times — **244 repeated PMIDs in 2,041,867
+drawn**, on the 2026-08-05 prescan, **129 of them with differing `content`**, sometimes twice inside
+a single shard.
+
+**What this does not change: the decision.** The revisions differ by *added text*, not by chunking —
+`22367489` is `b-subunit` against `beta-subunit`; `22453897` is the same abstract with an
+abbreviation list appended. Each row is still a whole article, so `content` remains the right field,
+`chunk.py`'s input contract holds, and `passage_text` is untouched. **Had they been chunks of one
+abstract, all three would have needed revisiting** — which is why the classifier that decided
+revision-vs-chunk was worth writing rather than assuming.
+
+**What it does change: the draw.** Duplicates share a `selection_key`, so they entered the bottom-k
+*together* and the draw became 2M rows over **1,999,703 articles** — one abstract under two
+`passage_id`s. That is exactly the miscount ADR-0012 §1 exists to prevent, arriving from **inside
+MedRAG** rather than from gold, which is the direction §1's dedup does not look.
+
+**The guards, both in `corpus.py` / `scripts/build_corpus.py`:** `draw_corpus` admits a PMID once and
+refuses a draw whose distinct count is short; `build_corpus.py` picks the single row each drawn
+article contributes — **longest `content`, ties broken by the lexicographically smallest `id`**.
+Longest because a revision that adds text is the more complete record, and both observed cases add
+rather than cut. The tie-break exists only to make the rule **total**: `corpus_id` promises
+seed → ID list, and a rule that leaves 244 rows to dict ordering does not keep that promise. The
+write-step guard that caught this originally named *two* possible causes —
+a prescan not containing the draw, or repeats in the source. **Its direction discriminates them**:
+fewer rows than PMIDs means the first, more means the second. It now names one.
 
 ### 3. The empty title segment is one convention, measured at W2 — not decided here
 

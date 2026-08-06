@@ -233,7 +233,9 @@ heard it from the user first.
    whole abstracts, not chunks (`22367489` is `b-subunit` vs `beta-subunit`; `22453897` appends an
    abbreviation list), so **ADR-0014 §2's "a row is an article" holds** — its unstated "and appears
    once" does not, and its 15,377/15,377 was one shard. One row survives per article: **longest
-   `content`, ties on smallest `id`.**
+   `content`, ties on smallest `id`.** Now recorded in **ADR-0014 §2's Amendment (2026-08-06)** —
+   the repo's first in-place edit of an accepted ADR, made on the user's instruction in preference
+   to an ADR-0015.
 4. **Indexing the question.** `scripts/g0_medcpt_throughput.py:46` puts `row["question"]` in MedCPT's
    title slot as a throughput stand-in. **Copying that into the real encode would index the query
    against itself.** The title slot never receives the question.
@@ -281,8 +283,10 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 1. ~~Send the annotator message~~ — **sent 2026-08-06.** What remains is the **reply** to §4's
    closing question, which prices the September worry. User-side, undated, and **not a blocker**.
-2. **Issue #9's body is stale** (ADR-0010 is its design half). **Ask before editing** — it was
-   withheld from a previous go-ahead, and the repo being public **strengthens** that caution.
+2. ~~Issue #9's body is stale~~ — **rewritten 2026-08-06** against ADR-0010, on the user's
+   instruction. The schema-status option is struck, the exclusion is stated as **recall denominator
+   only**, and the scope gained the Sep 7 validation run, the `decompose.py` prose case and the W5
+   guidelines item. It stays `ready-for-agent`; the design half is closed, the implementation is not.
 3. **W2 build work** — the corpus is built and waiting: chunker sweep · `bm25s` + MedCPT + RRF · the 2M encode ·
    ADR-0012 §2's confusability probe (pulls MiniCheck forward, ~½ day) · ADR-0014 §3's title-segment
    measurement · `backends.py` adapter (~½ day).
