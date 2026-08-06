@@ -33,6 +33,29 @@ class TestConfigIdentity:
         other = base.ablate("other-encoder", **{"retrieval.dense_encoder": "some/other-model"})
         assert base.index_fingerprint() != other.index_fingerprint()
 
+    def test_a_different_corpus_draw_changes_the_index_fingerprint(self):
+        """ADR-0012 §1 requires the drawn ID list, not just its name, to reach the fingerprint.
+        `corpus_id` is the literal string `"pubmed-2m-v1"` for every draw at every seed, so on its
+        own it makes the duplicate-bearing `41cf7a6c9160` draw and the corpus that replaced it —
+        `93321598f3f1`, same name, same size, 300 rows different — byte-identical here. That is the
+        ADR-0007 staleness bug exactly: an index preserved because its summary matched.
+        """
+        base = RunConfig()
+        other = base.ablate("earlier-draw", **{"retrieval.corpus_fingerprint": "41cf7a6c9160"})
+        assert base.index_fingerprint() != other.index_fingerprint()
+
+    def test_the_default_corpus_fingerprint_is_the_committed_draw(self):
+        """The default is a literal, so a redraw that does not update it would leave every run
+        claiming the old corpus. This is the line that fails when that happens."""
+        import json
+        from pathlib import Path
+
+        manifest = json.loads(
+            (Path(__file__).resolve().parents[1] / "data/corpus/corpus_manifest.json").read_text()
+        )
+        assert RunConfig().retrieval.corpus_fingerprint == manifest["fingerprint"]
+        assert RunConfig().retrieval.corpus_id == manifest["corpus_id"]
+
     def test_generation_change_does_not_change_the_index_fingerprint(self):
         base = RunConfig()
         other = base.ablate("hotter", **{"generation.temperature": 0.7})

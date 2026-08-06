@@ -23,7 +23,10 @@ import json
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
-CONFIG_VERSION = "1.1.0"   # 1.1.0 adds ScoringConfig (ADR-0010). SCHEMA_VERSION is unaffected.
+#: 1.1.0 adds ScoringConfig (ADR-0010). 1.2.0 adds RetrievalConfig.corpus_fingerprint, so that the
+#: drawn ID list reaches index_fingerprint() as ADR-0012 §1 requires. SCHEMA_VERSION is unaffected
+#: by either — this versions the knobs, not the records.
+CONFIG_VERSION = "1.2.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +45,13 @@ class ChunkConfig:
 class RetrievalConfig:
     """The cascade in Table 1. Each stage can be ablated by setting its flag false."""
 
-    corpus_id: str = "pubmed-2m-v1"          # ADR-0003; part of the index fingerprint
+    corpus_id: str = "pubmed-2m-v1"          # ADR-0003; the corpus's *name*, identical at every seed
+    #: The drawn ID list's content hash — `data/corpus/corpus_manifest.json`'s `fingerprint`, which
+    #: `CorpusDraw` computes over the 2M PMIDs themselves. ADR-0012 §1 requires the list, not the
+    #: name, in the index fingerprint: `corpus_id` is a claim about which corpus this is, and two
+    #: different draws make the same claim. A redraw changes this line, and the test that pins it to
+    #: the committed manifest is what fails if it does not.
+    corpus_fingerprint: str = "93321598f3f1"
     bm25: bool = True                        # bm25s, not rank_bm25 (borderline at 2M, §3)
     dense: bool = True
     dense_encoder: str = "NCBI/MedCPT-Article-Encoder"
@@ -120,10 +129,17 @@ class RunConfig:
 
     def index_fingerprint(self) -> str:
         """Identity of the retrieval index. Changing the corpus, the chunker, or the encoder means
-        a different index — anything else does not."""
+        a different index — anything else does not.
+
+        The corpus enters as the **draw's content hash**, not only its name. `corpus_id` is
+        `"pubmed-2m-v1"` for every draw at every seed, so a fingerprint built on the name alone
+        cannot tell two corpora apart — which is the ADR-0007 failure this module's docstring cites,
+        in the one place it would do the most damage.
+        """
         return canonical_hash(
             {
                 "corpus_id": self.retrieval.corpus_id,
+                "corpus_fingerprint": self.retrieval.corpus_fingerprint,
                 "chunk": asdict(self.chunk),
                 "encoder": self.retrieval.dense_encoder,
             }
