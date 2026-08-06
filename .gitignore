@@ -128,6 +128,10 @@ docs/*
 # the retired base pipeline (ADR-0007) — the source repo may be deleted, so this is the backup.
 !docs/adr/
 !docs/harvest/
+# CLAUDE.md is tracked and points at all three of these, so a clone without them gets project
+# instructions referencing files that are not there — the same shape as the G0 records, which sat
+# untracked under runs/ until 2026-08-06.
+!docs/agents/
 
 # ---- Teaching workspace (/teach skill — local study materials, not tracked) ----
 teach/
