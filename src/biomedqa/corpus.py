@@ -20,8 +20,8 @@ nothing has to decide which copy survives and no half-deduped index can reach th
   the section/sentence-window strategies are built on.
 - `gold_passage_ids` is `{pubid}:{i}`, the id space `gold_rank` and hit@5 are defined over.
 
-**Two silent failures this module makes loud.** Both are silent in the sense that matters: the run
-completes, the numbers look plausible, and nothing downstream can tell.
+**Three silent failures this module makes loud.** All three are silent in the sense that matters:
+the run completes, the numbers look plausible, and nothing downstream can tell.
 
 1. **The partial parquet.** `MedRAG/pubmed`'s HF auto-converted parquet is a *partial* export —
    2,209,839 rows of 23,898,701 — and the shards are PMID-ascending, so it is the oldest ~9% of
@@ -35,6 +35,19 @@ completes, the numbers look plausible, and nothing downstream can tell.
    is int64. `{"21645374"} & {21645374}` is empty, so a broken join reports "0 duplicates removed",
    which reads as good news. `draw_corpus` raises on non-`int` keys, and raises again if a full scan
    collides with *no* gold PMID at all.
+3. **The repeated PMID.** PubMed re-publishes revised records and MedRAG keeps every revision as its
+   own row, so one article can arrive two or three times — 244 of 2,041,867 drawn PMIDs on the
+   2026-08-05 prescan, sometimes twice inside a single shard. Duplicates share a `selection_key`, so
+   they enter the bottom-k *together* and the draw quietly becomes 2M rows over 1,999,703 articles:
+   one abstract under two `passage_id`s, which is exactly the miscount ADR-0012 §1 exists to
+   prevent, arriving from inside MedRAG rather than from gold. `draw_corpus` admits a PMID once and
+   refuses a draw whose distinct count is short; `scripts/build_corpus.py` picks the single row each
+   drawn article contributes.
+
+   **This qualifies ADR-0014 §2.** A MedRAG row *is* a whole article — the revisions differ by added
+   text, not by chunking (`22367489` is `b-subunit` against `beta-subunit`; `22453897` is the same
+   abstract with an abbreviation list appended) — but the ADR's "15,377 rows / 15,377 distinct
+   PMIDs" was one shard, and uniqueness does not survive across them.
 
 **Distractors are indexed as `content` — abstract prose, no title — because that is the only text
 form that reaches parity with gold.** MedRAG rows carry `title`, `content` (title-free) and
@@ -150,6 +163,7 @@ class CorpusDraw:
     target_n: int
     n_scanned: int
     n_gold_collisions: int
+    n_duplicate_rows: int
     fingerprint: str
 
     def to_json(self) -> dict[str, Any]:
@@ -160,6 +174,7 @@ class CorpusDraw:
             "target_n": self.target_n,
             "n_scanned": self.n_scanned,
             "n_gold_collisions": self.n_gold_collisions,
+            "n_duplicate_rows": self.n_duplicate_rows,
             "fingerprint": self.fingerprint,
             "pmids": list(self.pmids),
         }
@@ -189,8 +204,10 @@ def draw_corpus(
     # A max-heap of the target_n smallest keys, so the largest retained key sits at heap[0] and can
     # be evicted in O(log n). Negated because heapq is a min-heap.
     heap: list[tuple[int, int]] = []
+    held: set[int] = set()
     n_scanned = 0
     n_gold_collisions = 0
+    n_duplicate_rows = 0
 
     for row in rows:
         n_scanned += 1
@@ -198,11 +215,16 @@ def draw_corpus(
         if pmid in gold_pmids:
             n_gold_collisions += 1
             continue
+        if pmid in held:
+            n_duplicate_rows += 1
+            continue
         key = -selection_key(pmid, seed=seed)
         if len(heap) < target_n:
             heapq.heappush(heap, (key, pmid))
+            held.add(pmid)
         elif key > heap[0][0]:
-            heapq.heapreplace(heap, (key, pmid))
+            held.discard(heapq.heapreplace(heap, (key, pmid))[1])
+            held.add(pmid)
 
     if n_scanned != expected_rows:
         raise ValueError(
@@ -225,12 +247,18 @@ def draw_corpus(
         )
 
     pmids = tuple(sorted(pmid for _, pmid in heap))
+    if len(set(pmids)) != target_n:
+        raise ValueError(
+            f"draw holds {len(set(pmids)):,} distinct PMIDs for {target_n:,} slots. The corpus is "
+            "articles, one per PMID; a repeat means the same abstract would enter the index twice."
+        )
     return CorpusDraw(
         pmids=pmids,
         seed=seed,
         target_n=target_n,
         n_scanned=n_scanned,
         n_gold_collisions=n_gold_collisions,
+        n_duplicate_rows=n_duplicate_rows,
         fingerprint=canonical_hash(list(pmids)),
     )
 

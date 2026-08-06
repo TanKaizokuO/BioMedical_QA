@@ -66,6 +66,38 @@ def streaming_scan(out: Path, seed: int, cutoff: int):
             yield row
 
 
+def choose_one_row_per_pmid(prescan: Path, selected: set[int]) -> dict[int, str]:
+    """`{PMID: row id}` — the single row each drawn article contributes to the index.
+
+    **PubMed re-publishes revised records, and MedRAG keeps every revision as its own row.** Measured
+    on the 2026-08-05 prescan: 244 of 2,041,867 drawn PMIDs carry 2–3 rows, 129 of them with
+    differing `content`. The differences are revisions of one whole abstract, not chunks of it —
+    `22367489` is `b-subunit` against `beta-subunit`, `22453897` is the same text with an
+    abbreviation list appended — so ADR-0014 §2's "a row is an article" holds, and the unstated
+    "and appears once" does not.
+
+    **Longest `content`, ties broken by the lexicographically smallest `id`.** Longest because a
+    revision that adds text is the more complete record and both observed cases add rather than cut;
+    the tie-break exists only so the rule is total, since `corpus_id` promises seed → ID list and a
+    rule that leaves 244 rows to dict ordering does not keep that promise.
+
+    Returning the ids rather than the rows keeps ~2M short strings in memory instead of ~2 GB of
+    JSON, at the cost of a second pass over a local file.
+    """
+    best: dict[int, tuple[int, str]] = {}
+    with prescan.open() as fh:
+        for line in fh:
+            row = json.loads(line)
+            pmid = row["PMID"]
+            if pmid not in selected:
+                continue
+            cand = (len(row.get("content") or ""), row["id"])
+            prev = best.get(pmid)
+            if prev is None or cand[0] > prev[0] or (cand[0] == prev[0] and cand[1] < prev[1]):
+                best[pmid] = cand
+    return {pmid: rid for pmid, (_, rid) in best.items()}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", type=Path, default=Path("data/corpus"))
@@ -91,22 +123,29 @@ def main() -> int:
     print(f"\nscanned            : {draw.n_scanned:,}")
     print(f"gold collisions    : {draw.n_gold_collisions:,} of {len(gold):,} removed before the draw")
     print(f"drawn              : {len(draw.pmids):,}")
+    print(f"duplicate rows     : {draw.n_duplicate_rows:,} suppressed (revised records, one per PMID)")
     print(f"fingerprint        : {draw.fingerprint}")
 
     (args.out / "corpus_manifest.json").write_text(json.dumps(draw.to_json(), indent=2) + "\n")
 
     selected = set(draw.pmids)
+    chosen = choose_one_row_per_pmid(args.out / "prescan.jsonl", selected)
+    if len(chosen) != len(selected):
+        raise SystemExit(
+            f"the superset holds {len(chosen):,} of the {len(selected):,} drawn PMIDs. The prescan "
+            "cutoff did not contain the draw — do not encode this."
+        )
+
     written = 0
     with (args.out / "prescan.jsonl").open() as src, (args.out / "corpus.jsonl").open("w") as dst:
         for line in src:
             row = json.loads(line)
-            if row["PMID"] in selected:
+            if chosen.get(row["PMID"]) == row["id"]:
                 dst.write(line)
                 written += 1
     if written != len(selected):
         raise SystemExit(
-            f"wrote {written:,} rows for {len(selected):,} drawn PMIDs. The superset did not "
-            "contain the whole draw, or MedRAG holds duplicate PMIDs — do not encode this."
+            f"wrote {written:,} rows for {len(selected):,} drawn PMIDs — do not encode this."
         )
 
     print(f"\nwrote {args.out}/corpus.jsonl ({written:,} rows) and corpus_manifest.json")

@@ -25,6 +25,7 @@ import json
 
 import pytest
 
+from build_corpus import choose_one_row_per_pmid
 from biomedqa.corpus import (
     GOLD_PMID_ARTIFACT_VERSION,
     MEDRAG_TEXT_FIELD,
@@ -107,6 +108,31 @@ def test_collisions_are_counted_even_when_not_sampled() -> None:
                        expected_rows=100)
     assert draw.n_gold_collisions == 90
     assert len(draw.pmids) == 5
+
+
+def test_a_pmid_repeated_in_the_corpus_enters_the_draw_once() -> None:
+    """PubMed re-publishes revised records and MedRAG keeps every revision as its own row, so the
+    same PMID arrives more than once — 244 of 2,041,867 on the 2026-08-05 prescan, twice within a
+    single shard. Duplicates hash to the same `selection_key`, so they land in the bottom-k
+    *together* and the draw silently becomes 2M rows over fewer than 2M articles: one abstract under
+    two `passage_id`s, which is the miscount ADR-0012 §1 exists to prevent, arriving from inside
+    MedRAG rather than from gold.
+    """
+    doubled = list(rows(range(100))) + list(rows(range(100)))
+    draw = draw_corpus(iter(doubled), gold_pmids={1}, target_n=50, seed=0, expected_rows=200)
+    assert len(draw.pmids) == 50
+    assert len(set(draw.pmids)) == 50
+    assert draw.n_duplicate_rows > 0
+
+
+def test_repeats_do_not_change_which_articles_are_drawn() -> None:
+    """The draw is over articles, so how many times MedRAG happens to carry one must not move it in
+    or out of the corpus — otherwise `corpus_id` names a sample of rows, not of PubMed."""
+    once = draw_corpus(rows(range(200)), gold_pmids={1}, target_n=50, seed=7, expected_rows=200)
+    twice = draw_corpus(iter(list(rows(range(200))) + list(rows(range(200)))), gold_pmids={1},
+                        target_n=50, seed=7, expected_rows=400)
+    assert once.pmids == twice.pmids
+    assert once.fingerprint == twice.fingerprint
 
 
 def test_a_pool_smaller_than_the_target_is_refused() -> None:
@@ -299,3 +325,36 @@ def test_a_contents_shaped_row_is_refused() -> None:
 def test_an_empty_abstract_is_refused() -> None:
     with pytest.raises(ValueError, match="empty"):
         passage_text(dict(REAL_MEDRAG_ROW, content="   "))
+
+
+# ---------------------------------------------------------------------------------------------
+# One row per drawn article — `scripts/build_corpus.py`.
+# ---------------------------------------------------------------------------------------------
+
+
+def test_the_longest_revision_wins_and_ties_break_on_id(tmp_path) -> None:
+    """PubMed's revised records differ by added text, not by chunking: `22453897` is the same
+    abstract with an abbreviation list appended, `22367489` is `b-subunit` against `beta-subunit`.
+    Longest takes the more complete record; the tie-break exists so the rule is total, because
+    `corpus_id` promises seed -> ID list and dict ordering is not a promise.
+    """
+    prescan = tmp_path / "prescan.jsonl"
+    prescan.write_text("\n".join(json.dumps(r) for r in [
+        {"id": "b_2", "PMID": 22453897, "content": "same abstract"},
+        {"id": "a_1", "PMID": 22453897, "content": "same abstract plus an abbreviation list"},
+        {"id": "z_9", "PMID": 22367489, "content": "equal length"},
+        {"id": "a_0", "PMID": 22367489, "content": "equal length"},
+        {"id": "q_7", "PMID": 999, "content": "not drawn"},
+    ]) + "\n")
+
+    chosen = choose_one_row_per_pmid(prescan, {22453897, 22367489})
+    assert chosen == {22453897: "a_1", 22367489: "a_0"}
+
+
+def test_a_drawn_pmid_missing_from_the_superset_is_visible(tmp_path) -> None:
+    """The prescan cutoff failing to contain the draw and MedRAG holding repeats are different
+    failures with different fixes; the first version of this guard could not tell them apart.
+    """
+    prescan = tmp_path / "prescan.jsonl"
+    prescan.write_text(json.dumps({"id": "a_1", "PMID": 1, "content": "x"}) + "\n")
+    assert choose_one_row_per_pmid(prescan, {1, 2}) == {1: "a_1"}
