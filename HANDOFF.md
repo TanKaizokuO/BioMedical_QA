@@ -1,17 +1,16 @@
-# HANDOFF — 2026-08-06 (end of seventh session)
+# HANDOFF — 2026-08-06 (end of eighth session)
 
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
 
-`main` · working tree clean · **`origin/main` == `HEAD` == `bdaf95b`. Nothing is unpushed.**
-Tests: `uv run --with pytest python -m pytest tests/ -q` → **82 passed**. There is no bare `python`
+`main` · working tree clean · **`origin/main` == `HEAD` == `dc69341`. Nothing is unpushed.**
+Tests: `uv run --with pytest python -m pytest tests/ -q` → **86 passed**. There is no bare `python`
 on this box and no installed `pytest`; that invocation is the one that works. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
 
-> **This file supersedes four scratchpad handoffs** (sessions 3–6, in `/tmp/claude-1000/.../`).
+> **This file supersedes five scratchpad handoffs** (sessions 3–7, in `/tmp/claude-1000/.../`).
 > Everything load-bearing is folded in here — including the annotator message (§4) and the dates in
-> §5, which exist nowhere else. Two have already been lost to a cleared scratchpad. **Do not go
-> looking for them.**
+> §5, which exist nowhere else. Three have now been deleted. **Do not go looking for them.**
 
 ---
 
@@ -58,6 +57,20 @@ actions are in §8.
 The scan ran once and completed; the draw was then redone from its on-disk superset via
 `--from-prescan` after the repeated-PMID fix. **Keep `prescan.jsonl` on the box until the W2 encode
 is done** — it is the only way to redraw without a second 54 GB read.
+
+> **`--from-prescan` will refuse on the box until one number is added to the manifest.** Since
+> `198172c` the redraw matches `prescan.jsonl`'s row count against a `n_prescan_rows` field, and the
+> manifest on the box predates the field. **Only if that prescan has not been re-scanned since the
+> Aug 5 run**, record it:
+>
+> ```
+> wc -l data/corpus/prescan.jsonl
+> ```
+>
+> then add `"n_prescan_rows": <that number>` to `data/corpus/corpus_manifest.json` on the box. A
+> count taken *after* a truncation certifies the truncation, which is why the code refuses rather
+> than back-filling it automatically. The tracked copy of the manifest carries no `prescan.jsonl`
+> and does not need the field.
 
 **If the corpus is ever rebuilt from scratch**, budget **~3 h wall**, not the 1 h first estimated — a
 JSON parse per row sits on top of the network. **Network to HF is flaky**: two read timeouts hit
@@ -154,7 +167,10 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
 - **`RAG_Debate_Agent` is retired** (ADR-0007). Never re-run it; cite `docs/harvest/`.
 - **Index identity is a content hash**, never a document count (the ADR-0007 lesson). The empty
   title-segment convention (ADR-0014 §3) is part of that identity and goes in the fingerprint.
-  **See §8 item 1 — `index_fingerprint()` does not currently honour this.**
+  `index_fingerprint()` honours this as of `dc69341` — the corpus enters as
+  `RetrievalConfig.corpus_fingerprint`, the draw's hash over the 2M PMIDs, because `corpus_id` is
+  the literal `"pubmed-2m-v1"` at every seed. **A redraw must change that default**; the test
+  pinning it to `data/corpus/corpus_manifest.json` is what fails if it does not.
 - **Passages carry no titles, gold or distractor** (ADR-0014 §2). `MEDRAG_TEXT_FIELD = "content"` is
   load-bearing, not a default.
 - **≤3 citations per claim**, identical across all three systems.
@@ -231,7 +247,8 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
    which reads as good news.** `draw_corpus` raises on non-`int` keys and raises again on a full scan
    that collides with *no* gold PMID. **This is why the build is not resumable:** a partial scan could
    otherwise satisfy the row-count guard. `--from-prescan` is the one exception and it refuses unless
-   an existing manifest already records a completed 23,898,701-row scan.
+   an existing manifest already records a completed 23,898,701-row scan **and a `n_prescan_rows` that
+   still matches the superset on disk** (`198172c` — §2).
 3. **The repeated PMID.** PubMed re-publishes revised records and MedRAG keeps each revision as its
    own row — **244 of 2,041,867 drawn PMIDs, twice inside a single shard in at least one case.**
    Duplicates share a `selection_key`, so both copies enter the bottom-k together and the draw
@@ -267,9 +284,18 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
    its job was gating G0. **Its thresholds are the right ones** if one is ever rewritten: ≥ 10 GB
    free VRAM of 16 (8B AWQ ~6 + MiniCheck-770M ~1.5 + cross-encoder ~1.3, co-resident at G3) and
    ≥ 60 GB free disk. Recover with `git show c213b4d:scripts/g0_smoke.sh`.
-10. **Scratchpad handoffs get deleted.** Two already have been. **The tracked root file is the
+10. **Scratchpad handoffs get deleted.** Three already have been. **The tracked root file is the
     convention**; `/handoff` writes to the OS temp directory by default, so fold its output in here
     and delete it.
+11. **A guard can be unreachable by construction and still read as a guard.** `--from-prescan`
+    checked that every drawn key fell below the prescan cutoff — but the prescan only ever wrote
+    rows already under that cutoff, so the comparison could not fail, and it printed *"draw sits N%
+    inside the cutoff"* on the way to certifying nothing. **The tell was that the guard's input came
+    from the same place its subject did.** `draw_corpus` had the same shape in the redraw path: it
+    was handed the surviving rows as its own `expected_rows`, so the row-count guard compared the
+    file to itself. Both are fixed (`198172c`). **When reading a guard, ask what varies that it
+    could see** — here nothing did, and the thing that actually varied (how much of the 12 GB
+    superset was still on disk) had no check at all.
 
 ---
 
@@ -297,36 +323,28 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 ## 8. Open work, in the order recommended
 
-### 1. Code-review findings — unfixed, unfiled, and two of them touch the W2 encode
+### 1. ~~Code-review findings~~ — **closed 2026-08-06.** Two fixed, six filed as issue #10
 
-`/code-review` ran 2026-08-06 over `git diff dbd9ed4^...HEAD -- src/biomedqa/corpus.py
-src/biomedqa/data.py scripts/build_corpus.py` (fixed point `749b3d5`; all three files new in range,
-766 insertions). **Nothing was fixed and nothing was filed.** These findings exist only here.
+`/code-review` ran over `git diff dbd9ed4^...HEAD -- src/biomedqa/corpus.py src/biomedqa/data.py
+scripts/build_corpus.py` (fixed point `749b3d5`; all three files new in range, 766 insertions) and
+produced eight findings. Nothing is outstanding here; **the two that touched the W2 encode were
+fixed test-first** and the rest are in the tracker.
 
-**Two were verified against the source, not merely reported:**
+- **`198172c`** — the prescan containment guard, replaced by a row-count guard (trap 11, §2's box
+  action, trap 2). The red test built the real failure: a manifest beside a `prescan.jsonl`
+  truncated from 66 rows to 33, which the old code passed while printing *"draw sits 84.25% inside
+  the cutoff"*.
+- **`dc69341`** — `index_fingerprint()` now hashes the drawn ID list via
+  `RetrievalConfig.corpus_fingerprint` (§5). `CONFIG_VERSION` 1.1.0 → **1.2.0**; `SCHEMA_VERSION`
+  untouched at 1.0.0 and unaffected — that constant versions the knobs, not the records.
 
-- **`scripts/build_corpus.py:118-124` — the containment guard cannot fire.** `streaming_scan:67`
-  only writes rows whose `selection_key` is already `< cutoff`, so `worst >= cutoff` is unreachable
-  by construction, and the printed *"draw sits N% inside the cutoff"* is meaningless. **This is the
-  only check on the superset's completeness.** `prescan.jsonl` is opened `"w"` (`:65`), so a
-  completed run followed by a crashed re-scan truncates it while the old manifest survives —
-  `--from-prescan` then draws from a partial superset and passes every guard. Fix: a row-count check
-  against `prescan_cutoff`'s returned `over`, currently discarded at `:118`. **This is the guard
-  protecting the 12 GB prescan the whole W2 redraw path depends on.**
-- **`src/biomedqa/config.py:121-130` — `index_fingerprint()` hashes only the literal `corpus_id`.**
-  Not the seed, not `CorpusDraw.fingerprint`. **Re-drawing at a different seed yields a
-  byte-identical index fingerprint** — ADR-0012 §1's stated requirement unmet, and exactly the
-  ADR-0007 staleness lesson `corpus.py:155-158` cites. Fix is ~one line on `RetrievalConfig`.
-
-**Reported but unverified:** `corpus.py:171` hardcodes `corpus_id = "pubmed-2m-v1"` regardless of
-`--target-n`, breaking the R1 1M fallback and duplicating `config.py:45` · `build_corpus.py:160`
-reads the string `"content"` rather than `MEDRAG_TEXT_FIELD`, which ADR-0014 calls load-bearing ·
-`corpus.py:218`'s `n_duplicate_rows` undercounts (draw correctness unaffected, reported number
-wrong) · the freeze/verify pair is duplicated between `corpus.py:288-320` and `data.py:125-163`
-**and has already diverged** · PMID is `str` in `data.py:46`, `int` in `corpus.py:186` ·
-`build_corpus.py:40`'s `sys.path.insert` is dead.
-
-**Undecided: file these as issues, or fix them directly before W2.**
+**Issue #10** holds the other six, all **verified against the source before filing** rather than
+taken from the sub-agent reports — and two changed under that check, which is the reusable part:
+`n_duplicate_rows` undercounts because `held` is the running bottom-k, so **the manifest's 300 is a
+lower bound on duplicates in the scan, not a measurement of them**; and the freeze/verify
+duplication's real divergence is behavioural, not stylistic — `freeze_splits` refuses to overwrite a
+frozen file while `write_gold_pmids` overwrites silently *and* recomputes the hash, so "the gold
+PMID set is frozen" is currently false. None of the six blocks the encode.
 
 ### 2. W2 build work — the corpus is built and waiting
 
@@ -358,12 +376,13 @@ the guideline two-pass calendar.
 
 ---
 
-**Suggested skills.** `/tdd` for item 1's containment guard — the failing test is *a truncated
-`prescan.jsonl` against a surviving manifest must raise*, and it cannot honestly be written after the
-fix. `tests/test_corpus.py` is the house model: each test's docstring names the silent failure it
-prevents, and its fixture is a **real MedRAG row embedded verbatim** — the whole question was what
-those three text fields actually contain, and an invented fixture could have asserted a convenient
-fiction. `/grilling` is the user's preferred instrument and produced ADR-0009–0013; live target is
-the **W9 triple-booking**. `/domain-modeling` for any new ADR, and for the PMID `str`/`int` split if
-it is judged worth a type. `/qa` if item 1 is to be filed rather than fixed. Not needed yet:
-`dataviz` (figures are W11) · `claude-api` (the Opus 5 judge is wired in W6).
+**Suggested skills.** `/tdd` for the chunker sweep and the confusability probe — it was the right
+instrument for item 1 and the reason is general: *a truncated `prescan.jsonl` against a surviving
+manifest must raise* cannot honestly be written after the fix, because writing it afterwards means
+reconstructing a failure you have already stopped being able to reproduce. `tests/test_corpus.py`
+is the house model: each test's docstring names the silent failure it prevents, and its fixture is a
+**real MedRAG row embedded verbatim** — the whole question was what those three text fields actually
+contain, and an invented fixture could have asserted a convenient fiction. `/grilling` is the user's
+preferred instrument and produced ADR-0009–0013; live target is the **W9 triple-booking**.
+`/domain-modeling` for any new ADR, and for issue #10's PMID `str`/`int` split if it is judged worth
+a type. Not needed yet: `dataviz` (figures are W11) · `claude-api` (the Opus 5 judge is wired in W6).
