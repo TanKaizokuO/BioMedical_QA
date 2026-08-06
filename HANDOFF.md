@@ -295,8 +295,10 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 5. **Deferred by the user's own triage to W4–W5:** words/claim vs claims/query as the gated quantity
    (ADR-0009 Known weaknesses) · the Sep 3 freeze · the guideline two-pass calendar.
 6. **Housekeeping** — `runs/g0/` → `docs/harvest/g0/` (**carries a code change**, trap 6) ·
-   `g0_medcpt_throughput.json` is still only on the box · `scripts/g0_smoke.sh` (trap 8) · **close
-   issue #1** (G0 passed Aug 4).
+   `g0_medcpt_throughput.json` is still only on the box, but **every number in it is transcribed
+   into `research_roadmap.md` §3**, so losing the file costs nothing · `scripts/g0_smoke.sh`
+   (trap 8) · ~~close issue #1~~ **closed 2026-08-06**, with the evidence for both pass conditions
+   and R1's discharge in the closing comment.
 
 **Suggested skills:** `/grilling` is the user's preferred instrument and produced ADR-0009–0013 —
 live target is the **W9 triple-booking**. `/tdd` for the chunker sweep and the probe;
