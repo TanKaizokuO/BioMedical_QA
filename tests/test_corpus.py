@@ -365,13 +365,17 @@ def test_a_drawn_pmid_missing_from_the_superset_is_visible(tmp_path) -> None:
 # ---------------------------------------------------------------------------------------------
 
 
-def _prescan(tmp_path, pmids, *, seed, target_n, n_scanned, collisions=85):
+def _prescan(tmp_path, pmids, *, seed, target_n, n_scanned, collisions=85, n_prescan_rows=None):
+    pmids = list(pmids)
     (tmp_path / "prescan.jsonl").write_text("".join(
         json.dumps({"id": f"r_{p}", "title": "T", "content": "C" * (p % 7 + 1), "PMID": p}) + "\n"
         for p in pmids))
-    (tmp_path / "corpus_manifest.json").write_text(json.dumps(
-        {"seed": seed, "target_n": target_n, "n_scanned": n_scanned,
-         "n_gold_collisions": collisions}))
+    manifest = {"seed": seed, "target_n": target_n, "n_scanned": n_scanned,
+                "n_gold_collisions": collisions,
+                "n_prescan_rows": len(pmids) if n_prescan_rows is None else n_prescan_rows}
+    if manifest["n_prescan_rows"] is False:      # a manifest written before the count was recorded
+        del manifest["n_prescan_rows"]
+    (tmp_path / "corpus_manifest.json").write_text(json.dumps(manifest))
     return tmp_path
 
 
@@ -403,3 +407,38 @@ def test_the_redraw_carries_the_scan_and_collision_counts_forward(tmp_path) -> N
     assert draw.n_scanned == MEDRAG_TOTAL_ROWS
     assert draw.n_gold_collisions == 1000
     assert len(draw.pmids) == 10
+
+
+def test_a_truncated_prescan_cannot_be_redrawn_from(tmp_path) -> None:
+    """`streaming_scan` opens `prescan.jsonl` with `"w"`, so a completed run followed by a crashed
+    re-scan leaves a **truncated superset beside a surviving manifest**. Every other guard survives
+    that: the scan and collision counts are carried from the old manifest, the draw is checked
+    against the rows it was itself drawn from, and the containment arithmetic compares the draw to a
+    cutoff the prescan filtered on before writing. So the redraw would take a corpus off whatever
+    fraction of the superset the crash left behind, report the full 23,898,701-row scan, and pass.
+
+    The superset's own row count is the only number that can tell — hence the manifest records it,
+    and this refuses any prescan that no longer matches.
+    """
+    cutoff, _ = prescan_cutoff(10, MEDRAG_TOTAL_ROWS)
+    inside = [p for p in range(1_000_000) if selection_key(p, seed=3) < cutoff]
+    out = _prescan(tmp_path, inside, seed=3, target_n=10, n_scanned=MEDRAG_TOTAL_ROWS)
+
+    kept = (out / "prescan.jsonl").read_text().splitlines()[: len(inside) // 2]
+    (out / "prescan.jsonl").write_text("\n".join(kept) + "\n")
+
+    with pytest.raises(SystemExit, match="truncated"):
+        redraw_from_prescan(out, gold_pmids={inside[0]}, target_n=10, seed=3)
+
+
+def test_a_manifest_with_no_recorded_superset_size_is_refused(tmp_path) -> None:
+    """Back-filling the count from the file on disk is the one thing this must not do: the file may
+    already be the truncated one, and the redraw would then certify itself. Refusing puts the
+    judgement on the operator, who is the only one who knows whether the scan has been re-run.
+    """
+    cutoff, _ = prescan_cutoff(10, MEDRAG_TOTAL_ROWS)
+    inside = [p for p in range(1_000_000) if selection_key(p, seed=3) < cutoff]
+    out = _prescan(tmp_path, inside, seed=3, target_n=10, n_scanned=MEDRAG_TOTAL_ROWS,
+                   n_prescan_rows=False)
+    with pytest.raises(SystemExit, match="records no n_prescan_rows"):
+        redraw_from_prescan(out, gold_pmids={inside[0]}, target_n=10, seed=3)

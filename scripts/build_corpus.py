@@ -82,9 +82,19 @@ def redraw_from_prescan(out: Path, *, gold_pmids: set[int], target_n: int, seed:
     them from the superset, where both would be wrong. The redraw can only ever restate a scan that
     already passed the guards; it cannot manufacture one.
 
-    Its own correctness is checked exactly rather than statistically: every drawn PMID's
-    `selection_key` must fall below the prescan cutoff. The prescan kept *every* row under that
-    cutoff, so if the whole draw is under it the superset provably contained the draw.
+    **What it checks about the superset is the row count, and it has to be.** An earlier version
+    compared every drawn key against the prescan cutoff and called that containment. It was not a
+    check at all: `streaming_scan` only ever writes rows whose key is already below the cutoff, so
+    the draw is under it by construction and the comparison could not fail. The one thing that
+    varies is how much of the superset is still on disk — `streaming_scan` opens `prescan.jsonl`
+    with `"w"`, so a completed run followed by a crashed re-scan leaves a truncated superset next to
+    a manifest that still describes the full one. Nothing else here can see that: the scan and
+    collision counts are carried from that manifest, and `draw_corpus` is handed the surviving rows
+    as its own `expected_rows`. So the count is recorded at scan time and matched here.
+
+    **The count is only evidence if it was written before the crash.** A manifest with no
+    `n_prescan_rows` is refused rather than back-filled automatically, because back-filling from a
+    file that may already be truncated would launder the very failure this exists to catch.
 
     Used after 2026-08-05: the scan completed, the write step then found MedRAG's repeated PMIDs,
     and only the draw needed redoing.
@@ -112,18 +122,32 @@ def redraw_from_prescan(out: Path, *, gold_pmids: set[int], target_n: int, seed:
                 yield json.loads(line)
 
     n_rows = sum(1 for _ in prescan_rows())
+    recorded = prior.get("n_prescan_rows")
+    if recorded is None:
+        raise SystemExit(
+            f"{manifest_path} records no n_prescan_rows, so a truncated superset would be "
+            f"indistinguishable from an intact one. The file now holds {n_rows:,} rows. If — and "
+            "only if — that scan is known not to have been re-run since, add "
+            f'"n_prescan_rows": {n_rows} to the manifest and try again. Otherwise re-run the full '
+            "scan: the count is only evidence when it is recorded before the crash, not after."
+        )
+    if n_rows != recorded:
+        raise SystemExit(
+            f"prescan.jsonl holds {n_rows:,} rows, and the manifest records {recorded:,} — the "
+            "superset was truncated after the scan that produced this manifest. streaming_scan "
+            "opens it with 'w', so a re-scan that crashed leaves exactly this: a partial superset "
+            "beside a surviving manifest. A redraw from it is a corpus over whatever fraction "
+            "survived, reported as a full scan. Re-run the full scan."
+        )
+
     draw = draw_corpus(prescan_rows(), gold_pmids=gold_pmids, target_n=target_n, seed=seed,
                        expected_rows=n_rows)
 
     cutoff, _ = prescan_cutoff(target_n, MEDRAG_TOTAL_ROWS)
     worst = max(selection_key(p, seed=seed) for p in draw.pmids)
-    if worst >= cutoff:
-        raise SystemExit(
-            f"the draw reaches key {worst} at or past the prescan cutoff {cutoff}, so the superset "
-            "cannot be shown to contain it. Re-run the full scan."
-        )
-    print(f"prescan            : {n_rows:,} rows, draw sits {(cutoff - worst) / cutoff:.2%} inside "
-          f"the cutoff (scan of {MEDRAG_TOTAL_ROWS:,} rows carried from the manifest)")
+    print(f"prescan            : {n_rows:,} rows, matching the manifest; draw sits "
+          f"{(cutoff - worst) / cutoff:.2%} inside the cutoff (scan of {MEDRAG_TOTAL_ROWS:,} rows "
+          "carried from the manifest)")
 
     return dataclasses.replace(
         draw,
@@ -198,7 +222,14 @@ def main() -> int:
     print(f"duplicate rows     : {draw.n_duplicate_rows:,} suppressed (revised records, one per PMID)")
     print(f"fingerprint        : {draw.fingerprint}")
 
-    (args.out / "corpus_manifest.json").write_text(json.dumps(draw.to_json(), indent=2) + "\n")
+    # Counted from the file as it stands at write time, not carried from the scan: the manifest's
+    # job is to describe the prescan a later --from-prescan will actually read.
+    with (args.out / "prescan.jsonl").open() as fh:
+        n_prescan_rows = sum(1 for _ in fh)
+    print(f"prescan rows       : {n_prescan_rows:,} recorded, so a later redraw can see truncation")
+
+    (args.out / "corpus_manifest.json").write_text(
+        json.dumps(draw.to_json() | {"n_prescan_rows": n_prescan_rows}, indent=2) + "\n")
 
     selected = set(draw.pmids)
     chosen = choose_one_row_per_pmid(args.out / "prescan.jsonl", selected)
