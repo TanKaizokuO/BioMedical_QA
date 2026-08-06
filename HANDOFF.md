@@ -3,7 +3,7 @@
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
 
-`main` · working tree clean · **`origin/main` == `HEAD` == `dc69341`. Nothing is unpushed.**
+`main` · working tree clean · **`origin/main` == `HEAD` == `1d69392`. Nothing is unpushed.**
 Tests: `uv run --with pytest python -m pytest tests/ -q` → **86 passed**. There is no bare `python`
 on this box and no installed `pytest`; that invocation is the one that works. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
@@ -275,7 +275,9 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
 7. **`docs/` is gitignored** via `docs/*` with `!docs/adr/` and `!docs/harvest/` as the **only**
    exceptions. Docs written anywhere else are **silently untracked** — verify with `git check-ignore`.
    `docs/harvest/` therefore holds two unrelated things and its README says which rules govern which.
-   **`docs/agents/*.md` are currently untracked despite `CLAUDE.md` pointing at them** — §8 item 4.
+   `!docs/agents/` was added 2026-08-06 (`1d69392`) — those three had been untracked while
+   `CLAUDE.md` pointed at them. **Any new exception needs the same two-line pair**: the negation, and
+   a note saying what it exists for.
 8. **VRAM drifts on the A4000** (WDDM, display attached). Always launch vLLM with
    `--gpu-memory-utilization 0.85` and `VLLM_USE_V2_MODEL_RUNNER=0`. **Do not install an NVIDIA
    driver inside WSL** — the Windows driver is passed through.
@@ -356,12 +358,12 @@ hit@5 both ways, not by taste** · `backends.py` adapter (~½ day).
 
 User-side, undated, **backstop Thu 2026-08-20** (§5). Not a blocker on anything agent-side.
 
-### 4. `docs/agents/*.md` are gitignored and untracked — undecided
+### 4. ~~`docs/agents/*.md` gitignored~~ — **tracked 2026-08-06** (`1d69392`)
 
-`CLAUDE.md` is tracked and points at all three, so a clone gets project instructions referencing
-files that are not there. **Same failure shape as the G0 records** (trap 6). Fix is `!docs/agents/`
-in `.gitignore`, but the repo is public, so it publishes three workflow docs — **put to the user and
-not answered.**
+`!docs/agents/` added; all three read before staging, since tracking them publishes them. They are
+generic workflow conventions — nothing about the annotators, no credentials. **This was the last of
+the gitignored-parent failures found so far**; trap 7 is the general form and `git check-ignore` is
+how to test for the next one.
 
 ### 5. Deferred by the user's own triage to W4–W5
 
