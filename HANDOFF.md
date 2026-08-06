@@ -1,10 +1,10 @@
-# HANDOFF — 2026-08-05 (end of sixth session)
+# HANDOFF — 2026-08-06 (end of sixth session)
 
 Snapshot for resuming in a fresh session. Regenerate with `/handoff`; **do not append** — a stale
 line here is worse than a missing one, because the next session will trust it.
 
-`main` · working tree clean · **`origin/main` == `HEAD` == `fecfeb8`. Nothing is unpushed.**
-Tests: `uv run --with pytest python -m pytest tests/ -q` → **75 passed**. There is no bare `python`
+`main` · working tree clean · **`origin/main` == `HEAD` == `0c45a09`. Nothing is unpushed.**
+Tests: `uv run --with pytest python -m pytest tests/ -q` → **82 passed**. There is no bare `python`
 on this box and no installed `pytest`; that invocation is the one that works.
 
 > **This file supersedes three scratchpad handoffs** (sessions 3, 4 and 5, all in
@@ -41,35 +41,36 @@ documents the deadline it was written against, and changing it would change the 
 
 ## 2. What is blocking right now
 
-**One thing, and it is user-side: the corpus build on the A4000.**
+**The corpus is built. The one live blocker is user-side and dated: the annotator message,
+due Fri 2026-08-07** — §4 has the draft and the three constraints on it.
 
-```
-uv run --with datasets python scripts/build_corpus.py --out data/corpus
-```
+### The corpus, as built (2026-08-06, on the A4000)
 
-**Observed at 2026-08-05 end of session** (not inferred): running in tmux on the box, ~6M of
-23,898,701 rows scanned, kept-rate **8.549%** against a design target of 8.546% — nominal. The box
-has a clone at `~/BioMedical_QA` (WSL) and `origin/main` is current, so the loop is
-`git pull` → run → paste.
+| | |
+|---|---|
+| `fingerprint` | **`93321598f3f1`** — this is the corpus. The earlier `41cf7a6c9160` is the duplicate-bearing draw and **must not be used**. |
+| `gold collisions` | **1,000 of 1,000.** Every PubMedQA gold PMID is in MedRAG. The overlap ADR-0012 §1 guessed at is **total** — without draw-time exclusion every gold abstract would have been indexed twice. |
+| `duplicate rows` | **300 suppressed** over 244 PMIDs (§6 trap 3). |
+| scanned | 23,898,701 — exact |
+| artifacts | `data/corpus/corpus_manifest.json` (tracked) · `corpus.jsonl`, `prescan.jsonl` (gitignored, box only) |
 
-**Wanted back: the `fingerprint` line and the `gold collisions` count.** Both belong in the run
-manifest, and the collision count is the **first measurement anyone has** of the gold/MedRAG overlap.
+The scan ran once and completed; the draw was then redone from its on-disk superset via
+`--from-prescan` after the repeated-PMID fix. `prescan.jsonl` is worth keeping on the box while W2
+runs — it is the only way to redraw without a second 54 GB read.
 
-- Budget **~3 h wall**, not the 1 h first estimated — a JSON parse per row sits on top of the network.
-- **Not resumable by design.** A drop restarts the 54 GB read. See §6 trap 2 for why that is the
-  correct trade.
-- **Three guards can stop it** — row count ≠ 23,898,701 · zero gold collisions · short heap. **Each
-  one means a corpus that must not be encoded.** Ask for the traceback; do not work around it.
+**If the corpus is ever rebuilt from scratch**, budget **~3 h wall**, not the 1 h first estimated —
+a JSON parse per row sits on top of the network, and two read timeouts hit retry 2/5 on the
+2026-08-05 run. It is **not resumable** (§6 trap 2). Four guards can stop it — row count ≠
+23,898,701 · zero gold collisions · short heap · a draw short on distinct PMIDs. **Each one means a
+corpus that must not be encoded.** Ask for the traceback rather than working around it.
 
-**This blocks the W2 encode, and W2 opens Aug 10.**
-
-Agent-side there is no blocker. The next agent-side actions are in §7.
+Agent-side there is no blocker. The next agent-side actions are in §8.
 
 ---
 
-## 3. What changed since the last handoff (`269af6a` → `fecfeb8`)
+## 3. What changed since the last handoff (`269af6a` → `0c45a09`)
 
-Six commits. **The commit messages and the ADRs carry the reasoning; it is not repeated in full
+Eight commits. **The commit messages and the ADRs carry the reasoning; it is not repeated in full
 here.** What follows is only what a diff does not recover.
 
 | Commit | What |
@@ -80,6 +81,8 @@ here.** What follows is only what a diff does not recover.
 | `3a1c65b` | `data.gold_pool()` + `tests/test_splits.py` — gold-attribution questions drawn from outside `test` |
 | `9f7e2c9` | **Axis 3** — distractors indexed as abstract prose, no titles anywhere |
 | `fecfeb8` | **ADR-0014** + roadmap (partial-parquet bullet, W2 row) |
+| `0d3a0ed` | one row per article — MedRAG's repeated PMIDs (§6 trap 3) |
+| `0c45a09` | `--from-prescan` — redraw off a completed scan, never a partial one |
 
 **Reasoning that is not in the diffs:**
 
@@ -213,25 +216,36 @@ GitHub before it reaches them from the user. That is a reason to send, not a rea
    int64. `{"21645374"} & {21645374}` is empty, so a broken dedup reports **"0 duplicates removed" —
    which reads as good news.** `draw_corpus` raises on non-`int` keys and raises again on a full scan
    that collides with *no* gold PMID. **This is why the build is not resumable:** a partial scan could
-   otherwise satisfy the row-count guard.
-3. **Indexing the question.** `scripts/g0_medcpt_throughput.py:46` puts `row["question"]` in MedCPT's
+   otherwise satisfy the row-count guard. `--from-prescan` is the one exception and it refuses unless
+   an existing manifest already records a completed 23,898,701-row scan — it restates guards, never
+   manufactures them.
+3. **The repeated PMID.** PubMed re-publishes revised records and MedRAG keeps each revision as its
+   own row — **244 of 2,041,867 drawn PMIDs, twice inside a single shard in at least one case.**
+   Duplicates share a `selection_key`, so both copies enter the bottom-k together and the draw
+   quietly becomes 2M rows over 1,999,703 articles: **one abstract under two `passage_id`s**, which
+   is ADR-0012 §1's failure arriving from inside MedRAG rather than from gold. The revisions are
+   whole abstracts, not chunks (`22367489` is `b-subunit` vs `beta-subunit`; `22453897` appends an
+   abbreviation list), so **ADR-0014 §2's "a row is an article" holds** — its unstated "and appears
+   once" does not, and its 15,377/15,377 was one shard. One row survives per article: **longest
+   `content`, ties on smallest `id`.**
+4. **Indexing the question.** `scripts/g0_medcpt_throughput.py:46` puts `row["question"]` in MedCPT's
    title slot as a throughput stand-in. **Copying that into the real encode would index the query
    against itself.** The title slot never receives the question.
-4. **Fetching gold titles to "fix" the title asymmetry.** The intuitive repair, and the one option
+5. **Fetching gold titles to "fix" the title asymmetry.** The intuitive repair, and the one option
    that is definitely wrong — the titles *are* the questions (§3).
-5. **`runs/g0/` → `docs/harvest/g0/` is not a file move.** `tests/test_abstention.py` resolves
+6. **`runs/g0/` → `docs/harvest/g0/` is not a file move.** `tests/test_abstention.py` resolves
    `G0_DIR` as `runs/g0`, and **those two tests are load-bearing**: they assert the abstention
    predicate against both real G0 record shapes (Llama's list-item form, Qwen's trailing prose). If
    either starts failing, ADR-0010's decision to hold `SCHEMA_VERSION` at 1.0.0 must be revisited
    **before Sep 7**, not after.
-6. **`docs/` is gitignored** via `docs/*` with `!docs/adr/` and `!docs/harvest/`. Docs written
+7. **`docs/` is gitignored** via `docs/*` with `!docs/adr/` and `!docs/harvest/`. Docs written
    anywhere else are **silently untracked** — verify with `git check-ignore`.
-7. **VRAM drifts on the A4000** (WDDM, display attached). Always launch vLLM with
+8. **VRAM drifts on the A4000** (WDDM, display attached). Always launch vLLM with
    `--gpu-memory-utilization 0.85` and `VLLM_USE_V2_MODEL_RUNNER=0`. **Do not install an NVIDIA
    driver inside WSL** — the Windows driver is passed through.
-8. **`scripts/g0_smoke.sh` has never run successfully and is now wrong** — it assumes a POSIX login
+9. **`scripts/g0_smoke.sh` has never run successfully and is now wrong** — it assumes a POSIX login
    shell; the box answers with `cmd.exe`. Recommend deleting; the user has not decided.
-9. **Scratchpad handoffs get deleted.** One already was. The tracked root file is the convention;
+10. **Scratchpad handoffs get deleted.** One already was. The tracked root file is the convention;
    `/handoff` writes to the OS temp directory by default.
 
 ---
@@ -240,7 +254,7 @@ GitHub before it reaches them from the user. That is a reason to send, not a rea
 
 1. **`docs/adr/0014`, `0013`, `0012`** — the corpus's text form and source, the annotation budget,
    the distractor pool. The answer to almost any "why is it like this?" about W1–W2.
-2. **`src/biomedqa/corpus.py`'s module docstring** — the longest-form write-up of traps 1–4, and the
+2. **`src/biomedqa/corpus.py`'s module docstring** — the longest-form write-up of traps 1–5, and the
    only surviving record of the session-3 findings.
 3. `CONTEXT.md` — the four frozen units and the annotation protocol; authoritative on the units.
 4. `research_roadmap.md` §3 (distractor selection), §5 (the week grid), §7 (R1–R7), §8 rules 8 and 10.
@@ -259,18 +273,17 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 ## 8. Open work, in the order recommended
 
-1. **The box run** — §2. **User-side, blocks the W2 encode, W2 opens Aug 10.**
-2. **Send the annotator message** — §4. **User-side, by Fri 2026-08-07.**
-3. **Issue #9's body is stale** (ADR-0010 is its design half). **Ask before editing** — it was
+1. **Send the annotator message** — §4. **User-side, by Fri 2026-08-07.**
+2. **Issue #9's body is stale** (ADR-0010 is its design half). **Ask before editing** — it was
    withheld from a previous go-ahead, and the repo being public **strengthens** that caution.
-4. **W2 build work**, once the corpus lands: chunker sweep · `bm25s` + MedCPT + RRF · the 2M encode ·
+3. **W2 build work** — the corpus is built and waiting: chunker sweep · `bm25s` + MedCPT + RRF · the 2M encode ·
    ADR-0012 §2's confusability probe (pulls MiniCheck forward, ~½ day) · ADR-0014 §3's title-segment
    measurement · `backends.py` adapter (~½ day).
-5. **`corpus.py` and `data.py` have never been reviewed** — the first substantial non-scoring modules.
+4. **`corpus.py` and `data.py` have never been reviewed** — the first substantial non-scoring modules.
    Worth doing before the W2 encode commits land on top.
-6. **Deferred by the user's own triage to W4–W5:** words/claim vs claims/query as the gated quantity
+5. **Deferred by the user's own triage to W4–W5:** words/claim vs claims/query as the gated quantity
    (ADR-0009 Known weaknesses) · the Sep 3 freeze · the guideline two-pass calendar.
-7. **Housekeeping** — `runs/g0/` → `docs/harvest/g0/` (**carries a code change**, trap 5) ·
+6. **Housekeeping** — `runs/g0/` → `docs/harvest/g0/` (**carries a code change**, trap 6) ·
    `g0_medcpt_throughput.json` is still only on the box · `scripts/g0_smoke.sh` (trap 8) · **close
    issue #1** (G0 passed Aug 4).
 

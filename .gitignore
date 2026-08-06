@@ -55,6 +55,14 @@ data/*
 !data/gold_pmids.json
 datasets/
 corpus/
+# Tracked exception: the corpus manifest — seed, the guards' counts, the fingerprint, and the 2M
+# PMID list. ADR-0012 §1 requires the ID list committed, and `CorpusDraw.fingerprint` hashes the
+# list rather than the parameters, so the list is the only thing the hash can be checked against.
+# `corpus.jsonl` (~2 GB of abstracts) and `prescan.jsonl` stay out — they are reproducible from it.
+# Three lines because git will not descend into an excluded directory.
+!data/corpus/
+data/corpus/*
+!data/corpus/corpus_manifest.json
 *.jsonl
 *.parquet
 *.arrow
