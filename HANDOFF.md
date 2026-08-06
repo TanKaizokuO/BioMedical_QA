@@ -241,18 +241,27 @@ heard it from the user first.
    against itself.** The title slot never receives the question.
 5. **Fetching gold titles to "fix" the title asymmetry.** The intuitive repair, and the one option
    that is definitely wrong — the titles *are* the questions (§3).
-6. **`runs/g0/` → `docs/harvest/g0/` is not a file move.** `tests/test_abstention.py` resolves
-   `G0_DIR` as `runs/g0`, and **those two tests are load-bearing**: they assert the abstention
-   predicate against both real G0 record shapes (Llama's list-item form, Qwen's trailing prose). If
-   either starts failing, ADR-0010's decision to hold `SCHEMA_VERSION` at 1.0.0 must be revisited
-   **before Sep 7**, not after.
+6. **The G0 records now live in `docs/harvest/g0/`** (moved 2026-08-06). **They were untracked
+   before**: `runs/` is gitignored (`.gitignore:100`), so the only copies were on this laptop.
+   `tests/test_abstention.py` **skips** rather than fails when they are missing, so on any other
+   machine the three G0 tests were quietly not running. Those tests are load-bearing — they assert
+   the abstention predicate against both real record shapes (Llama's list-item form, Qwen's trailing
+   prose), and if either starts failing, ADR-0010's decision to hold `SCHEMA_VERSION` at 1.0.0 must
+   be revisited **before Sep 7**, not after. `g0_generator_bakeoff.py` writes to the new path.
+   **A `pytest.skip` on a missing fixture is invisible in a green run** — that is the general trap.
+   **ADR-0010 §"Validation" and ADR-0013's evidence table still cite `runs/g0/`.** Left as-is on
+   purpose: they are accepted, and a stale path is neither a wrong premise nor a changed decision,
+   so the `docs/agents/domain.md` exception does not cover it. Read them as `docs/harvest/g0/`.
 7. **`docs/` is gitignored** via `docs/*` with `!docs/adr/` and `!docs/harvest/`. Docs written
    anywhere else are **silently untracked** — verify with `git check-ignore`.
 8. **VRAM drifts on the A4000** (WDDM, display attached). Always launch vLLM with
    `--gpu-memory-utilization 0.85` and `VLLM_USE_V2_MODEL_RUNNER=0`. **Do not install an NVIDIA
    driver inside WSL** — the Windows driver is passed through.
-9. **`scripts/g0_smoke.sh` has never run successfully and is now wrong** — it assumes a POSIX login
-   shell; the box answers with `cmd.exe`. Recommend deleting; the user has not decided.
+9. ~~`scripts/g0_smoke.sh`~~ **deleted 2026-08-06.** It never ran successfully and was wrong — it
+   assumed a POSIX login shell and the box answers with `cmd.exe`. It was G0's preflight, G0 has
+   passed, and the box is known good. **Its thresholds are still the right ones** if a preflight is
+   ever rewritten: ≥ 10 GB free VRAM of 16 (8B AWQ ~6 + MiniCheck-770M ~1.5 + cross-encoder ~1.3,
+   co-resident at G3) and ≥ 60 GB free disk. Recover with `git show c213b4d:scripts/g0_smoke.sh`.
 10. **Scratchpad handoffs get deleted.** One already was. The tracked root file is the convention;
    `/handoff` writes to the OS temp directory by default.
 
@@ -294,11 +303,12 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
    Worth doing before the W2 encode commits land on top.
 5. **Deferred by the user's own triage to W4–W5:** words/claim vs claims/query as the gated quantity
    (ADR-0009 Known weaknesses) · the Sep 3 freeze · the guideline two-pass calendar.
-6. **Housekeeping** — `runs/g0/` → `docs/harvest/g0/` (**carries a code change**, trap 6) ·
-   `g0_medcpt_throughput.json` is still only on the box, but **every number in it is transcribed
-   into `research_roadmap.md` §3**, so losing the file costs nothing · `scripts/g0_smoke.sh`
-   (trap 8) · ~~close issue #1~~ **closed 2026-08-06**, with the evidence for both pass conditions
-   and R1's discharge in the closing comment.
+6. ~~Housekeeping~~ — **all done 2026-08-06.** G0 records moved to `docs/harvest/g0/` and now
+   tracked (trap 6) · `scripts/g0_smoke.sh` deleted (trap 9) · issue #1 closed, with the evidence
+   for both pass conditions and R1's discharge in the closing comment.
+   **One item is user-side and remains:** `g0_medcpt_throughput.json` exists only on the box. Every
+   number in it is transcribed into `research_roadmap.md` §3, so losing it costs nothing — but if
+   it is convenient, `scp` it into `docs/harvest/g0/` alongside the two bake-off records.
 
 **Suggested skills:** `/grilling` is the user's preferred instrument and produced ADR-0009–0013 —
 live target is the **W9 triple-booking**. `/tdd` for the chunker sweep and the probe;

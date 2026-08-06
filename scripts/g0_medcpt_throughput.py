@@ -168,7 +168,7 @@ def main() -> int:
         "extrapolation": {str(k): v for k, v in extrapolation.items()},
     }
     Path(args.out).write_text(json.dumps(payload, indent=2))
-    print(f"\nsaved: {args.out}   (scp it back into runs/g0/)")
+    print(f"\nsaved: {args.out}   (scp it back into docs/harvest/g0/ — tracked; runs/ is gitignored)")
     return 0
 
 

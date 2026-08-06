@@ -7,12 +7,28 @@ Everything this project needed from the retired base pipeline, copied here so th
 **Source:** `~/Code/Research/RAG_Debate_Agent` @ `7c5b86f` (clean tree), fix commit `e936d30`
 (2026-07-02).
 
-## Rules for using this directory
+## Two kinds of thing live here, and only one of them is a harvest
+
+`docs/*` is gitignored with `!docs/adr/` and `!docs/harvest/` as the only exceptions, so this
+directory is one of exactly two places under `docs/` where a file can be **tracked**. That makes it
+the home for two unrelated things, and the rules below govern only the first:
+
+1. **The harvest itself** — the frozen reference material from `RAG_Debate_Agent`, listed under
+   *Contents*. Rules 1–3 are about this.
+2. **[`g0/`](g0/) — this project's own G0 run records** (moved here 2026-08-06 from `runs/g0/`,
+   which is gitignored). **These are measurements, they are ours, and rule 2 does not apply to
+   them.** They are here because `tests/test_abstention.py` reads them and ADR-0010's validation
+   rests on them, so a gitignored directory was the wrong home: the tests skip silently when the
+   files are absent, which on any machine but the one that ran G0 is exactly the wrong outcome.
+   `scripts/g0_generator_bakeoff.py` now writes here directly.
+
+## Rules for the harvest
 
 1. **Nothing here is imported.** No module under `src/biomedqa/` may import from the base repo, and
    no file here is on the Python path. This is documentation.
-2. **Nothing here is a measurement.** No number produced by the base pipeline enters this repo, a
-   run manifest, or the paper. `pubmedqa_baseline_v2` is cancelled (ADR-0007).
+2. **Nothing in the harvest is a measurement.** No number produced by the base pipeline enters this
+   repo, a run manifest, or the paper. `pubmedqa_baseline_v2` is cancelled (ADR-0007). *(This is
+   about the base pipeline's numbers. `g0/` holds our own — see above.)*
 3. **Read the caveat before reusing.** Each item below states what survives the move to the 2M
    corpus and what does not. The base repo's design assumption — corpus *is* the gold set — is
    exactly the assumption ADR-0003 rejects, and it is baked into most of its code.

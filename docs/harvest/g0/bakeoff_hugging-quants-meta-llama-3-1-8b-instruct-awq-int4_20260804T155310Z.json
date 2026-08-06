@@ -1,0 +1,249 @@
+{
+  "kind": "g0_generator_bakeoff",
+  "model": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+  "base_url": "http://localhost:8000",
+  "utc": "2026-08-04T15:53:10.655052+00:00",
+  "client_host": "TanKaizokuO",
+  "probe": {
+    "seed": 20260731,
+    "n": 10,
+    "pubids": [
+      "10966943",
+      "16100194",
+      "18243752",
+      "19131405",
+      "15670262",
+      "20363841",
+      "15477551",
+      "10781708",
+      "7547656",
+      "22668712"
+    ]
+  },
+  "params": {
+    "max_tokens": 768,
+    "temperature": 0.0,
+    "seed": 0,
+    "max_citations": 3
+  },
+  "prompt_template": "You are answering a biomedical question using only the numbered passages below.\n\nWrite your answer as a list of atomic claims, one per line. Each claim must:\n  - state exactly one fact\n  - be self-contained (resolve every pronoun and implicit subject)\n  - end with citations to the passages supporting it, as [n] or [n][m]\n  - cite at most {max_citations} passages\n\nCite only from the passages. If the passages do not answer the question, say so as a single claim\nciting the closest passage.\n\nPassages:\n{passages}\n\nQuestion: {question}\n\nClaims:",
+  "summary": {
+    "n_ok": 10,
+    "n_failed": 0,
+    "latency_s": {
+      "mean": 3.21,
+      "median": 3.42,
+      "min": 1.57,
+      "max": 4.67
+    },
+    "tokens_per_s_median": 72.53,
+    "compliance_mean": 0.991,
+    "compliance_min": 0.909,
+    "cited_rate_mean": 0.991,
+    "over_cap_any": false,
+    "out_of_range_any": false,
+    "truncated": 0
+  },
+  "records": [
+    {
+      "pubid": "10966943",
+      "n_passages": 2,
+      "wall_s": 1.858,
+      "prompt_tokens": 369,
+      "completion_tokens": 132,
+      "tokens_per_s": 71.03,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 5,
+        "n_claims_cited": 5,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 1,
+        "compliance": 1.0
+      },
+      "answer": "1. Improvement in visual acuity in amblyopic eyes can occur over time. [2]\n2. The mean improvement in distance acuity in amblyopic eyes by 12 months was 3.3 lines logMAR. [2]\n3. The mean improvement in near acuity in amblyopic eyes by 12 months was 1.9 lines logMAR. [2]\n4. The improvement in acuity in amblyopic eyes generally occurred between 1 and 12 months from baseline. [2]\n5. The improvement in acuity in amblyopic eyes remained stable over the period of follow up. [2]"
+    },
+    {
+      "pubid": "16100194",
+      "n_passages": 5,
+      "wall_s": 4.525,
+      "prompt_tokens": 463,
+      "completion_tokens": 332,
+      "tokens_per_s": 73.37,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 15,
+        "n_claims_cited": 15,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 4,
+        "compliance": 1.0
+      },
+      "answer": "1. Physicians are aware that angiotensin-converting enzyme inhibitors (ACE-I) are associated with characteristic side effects. [1]\n2. The characteristic side effects of ACE-I include cough and angioedema. [1]\n3. Referrals for side effects of ACE-I have become more frequent. [1]\n4. Physicians are not aware of the degree of knowledge on the safety of ACE-I in different medical categories. [1]\n5. A questionnaire on side effects of ACE-I was posted to physicians. [2]\n6. The questionnaire contained 13 questions. [2]\n7. Three hundred twelve physicians were contacted. [5]\n8. One hundred fifty-four physicians returned questionnaires that could be analyzed. [5]\n9. The mean age of the physicians who returned questionnaires was 45 years. [5]\n10. Cardiologists, allergists, and general practitioners (GPs) from the National Healthcare System were among the physicians contacted. [4]\n11. The percentage of correct answers regarding the side effects of ACE-I was low. [5]\n12. The percentage of correct answers regarding the side effects of ACE-I was 31.9% for cardiologists, 40% for GPs, and 33% for allergists. [5]\n13. GPs provided a significantly higher percentage of correct answers with respect to the remaining categories. [5]\n14. The time of onset of cough and the action to take were not well understood by physicians. [5]\n15. Angiotensin receptor blockers (sartans) can cross-react with ACE-I. [5]"
+    },
+    {
+      "pubid": "18243752",
+      "n_passages": 3,
+      "wall_s": 2.497,
+      "prompt_tokens": 305,
+      "completion_tokens": 184,
+      "tokens_per_s": 73.68,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 6,
+        "n_claims_cited": 6,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "1. The study aims to evaluate local failure patterns in node negative breast cancer patients treated with post-mastectomy radiotherapy including internal mammary chain only. [1]\n\n2. The study analyzed 92 internal or central-breast node-negative tumors with mastectomy and external irradiation of the internal mammary chain at the dose of 50 Gy, from 1994 to 1998. [2]\n\n3. The local recurrence rate was 5% (five cases). [3]\n\n4. The recurrence sites were the operative scar and chest wall. [3]\n\n5. Age less than or equal to 40 years and tumor size greater than 20mm are associated with increased risk of local failure, but the association is not statistically significant. [3]\n\n6. The study did not provide information on whether chest wall irradiation should be included after mastectomy and negative node breast cancer. [3]"
+    },
+    {
+      "pubid": "19131405",
+      "n_passages": 3,
+      "wall_s": 3.928,
+      "prompt_tokens": 472,
+      "completion_tokens": 286,
+      "tokens_per_s": 72.81,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 10,
+        "n_claims_cited": 10,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "1. A total of 149 patients with suspected parotid gland tumors were examined using echo-planar diffusion-weighted MR imaging (epiDWI). [1]\n2. The patients were examined using a 1.5T unit. [2]\n3. Image analysis was performed by 2 radiologists independently. [2]\n4. The intraclass correlation coefficient was computed for the image analysis. [2]\n5. Histologic diagnosis was obtained in every patient. [2]\n6. A high correlation was calculated among the observers (0.98). [3]\n7. ADC values of pleomorphic adenomas were significantly higher than those of all other entities, except for myoepithelial adenomas (P = .054). [3]\n8. ADC values of Warthin tumors were different from those of myoepithelial adenomas, lipomas, and salivary duct carcinomas (P<.001, 0.013, and .037, respectively). [3]\n9. Mucoepidermoid carcinomas, acinic cell carcinomas, and basal cell adenocarcinomas were not differentiable from Warthin tumors (P = .094, .396, and .604, respectively). [3]\n10. A prediction of different histologic subtypes of primary parotid gland tumors is not possible based on ADC values alone. [3]"
+    },
+    {
+      "pubid": "15670262",
+      "n_passages": 7,
+      "wall_s": 4.673,
+      "prompt_tokens": 571,
+      "completion_tokens": 338,
+      "tokens_per_s": 72.33,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 12,
+        "n_claims_cited": 12,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 1,
+        "compliance": 1.0
+      },
+      "answer": "1. Patients with gastroparesis treated via gastric electrical stimulation showed more sustained improvement in gastrointestinal symptoms over 36 months than those treated via intensive medical therapy. [7]\n2. The improvement in gastrointestinal symptoms in patients treated via gastric electrical stimulation was significantly different from baseline (F = 3.03, P<0.017). [7]\n3. Patients treated via gastric electrical stimulation demonstrated further improvement in gastrointestinal symptoms at 12, 24, and 36 month follow-up. [7]\n4. Patients treated via intensive medical therapy demonstrated further deterioration in gastrointestinal symptoms at 12, 24, and 36 month follow-up. [7]\n5. Patients treated via gastric electrical stimulation had significantly improved healthcare resource usage, measured via the IDIOMS, at 12, 24, and 36 month follow-up. [7]\n6. Patients treated via gastric electrical stimulation had significantly reduced hospital days compared to baseline. [7]\n7. Patients treated via intensive medical therapy had significantly reduced hospital days compared to baseline. [7]\n8. No statistical differences were noted between groups in terms of hospital days. [7]\n9. Patients treated via gastric electrical stimulation had significantly decreased costs at 24 and 36 months compared to patients treated via intensive medical therapy. [7]\n10. Three of nine patients in the intensive medical therapy group died primarily from i.v. access related problems. [7]\n11. None of the patients treated via gastric electrical stimulation died. [7]\n12. The study found that gastric electrical stimulation is superior to standard pharmacologic therapy in improving GI symptoms, healthcare resources, and long-term health care benefits. [7]"
+    },
+    {
+      "pubid": "20363841",
+      "n_passages": 3,
+      "wall_s": 3.279,
+      "prompt_tokens": 507,
+      "completion_tokens": 236,
+      "tokens_per_s": 71.98,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 10,
+        "n_claims_cited": 10,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 2,
+        "compliance": 1.0
+      },
+      "answer": "1. Symptoms are reported by 92% of smokers with airways obstruction. [3]\n2. The odds ratio for airways obstruction with smoking (>or = 20 pack-years) is 3.73. [3]\n3. Smokers with airways obstruction report respiratory symptoms at a higher rate than nonsmokers. [3]\n4. The prevalence of respiratory symptoms is higher in smokers with airways obstruction than in those with restriction or normal spirometry. [3]\n5. Symptoms are not a reliable predictor of COPD in smokers, as the positive predictive value is only 47%. [3]\n6. The sensitivity of symptoms in predicting COPD is 92% in smokers. [3]\n7. The specificity of symptoms in predicting COPD is 19% in smokers. [3]\n8. The negative predictive value of symptoms in predicting COPD is 75% in smokers. [3]\n9. The US Preventive Services Task Force recommends against spirometry in the absence of symptoms. [1]\n10. Up to 50% of COPD cases in the United States remain undiagnosed. [1]"
+    },
+    {
+      "pubid": "15477551",
+      "n_passages": 3,
+      "wall_s": 3.57,
+      "prompt_tokens": 361,
+      "completion_tokens": 262,
+      "tokens_per_s": 73.39,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 11,
+        "n_claims_cited": 11,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "1. The patients in question developed slowly progressive myelopathy. [1]\n2. The myelopathy in these patients occurred at the cervical cord levels. [1]\n3. The patients had abnormal MRI lesions in the cervical cord levels. [1]\n4. The patients were infected with human T-lymphotrophic virus type I (HTLV-I). [1]\n5. Clinical and neuroradiologic examinations were performed on the patients. [2]\n6. The odds of HTLV-I-infected individuals developing HTLV-I-associated myelopathy (HAM)/tropical spastic paraparesis (TSP) were calculated. [2]\n7. Anti-HTLV-I antibodies were positive in the serum of all patients. [3]\n8. Anti-HTLV-I antibodies were positive in the cerebrospinal fluid (CSF) of all patients. [3]\n9. Inflammatory changes were observed in the biopsied sample from spinal cord lesions of Patient 1. [3]\n10. Patient 2 had a demyelinating type of sensorimotor polyneuropathy. [3]\n11. Two of the three patients examined showed a high risk of developing HAM/TSP in virologic and immunologic aspects. [3]"
+    },
+    {
+      "pubid": "10781708",
+      "n_passages": 3,
+      "wall_s": 3.657,
+      "prompt_tokens": 407,
+      "completion_tokens": 266,
+      "tokens_per_s": 72.74,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 11,
+        "n_claims_cited": 10,
+        "cited_rate": 0.9090909090909091,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 0.9090909090909091
+      },
+      "answer": "1. The incidence of symptomatic venous thrombosis in internal patients during hospitalisation is 0.6% [3].\n2. The incidence of symptomatic venous thrombosis in patients with a known malignancy is 2.7% [3].\n3. The incidence of symptomatic venous thrombosis in patients without a known malignancy is 0.3% [3].\n4. The relative risk for venous thrombosis due to malignancy is 10.0 [3].\n5. The relative risk for venous thrombosis due to malignancy has a 95% confidence interval of 5.3-18.9 [3].\n6. Thrombosis prophylaxis is generally restricted to patients who are immobilised [1].\n7. Most studies on thrombosis prophylaxis focus on postoperative venous thrombosis [1].\n8. The primary aim of the investigation was to assess whether more rigorous prophylaxis would be feasible [1].\n9. The investigation was conducted in patients hospitalised from 1992 to 1996 [2].\n10. The findings of the investigation were related to literature reports [2].\n11. The question of whether prophylaxis in all patients makes sense is not addressed by the provided passages."
+    },
+    {
+      "pubid": "7547656",
+      "n_passages": 3,
+      "wall_s": 2.556,
+      "prompt_tokens": 484,
+      "completion_tokens": 182,
+      "tokens_per_s": 71.22,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 7,
+        "n_claims_cited": 7,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "1. Continuous intravenous infusion of epinephrine was administered to pregnant ewes in the study. [2]\n2. The study measured uterine blood flow in the pregnant ewes. [1]\n3. The pregnant ewes received an intravenous bolus of epinephrine 15 micrograms. [2]\n4. The bolus of epinephrine decreased uterine blood flow to 68 +/- 14% of baseline. [3]\n5. Continuous intravenous infusion of epinephrine did not decrease uterine blood flow. [2][3]\n6. The study found that infusion of all solutions had no effect on uterine blood flow. [2]\n7. The study did not examine the effects of continuous intravenous infusion of low-concentration epinephrine on uterine blood flow in pregnant ewes. [1]"
+    },
+    {
+      "pubid": "22668712",
+      "n_passages": 3,
+      "wall_s": 1.567,
+      "prompt_tokens": 339,
+      "completion_tokens": 112,
+      "tokens_per_s": 71.49,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 5,
+        "n_claims_cited": 5,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 2,
+        "compliance": 1.0
+      },
+      "answer": "1. The temporomandibular joint was examined in a total of 120 joints. [2][3]\n2. The presence of articular sounds and physical signs is often insufficient to detect disk displacement. [3]\n3. Imaging by static and dynamic high-resolution ultrasound demonstrates considerably lower sensitivity compared to magnetic resonance. [3]\n4. Technical difficulties in ultrasound imaging resulted from limited access due to surrounding bone structures. [3]\n5. Magnetic resonance is used as the reference test for calculating sensitivity, specificity, and predictive values. [2]"
+    }
+  ]
+}

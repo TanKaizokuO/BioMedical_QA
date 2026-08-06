@@ -1,0 +1,249 @@
+{
+  "kind": "g0_generator_bakeoff",
+  "model": "Qwen/Qwen2.5-7B-Instruct-AWQ",
+  "base_url": "http://localhost:8000",
+  "utc": "2026-08-04T15:48:00.764617+00:00",
+  "client_host": "TanKaizokuO",
+  "probe": {
+    "seed": 20260731,
+    "n": 10,
+    "pubids": [
+      "10966943",
+      "16100194",
+      "18243752",
+      "19131405",
+      "15670262",
+      "20363841",
+      "15477551",
+      "10781708",
+      "7547656",
+      "22668712"
+    ]
+  },
+  "params": {
+    "max_tokens": 768,
+    "temperature": 0.0,
+    "seed": 0,
+    "max_citations": 3
+  },
+  "prompt_template": "You are answering a biomedical question using only the numbered passages below.\n\nWrite your answer as a list of atomic claims, one per line. Each claim must:\n  - state exactly one fact\n  - be self-contained (resolve every pronoun and implicit subject)\n  - end with citations to the passages supporting it, as [n] or [n][m]\n  - cite at most {max_citations} passages\n\nCite only from the passages. If the passages do not answer the question, say so as a single claim\nciting the closest passage.\n\nPassages:\n{passages}\n\nQuestion: {question}\n\nClaims:",
+  "summary": {
+    "n_ok": 10,
+    "n_failed": 0,
+    "latency_s": {
+      "mean": 1.69,
+      "median": 1.64,
+      "min": 0.78,
+      "max": 2.84
+    },
+    "tokens_per_s_median": 72.84,
+    "compliance_mean": 0.983,
+    "compliance_min": 0.833,
+    "cited_rate_mean": 0.983,
+    "over_cap_any": false,
+    "out_of_range_any": false,
+    "truncated": 0
+  },
+  "records": [
+    {
+      "pubid": "10966943",
+      "n_passages": 2,
+      "wall_s": 1.272,
+      "prompt_tokens": 374,
+      "completion_tokens": 91,
+      "tokens_per_s": 71.56,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 2,
+        "n_claims_cited": 2,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 1,
+        "compliance": 1.0
+      },
+      "answer": "- Visual loss due to amblyopia can sometimes be improved, as evidenced by cases where vision in amblyopic eyes improved by 1 to 12 months, with a mean improvement of 3.3 lines logMAR in distance and 1.9 lines logMAR in near acuity. [2]\n- The improvement in visual acuity in amblyopic eyes that showed improvement was stable over the follow-up period. [2]"
+    },
+    {
+      "pubid": "16100194",
+      "n_passages": 5,
+      "wall_s": 1.7,
+      "prompt_tokens": 471,
+      "completion_tokens": 124,
+      "tokens_per_s": 72.94,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 3,
+        "n_claims_cited": 3,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 1,
+        "compliance": 1.0
+      },
+      "answer": "- Physicians' awareness of the side effects of angiotensin-converting enzyme inhibitors (ACE-I) is low, with only 31.9% for cardiologists, 40% for GPs, and 33% for allergists correctly answering related questions. [4]\n- The lower rate of correct answers concerning the time of onset of cough and the appropriate actions to take indicates a lack of specific knowledge about these side effects. [4]\n- Cardiologists were less aware that angiotensin receptor blockers (sartans) can cross-react with ACE-I. [4]"
+    },
+    {
+      "pubid": "18243752",
+      "n_passages": 3,
+      "wall_s": 2.21,
+      "prompt_tokens": 307,
+      "completion_tokens": 167,
+      "tokens_per_s": 75.58,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 5,
+        "n_claims_cited": 5,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "- Local recurrence in node-negative breast cancer patients treated with post-mastectomy radiotherapy including internal mammary chain only was observed [1].\n- The study included 92 internal or central-breast node-negative tumours with mastectomy and external irradiation of the internal mammary chain at 50 Gy from 1994 to 1998 [2].\n- The local recurrence rate was 5% (five cases), with recurrences occurring at the operative scar and chest wall [3].\n- Age less than or equal to 40 years and tumor size greater than 20mm were associated with an increased risk of local failure, though without statistical significance [3].\n- Chest wall irradiation was not specifically mentioned as part of the treatment regimen in the study [1][2][3]."
+    },
+    {
+      "pubid": "19131405",
+      "n_passages": 3,
+      "wall_s": 1.769,
+      "prompt_tokens": 483,
+      "completion_tokens": 129,
+      "tokens_per_s": 72.93,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 5,
+        "n_claims_cited": 5,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 2,
+        "compliance": 1.0
+      },
+      "answer": "- ADC values can differentiate between certain histologic subtypes of primary parotid gland tumors. [2][3]\n- Pleomorphic adenomas have significantly higher ADC values compared to other entities. [3]\n- Warthin tumors have distinct ADC values compared to myoepithelial adenomas, lipomas, and salivary duct carcinomas. [3]\n- Mucoepidermoid carcinomas, acinic cell carcinomas, and basal cell adenocarcinomas cannot be differentiated from Warthin tumors based on ADC values. [3]\n- A high correlation was calculated among the observers for ADC values. [2]"
+    },
+    {
+      "pubid": "15670262",
+      "n_passages": 7,
+      "wall_s": 2.241,
+      "prompt_tokens": 582,
+      "completion_tokens": 163,
+      "tokens_per_s": 72.75,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 5,
+        "n_claims_cited": 5,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 2,
+        "compliance": 1.0
+      },
+      "answer": "- Gastric electrical stimulation (GES) showed more sustained improvement in gastrointestinal symptoms over 36 months compared to traditional medical therapy (MED) [5][6].\n- GES patients demonstrated significant improvement in healthcare resource usage, measured via the Investigator-Derived Independent Outcome Measure Score (IDIOMS), at 12, 24, and 36 months follow-up compared to MED patients [6].\n- GES patients exhibited statistically significant cost reductions at 24 and 36 months compared to MED patients [6].\n- No statistical differences were noted between GES and MED groups in terms of hospital days within their respective groups [6].\n- Three patients in the MED group died primarily from intravenous access-related problems, while none of the GES patients died [6]."
+    },
+    {
+      "pubid": "20363841",
+      "n_passages": 3,
+      "wall_s": 1.401,
+      "prompt_tokens": 534,
+      "completion_tokens": 100,
+      "tokens_per_s": 71.37,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 3,
+        "n_claims_cited": 3,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 1,
+        "compliance": 1.0
+      },
+      "answer": "- Symptoms are reported by 92% of smokers with airway obstruction (AO), which is higher than the rates for other respiratory conditions [3].\n- The odds ratio for airway obstruction (AO) with smoking is significantly high, indicating a strong association between smoking and AO [3].\n- Respiratory symptoms such as cough, dyspnea, sputum, and wheeze are strongly associated with smoking and AO, suggesting that symptoms can predict COPD in smokers [3]."
+    },
+    {
+      "pubid": "15477551",
+      "n_passages": 3,
+      "wall_s": 1.074,
+      "prompt_tokens": 355,
+      "completion_tokens": 78,
+      "tokens_per_s": 72.63,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 3,
+        "n_claims_cited": 3,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "- Anti-HTLV-I antibodies were positive in both the serum and the CSF in all of the patients. [3]\n- Four patients developed slowly progressive myelopathy with abnormal MRI lesions in the cervical cord levels. [1]\n- Two of the three patients examined showed high risk of developing HAM/TSP in virologic and immunologic aspects. [2][3]"
+    },
+    {
+      "pubid": "10781708",
+      "n_passages": 3,
+      "wall_s": 2.839,
+      "prompt_tokens": 420,
+      "completion_tokens": 213,
+      "tokens_per_s": 75.02,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 6,
+        "n_claims_cited": 5,
+        "cited_rate": 0.8333333333333334,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 0.8333333333333334
+      },
+      "answer": "- Thrombosis prophylaxis is generally restricted to immobilized patients in medical wards. [1]\n- The study aimed to investigate the incidence of venous thrombosis in a general internal ward. [1]\n- The incidence of symptomatic venous thrombosis in internal patients during hospitalization was 0.6%. [2]\n- Among the patients with cancer, the incidence of venous thrombosis was 2.7%, compared to 0.3% in the non-cancer group. [3]\n- Malignancy significantly increases the relative risk for venous thrombosis (relative risk = 10.0). [3]\n\nThe question \"Thrombosis prophylaxis in hospitalised medical patients: does prophylaxis in all patients make sense?\" cannot be directly answered based on the provided passages, as they do not discuss the effectiveness or feasibility of prophylaxis in all patients versus just those who are immobilized. Therefore, we can only provide context about current practices and observed incidences."
+    },
+    {
+      "pubid": "7547656",
+      "n_passages": 3,
+      "wall_s": 0.78,
+      "prompt_tokens": 507,
+      "completion_tokens": 52,
+      "tokens_per_s": 66.7,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 2,
+        "n_claims_cited": 2,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "- Continuous intravenous infusion of epinephrine did not decrease uterine blood flow in pregnant ewes. [2][3]\n- A bolus intravenous injection of epinephrine can decrease uterine blood flow. [1]"
+    },
+    {
+      "pubid": "22668712",
+      "n_passages": 3,
+      "wall_s": 1.588,
+      "prompt_tokens": 336,
+      "completion_tokens": 118,
+      "tokens_per_s": 74.33,
+      "finish_reason": "stop",
+      "compliance": {
+        "n_claims": 4,
+        "n_claims_cited": 4,
+        "cited_rate": 1.0,
+        "over_cap_rate": 0.0,
+        "out_of_range_rate": 0.0,
+        "malformed_rate": 0.0,
+        "distinct_passages_cited": 3,
+        "compliance": 1.0
+      },
+      "answer": "- Articular sounds and physical signs are often insufficient to detect disk displacement in the temporomandibular joint. [3]\n- The study aimed to assess the diagnostic value of articular sounds, standardized clinical examination, and standardized articular ultrasound in detecting internal derangements of the temporomandibular joint. [1]\n- Ultrasound, both static and dynamic, demonstrated considerably lower sensitivity compared to magnetic resonance imaging in detecting internal derangements. [2][3]\n- Technical difficulties in using ultrasound arise due to limited access caused by surrounding bone structures. [3]"
+    }
+  ]
+}

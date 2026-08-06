@@ -20,14 +20,16 @@ What this does NOT measure, and must not be quoted as
 
 Usage — one run per candidate, against a vLLM server already serving that model:
 
-    ./scripts/g0_smoke.sh a4000                       # stage A must pass first
     ssh -L 8000:localhost:8000 a4000 '~/vllm-env/bin/vllm serve MODEL --quantization awq --port 8000'
     uv run scripts/g0_generator_bakeoff.py --model MODEL
     uv run scripts/g0_generator_bakeoff.py --model OTHER_MODEL     # after restarting the server
-    uv run scripts/g0_generator_bakeoff.py --compare               # ranks every run in runs/g0/
+    uv run scripts/g0_generator_bakeoff.py --compare               # ranks every run in docs/harvest/g0/
 
-Writes runs/g0/bakeoff_<model>_<timestamp>.json. The measured per-call latency goes into
+Writes docs/harvest/g0/bakeoff_<model>_<timestamp>.json. The measured per-call latency goes into
 research_roadmap.md §2, as G0 requires.
+
+**Output lands in `docs/harvest/g0/`, which is tracked, not in `runs/`, which is gitignored.** These
+records are evidence ADR-0010 rests on and `tests/test_abstention.py` reads, not scratch output.
 """
 
 from __future__ import annotations
@@ -45,7 +47,7 @@ from pathlib import Path
 import httpx
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-OUT_DIR = REPO_ROOT / "runs" / "g0"
+OUT_DIR = REPO_ROOT / "docs" / "harvest" / "g0"
 
 # The splits are not frozen until Aug 7 (research_roadmap.md §3). These 10 questions are a
 # deterministic sample for a format probe only; their pubids are recorded in the output so the
@@ -307,7 +309,7 @@ def run(args: argparse.Namespace) -> int:
 
 
 def compare() -> int:
-    """Rank every bake-off in runs/g0/. Compliance first — that is the deciding axis."""
+    """Rank every bake-off in docs/harvest/g0/. Compliance first — that is the deciding axis."""
     runs = sorted(OUT_DIR.glob("bakeoff_*.json"))
     if not runs:
         print(f"no bake-off runs in {OUT_DIR}", file=sys.stderr)

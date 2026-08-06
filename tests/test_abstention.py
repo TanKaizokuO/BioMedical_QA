@@ -30,7 +30,10 @@ from biomedqa.scoring.abstention import (
     is_full_abstention,
 )
 
-G0_DIR = Path(__file__).resolve().parents[1] / "runs" / "g0"
+# `docs/harvest/g0`, not `runs/g0`: `runs/` is gitignored, and these two records are the evidence
+# ADR-0010 rests on. Under `runs/` the tests below would skip on every machine but the one that ran
+# G0 — silently, which is the failure mode they exist to prevent.
+G0_DIR = Path(__file__).resolve().parents[1] / "docs" / "harvest" / "g0"
 
 
 def claim(text: str, *, cited: bool = False) -> Claim:
