@@ -41,8 +41,10 @@ documents the deadline it was written against, and changing it would change the 
 
 ## 2. What is blocking right now
 
-**The corpus is built. The one live blocker is user-side and dated: the annotator message,
-due Fri 2026-08-07** — §4 has the draft and the three constraints on it.
+**Nothing is blocking. The corpus is built, and the annotator message was sent on 2026-08-06**
+(user-reported), a day inside its deadline — §4. What is now outstanding there is a *reply*, not a
+send: the closing question's answer is what prices the September worry, and it is not owed by a date.
+W2 work does not wait on it.
 
 ### The corpus, as built (2026-08-06, on the A4000)
 
@@ -118,17 +120,18 @@ purpose. **Do not "tidy" it.**
 
 ---
 
-## 4. The one thing owed to a person, and it has not been sent
+## 4. The thing owed to a person — sent 2026-08-06, reply outstanding
 
-**Draft message to the two annotators — the user sends it, on the original channel, not GitHub.** It
-exists nowhere in the repo. Its content, so it can be reconstructed:
+**Message to the two annotators, sent by the user on the original channel, not GitHub.** It exists
+nowhere in the repo. Its content, so it can be reconstructed — and so a **reply** can be read against
+what was actually promised:
 
 - **two sittings, 3 hours total** — ~1 h pilot (guidelines + 10 practice items), ~2 h main pass
 - the amount of material is **sized to fit those hours and will not grow**
 - **stop whenever — everything finished stays useful**; there is no wasted partial work
 - a closing question: what would make it sit easier (timing, sitting length, how it is split)
 
-Three constraints on any rewrite:
+Three constraints, which outlived the send — they now bind **any follow-up** to the annotators:
 
 1. It must **never present this as hours going up.** They are not — the W6 pilot was simply never
    inside ADR-0006's ~3 h. It is an uncosted session, not a mis-estimate.
@@ -139,8 +142,9 @@ Three constraints on any rewrite:
 
 If either offers more time, **taking it is allowed** — the ceiling binds the project, not them.
 
-**The schedule is publicly readable in issue #7 right now**, so it can reach the annotators from
-GitHub before it reaches them from the user. That is a reason to send, not a reason to edit #7.
+**The schedule is publicly readable in issue #7 right now.** That was the reason to send promptly,
+and it was never a reason to edit #7. Now that the message is out, the race is over: the annotators
+heard it from the user first.
 
 ---
 
@@ -176,10 +180,12 @@ GitHub before it reaches them from the user. That is a reason to send, not a rea
 
 ### Dates set outside the repo — record them, they are nowhere else
 
-- **Annotator message sent by Fri 2026-08-07**, hard backstop **Thu 2026-08-20**. Derived backwards
-  from the closing question, not from the schedule: it asks two people an open question, and a bad
-  answer is recovered by finding a replacement against R3's **Sep 7** hard trigger, whose fallback
-  (intra-annotator α, 150 claims) is explicitly weaker.
+- **Annotator message: due Fri 2026-08-07, sent Thu 2026-08-06.** Met. The **Thu 2026-08-20 hard
+  backstop still stands, and now applies to the answer, not the send** — the deadline was derived
+  backwards from the closing question, not from the schedule. It asks two people an open question,
+  and a bad answer is recovered by finding a replacement against R3's **Sep 7** hard trigger, whose
+  fallback (intra-annotator α, 150 claims) is explicitly weaker. **Silence past Aug 20 costs the same
+  as a bad answer**, so it is worth a nudge before then rather than after.
 - **All labeling ends Sun 2026-09-20.** Pilot **Sep 7–13 (W6)**, main pass **Sep 14–20 (W7)**;
   **W8 (Sep 21–27) is α, adjudication and G4 — not annotation time.**
 - **The dependency that makes it hold: the pilot must actually happen in W6.** If it slips, the main
@@ -273,7 +279,8 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 ## 8. Open work, in the order recommended
 
-1. **Send the annotator message** — §4. **User-side, by Fri 2026-08-07.**
+1. ~~Send the annotator message~~ — **sent 2026-08-06.** What remains is the **reply** to §4's
+   closing question, which prices the September worry. User-side, undated, and **not a blocker**.
 2. **Issue #9's body is stale** (ADR-0010 is its design half). **Ask before editing** — it was
    withheld from a previous go-ahead, and the repo being public **strengthens** that caution.
 3. **W2 build work** — the corpus is built and waiting: chunker sweep · `bm25s` + MedCPT + RRF · the 2M encode ·
