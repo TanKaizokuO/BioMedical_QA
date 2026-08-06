@@ -3,7 +3,10 @@
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
 
-`main` · working tree clean · **`origin/main` == `HEAD` == `1d69392`. Nothing is unpushed.**
+`main` · working tree clean · **`origin/main` == `HEAD`. Nothing is unpushed.** The last commit that
+changed code is **`dc69341`**; anything after it touches only this file and `.gitignore`. (Stated
+this way on purpose — a SHA written into this line can never be its own commit's, and the two
+previous handoffs both pinned one that was already an update behind.)
 Tests: `uv run --with pytest python -m pytest tests/ -q` → **86 passed**. There is no bare `python`
 on this box and no installed `pytest`; that invocation is the one that works. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
