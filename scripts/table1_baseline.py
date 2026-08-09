@@ -92,10 +92,29 @@ def _run_retrieval(
     config: RetrievalConfig,
     index: RetrievalIndex,
     row_label: str,
+    gate_k: int,
 ) -> list[QueryRecord]:
+    """Retrieve to the full pool depth, not to ``top_k``.
+
+    ``retrieve()`` builds a ``pool_size``-deep ranking and then returns ``pool[:top_k]``. Recording
+    that truncated list censors ``gold_rank`` at ``top_k``: "not retrieved" then means "not in the
+    top 5" and cannot distinguish rank 6 from rank 2,000,000 — which are opposite diagnoses, and
+    the difference between a rerank that can rescue the query and one that never sees the passage.
+    It also makes R2's hit@10 ladder unanswerable without re-running the GPU.
+
+    The deep pool is already computed, so asking for it costs nothing. Passage *text* is dropped
+    beyond ``gate_k`` — it is reproducible from ``passage_id`` plus the index, and keeping all 100
+    would put tens of megabytes of duplicated abstracts in a public repo.
+    """
+    deep_config = replace(config, top_k=config.pool_size)
+
     records: list[QueryRecord] = []
     for i, inst in enumerate(instances):
-        passages = retrieve(inst.question, config, index)
+        passages = retrieve(inst.question, deep_config, index)
+        passages = [
+            p if p.rank <= gate_k else replace(p, text=None)
+            for p in passages
+        ]
         records.append(
             QueryRecord(
                 run_id=f"table1_{row_label.lower().replace(' ', '_').replace('+', 'and')}",
@@ -113,35 +132,43 @@ def _run_retrieval(
     return records
 
 
-def _gold_rank_stats(records: list[QueryRecord]) -> dict:
+#: hit@k is reported across the whole curve. All of these come free from one deep pool, and the
+#: gate reading is worthless without them: hit@5 alone cannot say whether a miss is a near miss.
+HIT_AT_K_CURVE = (1, 5, 10, 20, 50, 100)
+
+
+def _gold_rank_stats(records: list[QueryRecord], pool_size: int) -> dict:
+    """Rank distribution over the *pool*, so "not retrieved" means "not in the pool at all"."""
     ranks = [gold_rank(r) for r in records]
     retrieved = [r for r in ranks if r is not None]
-    not_retrieved = len(ranks) - len(retrieved)
+    not_in_pool = len(ranks) - len(retrieved)
 
+    stats = {
+        "pool_size": pool_size,
+        "in_pool_count": len(retrieved),
+        "not_in_pool_count": not_in_pool,
+        "rank_mean": None,
+        "rank_median": None,
+        "rank_min": None,
+        "rank_max": None,
+        "rank_histogram": {},
+    }
     if not retrieved:
-        return {
-            "retrieved_count": 0,
-            "not_retrieved_count": not_retrieved,
-            "rank_mean": None,
-            "rank_median": None,
-            "rank_min": None,
-            "rank_max": None,
-            "rank_distribution": {},
-        }
+        return stats
 
-    dist: dict[int, int] = {}
-    for r in retrieved:
-        dist[r] = dist.get(r, 0) + 1
-
-    return {
-        "retrieved_count": len(retrieved),
-        "not_retrieved_count": not_retrieved,
+    buckets = [("1", 1, 1), ("2-5", 2, 5), ("6-10", 6, 10), ("11-20", 11, 20),
+               ("21-50", 21, 50), ("51-100", 51, 100)]
+    stats.update({
+        "in_pool_count": len(retrieved),
         "rank_mean": round(statistics.mean(retrieved), 3),
         "rank_median": round(statistics.median(retrieved), 3),
         "rank_min": min(retrieved),
         "rank_max": max(retrieved),
-        "rank_distribution": {str(k): v for k, v in sorted(dist.items())},
-    }
+        "rank_histogram": {
+            name: sum(1 for r in retrieved if lo <= r <= hi) for name, lo, hi in buckets
+        },
+    })
+    return stats
 
 
 def _eval_row(
@@ -160,12 +187,23 @@ def _eval_row(
     config = replace(_BASE_CONFIG, **row_spec["config_overrides"])
 
     print(f"\n  Row {row_spec['row']}: {label}")
-    records = _run_retrieval(instances, config, index, label)
+    records = _run_retrieval(instances, config, index, label, k)
 
     hits, n = hit_at_k(records, k)
     point, lower, upper = wilson_interval(hits, n)
     g1 = gate_g1(records, k)
-    rank_stats = _gold_rank_stats(records)
+    rank_stats = _gold_rank_stats(records, config.pool_size)
+
+    curve = {}
+    for kk in HIT_AT_K_CURVE:
+        if kk > config.pool_size:
+            continue
+        h, nn = hit_at_k(records, kk)
+        p, lo, hi = wilson_interval(h, nn)
+        curve[f"hit_at_{kk}"] = {
+            "point": round(p, 4), "wilson_lower": round(lo, 4), "wilson_upper": round(hi, 4),
+            "hits": h,
+        }
 
     row_result = {
         "row": row_spec["row"],
@@ -186,6 +224,7 @@ def _eval_row(
         "wilson_lower": round(lower, 4),
         "wilson_upper": round(upper, 4),
         "g1_passes": g1["passes"],
+        "hit_at_k_curve": curve,
         # Least-processed value: the per-question rank, keyed so it can be joined back to the
         # question. `gold_rank` below it is a convenience summary, not the record.
         "gold_rank_per_query": [
@@ -197,6 +236,16 @@ def _eval_row(
     print(
         f"    hit@{k}={point:.4f}  Wilson [{lower:.4f}, {upper:.4f}]"
         f"  G1={'PASS' if g1['passes'] else 'FAIL'}"
+    )
+    print(
+        "    gold rank in pool: "
+        + "  ".join(f"{name}={cnt}" for name, cnt in rank_stats["rank_histogram"].items())
+        + f"  not_in_pool={rank_stats['not_in_pool_count']}"
+    )
+    print(
+        "    hit@k curve: "
+        + "  ".join(f"@{kk}={curve[f'hit_at_{kk}']['point']:.2f}" for kk in HIT_AT_K_CURVE
+                    if f"hit_at_{kk}" in curve)
     )
     return row_result, records
 

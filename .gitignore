@@ -69,6 +69,11 @@ data/corpus/*
 *.csv
 *.tsv
 
+# …but the per-question records under docs/harvest/ are results, not data. `!docs/harvest/`
+# higher up only rescues them from the `docs/*` rule; `*.jsonl` above still wins, so the
+# least-processed-value artifacts that back every number in the paper were silently dropped.
+!docs/harvest/**/*.jsonl
+
 # Retrieval indexes & embeddings (BM25 / dense / FAISS)
 indexes/
 index/

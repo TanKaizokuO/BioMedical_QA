@@ -181,9 +181,15 @@ def _bm25_retrieve(
     if index.bm25_model is None:
         raise ValueError("BM25 index not loaded (bm25_model is None)")
 
-    query_tokens = bm25s.tokenize(query)
+    # show_progress=False: these fire once per query, and a 100-question eval turns the log into
+    # 400 empty progress bars that bury the actual results.
+    query_tokens = bm25s.tokenize(query, show_progress=False)
     # retrieve returns (results, scores); results contains corpus indices
-    results, scores = index.bm25_model.retrieve(query_tokens, k=min(pool_size, len(index.passage_ids)))
+    results, scores = index.bm25_model.retrieve(
+        query_tokens,
+        k=min(pool_size, len(index.passage_ids)),
+        show_progress=False,
+    )
 
     passages: list[RetrievedPassage] = []
     # results shape: (1, k) when single query
