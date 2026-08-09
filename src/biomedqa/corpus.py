@@ -32,9 +32,12 @@ the run completes, the numbers look plausible, and nothing downstream can tell.
    number still looks sane. **Read `data_files="chunk/*.jsonl"`, never the bare dataset id**, and
    `draw_corpus` refuses any scan whose row count is not `MEDRAG_TOTAL_ROWS`.
 2. **The str/int join.** PubMedQA's `pubid` is int32 and `data.py` stringifies it; MedRAG's `PMID`
-   is int64. `{"21645374"} & {21645374}` is empty, so a broken join reports "0 duplicates removed",
+   is int64. `{\"21645374\"} & {21645374}` is empty, so a broken join reports "0 duplicates removed",
    which reads as good news. `draw_corpus` raises on non-`int` keys, and raises again if a full scan
    collides with *no* gold PMID at all.
+   NOTE (Issue #10 finding 5): str/int PMID duality across MedRAG/PubMedQA is known design debt.
+   MedRAG rows carry int64 PMIDs; PubMedQA pubids are int32, stringified in data.py. The guard
+   above is the runtime contract; the data model does not unify them. Tracked in Issue #10.
 3. **The repeated PMID.** PubMed re-publishes revised records and MedRAG keeps every revision as its
    own row, so one article can arrive two or three times — 244 of 2,041,867 drawn PMIDs on the
    2026-08-05 prescan, sometimes twice inside a single shard. Duplicates share a `selection_key`, so
@@ -163,18 +166,24 @@ class CorpusDraw:
     target_n: int
     n_scanned: int
     n_gold_collisions: int
-    n_duplicate_rows: int
+    n_duplicate_rows_in_draw: int
     fingerprint: str
 
     def to_json(self) -> dict[str, Any]:
+        if self.target_n == 2_000_000:
+            corpus_id = "pubmed-2m-v1"
+        elif self.target_n == 1_000_000:
+            corpus_id = "pubmed-1m-v1"
+        else:
+            corpus_id = f"pubmed-{self.target_n // 1000}k-v1"
         return {
-            "corpus_id": "pubmed-2m-v1",
+            "corpus_id": corpus_id,
             "source": {"repo": MEDRAG_REPO, "data_files": MEDRAG_DATA_FILES},
             "seed": self.seed,
             "target_n": self.target_n,
             "n_scanned": self.n_scanned,
             "n_gold_collisions": self.n_gold_collisions,
-            "n_duplicate_rows": self.n_duplicate_rows,
+            "n_duplicate_rows_in_draw": self.n_duplicate_rows_in_draw,
             "fingerprint": self.fingerprint,
             "pmids": list(self.pmids),
         }
@@ -207,7 +216,7 @@ def draw_corpus(
     held: set[int] = set()
     n_scanned = 0
     n_gold_collisions = 0
-    n_duplicate_rows = 0
+    n_duplicate_rows_in_draw = 0
 
     for row in rows:
         n_scanned += 1
@@ -216,7 +225,7 @@ def draw_corpus(
             n_gold_collisions += 1
             continue
         if pmid in held:
-            n_duplicate_rows += 1
+            n_duplicate_rows_in_draw += 1
             continue
         key = -selection_key(pmid, seed=seed)
         if len(heap) < target_n:
@@ -258,7 +267,7 @@ def draw_corpus(
         target_n=target_n,
         n_scanned=n_scanned,
         n_gold_collisions=n_gold_collisions,
-        n_duplicate_rows=n_duplicate_rows,
+        n_duplicate_rows_in_draw=n_duplicate_rows_in_draw,
         fingerprint=canonical_hash(list(pmids)),
     )
 
@@ -298,6 +307,11 @@ def write_gold_pmids(pmids: Iterable[int], path: Path = GOLD_PMIDS_PATH) -> dict
         "pmids": sorted(int(p) for p in pmids),
     }
     payload["hash"] = canonical_hash({k: v for k, v in payload.items()})
+    if path.exists():
+        raise FileExistsError(
+            f"{path} already exists — the gold PMID set is frozen. Delete it deliberately if you "
+            "truly mean to redraw."
+        )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n")
     return payload

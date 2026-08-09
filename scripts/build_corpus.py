@@ -34,15 +34,13 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-
-from biomedqa.corpus import (  # noqa: E402
+from biomedqa.corpus import (
     CORPUS_SEED,
     MEDRAG_DATA_FILES,
     MEDRAG_REPO,
+    MEDRAG_TEXT_FIELD,
     MEDRAG_TOTAL_ROWS,
     TARGET_N,
     CorpusDraw,
@@ -181,7 +179,7 @@ def choose_one_row_per_pmid(prescan: Path, selected: set[int]) -> dict[int, str]
             pmid = row["PMID"]
             if pmid not in selected:
                 continue
-            cand = (len(row.get("content") or ""), row["id"])
+            cand = (len(row.get(MEDRAG_TEXT_FIELD) or ""), row["id"])
             prev = best.get(pmid)
             if prev is None or cand[0] > prev[0] or (cand[0] == prev[0] and cand[1] < prev[1]):
                 best[pmid] = cand
@@ -219,7 +217,7 @@ def main() -> int:
     print(f"\nscanned            : {draw.n_scanned:,}")
     print(f"gold collisions    : {draw.n_gold_collisions:,} of {len(gold):,} removed before the draw")
     print(f"drawn              : {len(draw.pmids):,}")
-    print(f"duplicate rows     : {draw.n_duplicate_rows:,} suppressed (revised records, one per PMID)")
+    print(f"duplicate rows     : {draw.n_duplicate_rows_in_draw:,} suppressed (revised records, one per PMID)")
     print(f"fingerprint        : {draw.fingerprint}")
 
     # Counted from the file as it stands at write time, not carried from the scan: the manifest's

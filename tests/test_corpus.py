@@ -122,7 +122,7 @@ def test_a_pmid_repeated_in_the_corpus_enters_the_draw_once() -> None:
     draw = draw_corpus(iter(doubled), gold_pmids={1}, target_n=50, seed=0, expected_rows=200)
     assert len(draw.pmids) == 50
     assert len(set(draw.pmids)) == 50
-    assert draw.n_duplicate_rows > 0
+    assert draw.n_duplicate_rows_in_draw > 0
 
 
 def test_repeats_do_not_change_which_articles_are_drawn() -> None:
