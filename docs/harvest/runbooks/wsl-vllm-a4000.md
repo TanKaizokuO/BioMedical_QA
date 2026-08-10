@@ -80,9 +80,17 @@ exactly and will drag the workspace back to pydantic 1.10.x if it is ever added 
 
 ```bash
 uv venv ~/venvs/vllm-server --python 3.12
-source ~/venvs/vllm-server/bin/activate
-uv pip install vllm      # ~8 GB of CUDA wheels; start it and walk away
+# Pin it. ADR-0008 makes the vLLM version a reproducibility fact, and 0.26.0 pins torch exactly.
+# Target the interpreter explicitly rather than relying on an activated venv — see the caution below.
+uv pip install --python ~/venvs/vllm-server/bin/python vllm==0.26.0   # ~8 GB of CUDA wheels; walk away
 ```
+
+> **Never drive this venv with a bare `uv run` from the project checkout.** `uv run` discovers
+> `pyproject.toml`, syncs the *project* env, and enforces `torch>=2.13.0` — which overwrites vLLM's
+> pinned `torch==2.11.0`. `torchvision`/`torchaudio` are not in `uv.lock`, so they survive at vLLM's
+> pins, and you are left with `torch 2.13.0` beside `torchvision 0.26.0`, whose metadata requires
+> `torch==2.11.0` exactly. vLLM then dies at import on `operator torchvision::nms does not exist`.
+> Pass `--no-project --python ~/venvs/vllm-server/bin/python` whenever you use `uv run` for vLLM.
 
 ## 5. Launch
 
@@ -129,3 +137,4 @@ rather than all at once.
 | `InductorError: Failed to find C compiler` | no `build-essential` |
 | `Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist` | FlashInfer sampling-kernel JIT wants `nvcc` |
 | `wsl: command not found` | you are inside the distro; `wsl` is Windows-side |
+| `RuntimeError: operator torchvision::nms does not exist` | project env's `torch>=2.13.0` clobbered vLLM's pinned `torch==2.11.0`; observed 2026-08-10 (see the caution in §4) |
