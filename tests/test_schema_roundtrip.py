@@ -6,10 +6,13 @@ annoying: losing a field on write, and binarizing a value that scoring needs con
 
 from __future__ import annotations
 
+import dataclasses
 import json
 
 import pytest
 
+from biomedqa.config import GenerationConfig
+from biomedqa.generate import generate_one, split_stages
 from biomedqa.schema import (
     MAX_CITATIONS,
     Citation,
@@ -148,3 +151,139 @@ def test_cost_record_carries_table_4_columns():
                               input_tokens=812, output_tokens=96, usd=0.0, wall_s=1.23))
     for column in ("input_tokens", "output_tokens", "usd", "wall_s"):
         assert column in cost
+
+
+# ---------------------------------------------------------------------------------------------
+# End to end: the round-trip has to hold for records the generator actually produces, on the text
+# PubMed actually contains, and it has to hold *byte for byte* — equality of dataclasses would
+# still pass if every run rewrote the file with keys in a new order.
+# ---------------------------------------------------------------------------------------------
+
+
+class TestByteStability:
+    def test_write_read_write_is_byte_identical(self, tmp_path):
+        """Reading a records file and writing it back must not change a byte. That is what makes
+        two runs diffable: float repr drift, a change in escaping, or a lost field all show up
+        here as a whole-file diff instead of as a number that quietly moved.
+
+        It does *not* pin `sort_keys=True` — `asdict` already emits fields in declaration order,
+        so dropping it changes nothing today. The flag is insurance against a future `to_dict`
+        that builds its dict some other way, and nothing here can prove it.
+        """
+        first, second = tmp_path / "a.jsonl", tmp_path / "b.jsonl"
+        write_jsonl(first, [make_record()])
+        write_jsonl(second, list(read_query_records(first)))
+        assert first.read_bytes() == second.read_bytes()
+
+
+class TestHostilePubMedText:
+    """PubMed abstracts carry line separators that are not `\\n`. The corpus is 2M of them, so
+    "rare" means "certain"."""
+
+    SEPARATORS = "a\u2028b\u2029c\x0bd\u0085e"
+
+    def test_unicode_line_separators_do_not_split_a_record(self, tmp_path):
+        """`json.dumps(ensure_ascii=False)` leaves U+2028, U+2029 and U+0085 raw in the line —
+        only C0 controls get escaped. File iteration splits on `\\n`/`\\r` alone and survives them;
+        `str.splitlines()` shatters this one physical line into several. That is why `read_jsonl`
+        iterates the handle and must never be "simplified" to `splitlines()`."""
+        record = make_record()
+        record.raw_generation = self.SEPARATORS
+        record.retrieved[0].text = self.SEPARATORS
+        path = tmp_path / "records.jsonl"
+        write_jsonl(path, [record])
+
+        text = path.read_text(encoding="utf-8")
+        assert text.count("\n") == 1, "one record, one physical line"
+        assert len(text.splitlines()) > 1, "the hazard is real — splitlines() would over-split"
+        restored = list(read_query_records(path))
+        assert len(restored) == 1
+        assert restored[0].raw_generation == self.SEPARATORS
+        assert restored[0].retrieved[0].text == self.SEPARATORS
+
+    def test_non_ascii_is_written_verbatim_rather_than_escaped(self, tmp_path):
+        """`ensure_ascii=False` keeps a Greek letter readable in a diff and a grep."""
+        record = make_record()
+        record.question = "Does α-tocopherol supplementation reduce mortality (≥65 years)?"
+        path = tmp_path / "records.jsonl"
+        write_jsonl(path, [record])
+        assert "α-tocopherol" in path.read_text(encoding="utf-8")
+        assert list(read_query_records(path))[0].question == record.question
+
+
+def test_schema_version_is_preserved_not_restamped():
+    """A record written under an older schema must read back saying so. Re-stamping it with the
+    current version would make a file claim a shape it does not have."""
+    d = to_dict(make_record())
+    d["schema_version"] = "0.9.0-historical"
+    assert query_record_from_dict(d).schema_version == "0.9.0-historical"
+
+
+def test_every_query_record_field_reaches_disk():
+    """A field added to the dataclass and forgotten in the serialiser is silent data loss. This
+    fails on the commit that adds it, not in October when the column is empty."""
+    on_disk = set(to_dict(make_record()))
+    declared = {f.name for f in dataclasses.fields(QueryRecord)}
+    assert declared == on_disk
+
+
+class TestGeneratedRecords:
+    """The round-trip is only proven end to end if it holds for what `generate.py` emits."""
+
+    @staticmethod
+    def _completion(text: str):
+        def complete(prompt, config, *, seed, run_id, query_id):
+            return text, CostRecord(run_id, query_id, "generate", "stub", 100, 20, wall_s=0.1)
+
+        return complete
+
+    @staticmethod
+    def _passages():
+        return [
+            RetrievedPassage("21645374:0", 1, 12.5, "rerank", text="Metformin reduced mortality."),
+            RetrievedPassage("18952324:2", 2, 9.1, "rerank", text="No difference was observed."),
+        ]
+
+    _CITED = (
+        "DECISION: yes\n"
+        "CLAIM 1: Metformin reduced mortality.\n"
+        "CITE 1: 21645374:0 || Metformin reduced mortality.\n"
+    )
+
+    def test_a_generated_record_survives_the_file(self, tmp_path):
+        gen = generate_one(
+            "Does metformin reduce mortality?",
+            self._passages(),
+            ["21645374:0"],
+            system=System.JOINT,
+            config=GenerationConfig(),
+            seed=0,
+            run_id="run-e2e",
+            query_id="21645374",
+            complete=self._completion(self._CITED),
+        )
+        assert gen.errors == (), gen.errors
+        path = tmp_path / "records.jsonl"
+        write_jsonl(path, [gen.record])
+        assert list(read_query_records(path)) == [gen.record]
+
+    def test_post_hoc_stage_boundary_survives_the_file(self, tmp_path):
+        """`raw_generation` holds both stages joined by `STAGE_SEPARATOR`. If the separator did not
+        survive serialisation, `split_stages` would silently return one stage and a
+        decomposition-error post-mortem would be reading the cite pass as the whole answer."""
+        gen = generate_one(
+            "Does metformin reduce mortality?",
+            self._passages(),
+            ["21645374:0"],
+            system=System.POST_HOC,
+            config=GenerationConfig(),
+            seed=0,
+            run_id="run-e2e",
+            query_id="21645374",
+            complete=self._completion(self._CITED),
+        )
+        path = tmp_path / "records.jsonl"
+        write_jsonl(path, [gen.record])
+        restored = list(read_query_records(path))[0]
+        assert len(split_stages(restored.raw_generation)) == 2
+        assert split_stages(restored.raw_generation) == split_stages(gen.record.raw_generation)
