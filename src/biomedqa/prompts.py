@@ -108,6 +108,15 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             "now supports the CLAIM above it — and told the model to copy the ':N' chunk suffix.",
             stages_touched=("joint",),
         ),
+        Iteration(
+            n=4,
+            date="2026-08-10",
+            rationale="Third live smoke: attribution and cap violations gone, quotes still the "
+            "binding failure. Scoped the decontextualization rule to CLAIM lines — unscoped, the "
+            "model applied it to quotes and composed standalone sentences the passage does not "
+            "contain — and told it to keep the passage's own spelling of numbers.",
+            stages_touched=("joint",),
+        ),
     ),
     System.POST_HOC: (
         Iteration(
@@ -132,6 +141,13 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             "still never hears about citations.",
             stages_touched=("cite",),
         ),
+        Iteration(
+            n=4,
+            date="2026-08-10",
+            rationale="Same quote-scoping fix as joint. The cite stage carries it; the answer "
+            "stage sees only the CLAIM-line wording change every system got.",
+            stages_touched=("cite",),
+        ),
     ),
     System.VANILLA: (
         Iteration(
@@ -139,6 +155,14 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             date="2026-08-10",
             rationale="Initial draft. Same context and same claim grammar as joint, minus "
             "citations, which it lacks by construction (schema.py:73).",
+            stages_touched=("answer",),
+        ),
+        Iteration(
+            n=2,
+            date="2026-08-10",
+            rationale="Claim rules now say 'each CLAIM line' rather than 'each claim', so the "
+            "shared claim unit stays word-for-word identical across all three systems. No "
+            "citation wording reaches vanilla, which still cites nothing by construction.",
             stages_touched=("answer",),
         ),
     ),
@@ -179,8 +203,12 @@ def render_context(passages: list[RetrievedPassage], depth: int = CONTEXT_DEPTH)
 
 def _claim_rules() -> str:
     """Decontextualization and atomicity — ADR-0005's unit. Shared by all three systems, because
-    a baseline whose claims are shaped differently is being compared on the wrong axis."""
-    return """Write each claim so it stands alone. Resolve every pronoun, every "this"/"these",
+    a baseline whose claims are shaped differently is being compared on the wrong axis.
+
+    Scoped to CLAIM lines explicitly. Unscoped, it read as advice about the whole reply, and the
+    live smokes showed the model dutifully decontextualizing its *quotes* as well.
+    """
+    return """Write each CLAIM line so it stands alone. Resolve every pronoun, every "this"/"these",
 and every implied subject, so that a reader who sees the claim and nothing else knows exactly what
 it asserts. Each claim states exactly one thing; split anything joined by "and" into separate
 claims when the parts could be true or false independently."""
@@ -188,12 +216,24 @@ claims when the parts could be true or false independently."""
 
 def _citation_rules(max_citations: int) -> str:
     """The cap and the verbatim requirement. Withheld from post-hoc's first pass on purpose: a
-    pass that knows it will be cited is already grounding jointly."""
-    return f"""Cite at most {max_citations} passages per claim. Quote the passage exactly,
-character for character, copying from the text above. Do not paraphrase a quote, do not fix its
-punctuation, and do not join text from two passages into one quote. Cite more than one passage
-only when the claim genuinely needs them together — for instance when one gives the dose and
-another the outcome."""
+    pass that knows it will be cited is already grounding jointly.
+
+    The scoping sentence is load-bearing, and it is here because of measured failures rather than
+    taste. Live smokes 2 and 3 showed the model composing tidy standalone quotes — "no association
+    between utilisation rates for CEA and admission rates for stroke" out of a passage reading
+    "... and district stroke mortality (r=-0.06 ...) or admission rates for stroke (r=0.17 ...)" —
+    and normalising "Fourteen" to "14". Both yield text the passage does not contain, which
+    `locate_quote` refuses, so the citation is lost to a formatting habit rather than to bad
+    grounding.
+    """
+    return f"""Cite at most {max_citations} passages per claim. A quote is a span copied out of one
+passage, not a sentence you compose. Copy it character for character: the same capitalisation, the
+same punctuation, the same parentheses, and numbers spelled the way the passage spells them — if
+the passage says "Fourteen", the quote says "Fourteen", not "14". A quote may begin or end in the
+middle of a sentence, and that is correct; do not tidy it into a standalone sentence, and do not
+apply the CLAIM rules to it. Never join text that is separated in the passage, and never join text
+from two passages, into one quote. Cite more than one passage only when the claim genuinely needs
+them together — for instance when one gives the dose and another the outcome."""
 
 
 def _format_block(max_citations: int, cite: bool) -> str:
@@ -213,8 +253,8 @@ CITE: [passage_id] {_CITATION_SEP} exact quote from that passage
 CITE: [passage_id] {_CITATION_SEP} a second exact quote, if the claim needs it
 
 A CITE line supports the CLAIM line directly above it. Write CITE with no number after it.
-Copy the passage id exactly as it appears in the brackets above the passage text, including the
-part after the colon.
+Copy the passage id exactly as it appears in the brackets above the passage text. Every id ends in
+a colon and a number; copy that too, so [name:0] is cited as [name:0] and never as [name].
 Put {_CITATION_SEP} between the passage id and the quote. A CITE line with no {_CITATION_SEP} is discarded.
 Write the quote as bare text after {_CITATION_SEP}, and do not wrap it in quotation marks.
 A claim may have up to {max_citations} CITE lines.

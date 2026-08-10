@@ -130,6 +130,22 @@ def test_both_citing_stages_get_the_identical_attachment_rule():
     assert rule in joint and rule in post_hoc
 
 
+def test_the_quote_rule_is_scoped_away_from_the_claim_rule():
+    """Unscoped, "write each claim so it stands alone" read as advice about the whole reply, and
+    the live smokes showed the model composing standalone *quotes* that the passage does not
+    contain. Both citing stages must carry the scoping sentence; vanilla must carry neither."""
+    joint = build_prompt(System.JOINT, "Q?", _passages(), MAX_CITATIONS)
+    post_hoc = build_prompt(
+        System.POST_HOC, "Q?", _passages(), MAX_CITATIONS, stage="cite", answer="CLAIM 1: X."
+    )
+    vanilla = build_prompt(System.VANILLA, "Q?", _passages(), MAX_CITATIONS)
+
+    scope = "apply the CLAIM rules to it"  # unwrapped fragment; the rule text hard-wraps
+    assert scope in joint and scope in post_hoc
+    assert scope not in vanilla
+    assert all("Write each CLAIM line so it stands alone" in p for p in (joint, post_hoc, vanilla))
+
+
 def test_all_three_systems_are_asked_for_the_same_claim_unit():
     """ADR-0005's unit is the treatment-invariant part: a baseline whose claims are shaped
     differently is being compared on the wrong axis."""
