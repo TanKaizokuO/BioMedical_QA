@@ -33,6 +33,14 @@ prose.** ADR-0005 and `CONTEXT.md` both make an unequal cap the thing that would
 a budget artifact. One source, three prompts, so a C7 ablation that changes the cap changes it
 everywhere or not at all.
 
+**4. A CITE line supports the CLAIM line above it, and carries no number.** The first two live
+smoke runs both showed the 8B generator numbering CITE lines 1..k *within* a claim rather than
+after the claim they support. Read as a claim id, every claim's first citation was attributed to
+c1 — which both corrupted the citation-to-claim mapping that C2 measures and produced cap
+violations for claims that had cited once. The number was redundant with line order from the
+start, so the grammar drops it rather than asking a 4-bit 8B model to maintain a counter it has
+twice failed to maintain. `parse_response` ignores a number if one is written anyway.
+
 Context depth is 10 passages, following ADR-0015: G1 is gated at hit@10, so the passage set the
 generator sees is the set the gate certified. Drafting against 5 would grade a context the pipeline
 does not produce.
@@ -91,6 +99,15 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             "actually made — dropping '||' and restarting CITE numbering at 1 under each claim.",
             stages_touched=("joint",),
         ),
+        Iteration(
+            n=3,
+            date="2026-08-10",
+            rationale="Second live smoke: citations recovered (0 -> 5/11/4) but the model still "
+            "numbered CITE lines 1..k within each claim, so every claim's first citation landed on "
+            "c1 and manufactured cap violations. Dropped the number from the grammar — a CITE line "
+            "now supports the CLAIM above it — and told the model to copy the ':N' chunk suffix.",
+            stages_touched=("joint",),
+        ),
     ),
     System.POST_HOC: (
         Iteration(
@@ -106,6 +123,13 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             rationale="Same format-block fix as joint, and only the cite stage sees it. The answer "
             "stage is untouched, so the pass that writes claims still knows nothing about "
             "citations.",
+            stages_touched=("cite",),
+        ),
+        Iteration(
+            n=3,
+            date="2026-08-10",
+            rationale="Same positional-CITE grammar as joint, cite stage only. The answer stage "
+            "still never hears about citations.",
             stages_touched=("cite",),
         ),
     ),
@@ -183,16 +207,16 @@ CLAIM 2: the second claim"""
 
 DECISION: one of {", ".join(DECISIONS)}
 CLAIM 1: the first claim
-CITE 1: [passage_id] {_CITATION_SEP} exact quote from that passage
+CITE: [passage_id] {_CITATION_SEP} exact quote from that passage
 CLAIM 2: the second claim
-CITE 2: [passage_id] {_CITATION_SEP} exact quote from that passage
-CITE 2: [passage_id] {_CITATION_SEP} a second exact quote, if the claim needs it
+CITE: [passage_id] {_CITATION_SEP} exact quote from that passage
+CITE: [passage_id] {_CITATION_SEP} a second exact quote, if the claim needs it
 
-Write the passage id in square brackets, exactly as it appears above the passage text.
+A CITE line supports the CLAIM line directly above it. Write CITE with no number after it.
+Copy the passage id exactly as it appears in the brackets above the passage text, including the
+part after the colon.
 Put {_CITATION_SEP} between the passage id and the quote. A CITE line with no {_CITATION_SEP} is discarded.
 Write the quote as bare text after {_CITATION_SEP}, and do not wrap it in quotation marks.
-The number on a CITE line is the number of the claim it supports, so every CITE line under CLAIM 2
-is numbered 2. Do not restart CITE numbering at 1 under each claim.
 A claim may have up to {max_citations} CITE lines.
 Every CITE line must name one of the passage ids listed above."""
 
@@ -363,12 +387,12 @@ def parse_response(
         kind, _, number = head.partition(" ")
         if kind not in ("CLAIM", "CITE"):
             continue
-        if not number.strip().isdigit():
-            errors.append(f"line {lineno}: {kind} line carries no claim number")
-            continue
-        cid = f"c{int(number)}"
 
         if kind == "CLAIM":
+            if not number.strip().isdigit():
+                errors.append(f"line {lineno}: CLAIM line carries no claim number")
+                continue
+            cid = f"c{int(number)}"
             if cid in claims:
                 errors.append(f"line {lineno}: claim {cid} declared twice")
                 continue
@@ -381,9 +405,14 @@ def parse_response(
             order.append(cid)
             continue
 
-        if cid not in claims:
-            errors.append(f"line {lineno}: CITE {number} precedes any CLAIM {number}")
+        # A CITE line supports the claim above it (module docstring, §4). Any number the model
+        # writes is ignored: the grammar no longer has one, and two live runs showed an 8B model
+        # using it as a within-claim citation index. Reading it as a claim id sent every claim's
+        # first citation to c1, which mis-attributed evidence and invented cap violations.
+        if not order:
+            errors.append(f"line {lineno}: CITE line precedes any CLAIM")
             continue
+        cid = order[-1]
         pid, psep, quote = rest.partition(_CITATION_SEP)
         if not psep:
             errors.append(f"line {lineno}: CITE line has no {_CITATION_SEP!r} separator")

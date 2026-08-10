@@ -140,12 +140,12 @@ def _fake_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, C
     # Bracketed ids, exactly as the format block now teaches and as render_context prints them.
     # This is also the offline exercise of the parser's bracket-stripping path.
     lines = ["DECISION: maybe", "CLAIM 1: Utilisation varies beyond what population need explains."]
-    if "CITE 1:" in prompt:
-        lines.append(f"CITE 1: [{pid1}] {sep} {text1[:60].strip()}")
-        lines.append(f"CITE 1: [{pid2}] {sep} {text2[:60].strip()}")
+    if "CITE:" in prompt:
+        lines.append(f"CITE: [{pid1}] {sep} {text1[:60].strip()}")
+        lines.append(f"CITE: [{pid2}] {sep} {text2[:60].strip()}")
     lines.append("CLAIM 2: The variation persists after case-mix adjustment.")
-    if "CITE 1:" in prompt:
-        lines.append(f"CITE 2: [{pid1}] {sep} {text1[:40].strip()}")
+    if "CITE:" in prompt:
+        lines.append(f"CITE: [{pid1}] {sep} {text1[:40].strip()}")
     return (
         "\n".join(lines),
         CostRecord(

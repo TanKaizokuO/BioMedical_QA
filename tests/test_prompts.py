@@ -87,22 +87,46 @@ def test_the_format_example_spells_passage_ids_the_way_the_context_does():
     assert render_context(ps).splitlines()[0] == "[p1]"
 
     joint = build_prompt(System.JOINT, "Q?", ps, MAX_CITATIONS)
-    example = next(ln for ln in joint.splitlines() if ln.startswith("CITE 1:"))
+    example = next(ln for ln in joint.splitlines() if ln.startswith("CITE:"))
 
     assert "[passage_id]" in example
     assert "passage_id ||" not in joint  # the unbracketed spelling that caused the mismatch
 
 
-def test_both_citing_stages_are_told_to_number_cites_by_claim():
-    """The 8B model restarted CITE numbering at 1 under each claim, and the parser reads that
-    number as a claim id. Stated in the shared format block so joint and post-hoc's cite stage get
-    the identical instruction — a rule only one of them saw would move C2's gap by itself."""
+def test_cite_lines_attach_to_the_claim_above_them():
+    """Two live smokes showed the 8B model numbering CITE lines 1..k within each claim. Read as a
+    claim id, every claim's first citation landed on c1 — corrupting the claim-to-citation mapping
+    C2 measures and inventing cap violations for claims that had cited once. Line order is the one
+    signal the model got right, so line order is the grammar. A number, if written, is ignored."""
+    raw = (
+        "DECISION: yes\n"
+        "CLAIM 1: Metformin reduced HbA1c in the trial population.\n"
+        "CITE 1: [p1] || Metformin reduced HbA1c by 1.2%\n"
+        "CLAIM 2: Placebo did not change HbA1c.\n"
+        "CITE 1: [p2] || Placebo showed no significant change in HbA1c.\n"
+    )
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert out.errors == []
+    assert [len(c.citations) for c in out.claims] == [1, 1]  # not [2, 0]
+    assert out.claims[1].citations[0].passage_id == "p2"
+
+
+def test_a_cite_before_any_claim_is_still_an_error():
+    out = parse_response("DECISION: yes\nCITE: [p1] || Metformin\n", _passages(), MAX_CITATIONS)
+
+    assert any("CITE line precedes any CLAIM" in e for e in out.errors)
+
+
+def test_both_citing_stages_get_the_identical_attachment_rule():
+    """A grammar rule only one citing system saw would move C2's gap by itself."""
     joint = build_prompt(System.JOINT, "Q?", _passages(), MAX_CITATIONS)
     post_hoc = build_prompt(
         System.POST_HOC, "Q?", _passages(), MAX_CITATIONS, stage="cite", answer="CLAIM 1: X."
     )
 
-    rule = "Do not restart CITE numbering at 1 under each claim."
+    rule = "A CITE line supports the CLAIM line directly above it."
     assert rule in joint and rule in post_hoc
 
 
