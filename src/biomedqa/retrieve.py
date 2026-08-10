@@ -332,7 +332,16 @@ def _rerank(
         return passages
 
     cross_encoder = _get_cross_encoder(reranker_model)
-    pairs = [(query, p.text or p.passage_id) for p in passages]
+    missing = [p.passage_id for p in passages if not p.text]
+    if missing:
+        # Falling back to the passage_id would rerank the query against a string like
+        # "PMID:12345#2" and still return a plausible-looking ranking. Table 1 row 4 would then
+        # report a number produced by scoring questions against identifiers.
+        raise ValueError(
+            f"rerank needs passage text; {len(missing)} pooled passages have none "
+            f"(first: {missing[0]}). Load the index with passage_texts."
+        )
+    pairs = [(query, p.text) for p in passages]
     scores = cross_encoder.predict(pairs)  # numpy array or list of floats
 
     scored = sorted(zip(scores, passages), key=lambda x: x[0], reverse=True)

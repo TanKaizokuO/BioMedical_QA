@@ -1,18 +1,21 @@
 #!/usr/bin/env python3
-"""Table 1, rows 1–3 — retrieval ablation baseline.
+"""Table 1, rows 1–4 — retrieval ablation baseline.
 
     Row 1: BM25 only  (no dense, no RRF, no rerank)
     Row 2: Dense only (no BM25,  no RRF, no rerank)
     Row 3: BM25 + Dense + RRF  (no rerank)
+    Row 4: BM25 + Dense + RRF + cross-encoder rerank  (Gate G1 reads this row)
 
-Each row reports hit@5, Wilson 95% CI, and gold-rank distribution over the dev split.  The cross-
-encoder rerank row (row 4) is Week 3.
+Each row reports hit@5, Wilson 95% CI, and gold-rank distribution over the dev split.
 
-RUNS ON THE A4000 (dense retrieval needs GPU for the MedCPT query encoder).
+RUNS ON THE A4000 (dense retrieval and the cross-encoder need GPU).
 
     python scripts/table1_baseline.py \\
       --index-dir data/index \\
-      --out docs/harvest/table1_rows_1_3.json
+      --out docs/harvest/table1_rows_1_4.json
+
+``--rows`` restricts the run to a subset (e.g. ``--rows 4``); the artifact then holds only those
+rows, so keep the default when producing the Table 1 of record.
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from biomedqa.config import RetrievalConfig  # noqa: E402
+from biomedqa.config import CONFIG_VERSION, RetrievalConfig, RunConfig  # noqa: E402
 from biomedqa.data import Instance, load_splits, load_instances  # noqa: E402
 from biomedqa.retrieve import RetrievalIndex, retrieve  # noqa: E402
 from biomedqa.schema import (  # noqa: E402
@@ -53,7 +56,7 @@ _BASE_CONFIG = RetrievalConfig(
     bm25=True,
     dense=True,
     rrf=True,
-    rerank=False,   # rerank is Row 4 (Week 3)
+    rerank=False,   # rows 1–3 are pre-rerank; row 4 turns it on via config_overrides
     top_k=5,
 )
 
@@ -72,6 +75,11 @@ ROWS: list[dict] = [
         "row": 3,
         "label": "BM25 + Dense + RRF",
         "config_overrides": {"bm25": True, "dense": True, "rrf": True, "rerank": False},
+    },
+    {
+        "row": 4,
+        "label": "BM25 + Dense + RRF + Rerank",
+        "config_overrides": {"bm25": True, "dense": True, "rrf": True, "rerank": True},
     },
 ]
 
@@ -256,7 +264,7 @@ def _eval_row(
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="Table 1 rows 1–3: BM25-only, Dense-only, BM25+Dense+RRF (no rerank)"
+        description="Table 1 rows 1–4: BM25, Dense, RRF fusion, cross-encoder rerank"
     )
     ap.add_argument(
         "--index-dir",
@@ -277,9 +285,17 @@ def main() -> int:
         help="k for hit@k (default: 5; G1 gates at k=5)",
     )
     ap.add_argument(
+        "--rows",
+        type=int,
+        nargs="+",
+        choices=[r["row"] for r in ROWS],
+        default=[r["row"] for r in ROWS],
+        help="Subset of Table 1 rows to evaluate (default: all)",
+    )
+    ap.add_argument(
         "--out",
         type=Path,
-        default=Path("docs/harvest/table1_rows_1_3.json"),
+        default=Path("docs/harvest/table1_rows_1_4.json"),
         help="Output JSON path",
     )
     ap.add_argument(
@@ -317,10 +333,14 @@ def main() -> int:
     # ------------------------------------------------------------------
     # Evaluate each row
     # ------------------------------------------------------------------
-    print(f"\nEvaluating Table 1 rows 1–3 on '{args.split}' split (k={args.k}) …")
+    selected = [r for r in ROWS if r["row"] in set(args.rows)]
+    print(
+        f"\nEvaluating Table 1 rows {', '.join(str(r['row']) for r in selected)} "
+        f"on '{args.split}' split (k={args.k}) …"
+    )
     row_results: list[dict] = []
     all_records: list[tuple[int, QueryRecord]] = []
-    for row_spec in ROWS:
+    for row_spec in selected:
         result, records = _eval_row(row_spec, index, instances, args.k)
         row_results.append(result)
         all_records.extend((row_spec["row"], r) for r in records)
@@ -331,20 +351,20 @@ def main() -> int:
     print(f"\n{'='*60}")
     print(f"Table 1  (dev split, hit@{args.k}):")
     print(f"{'='*60}")
-    header = f"{'Row':<4} {'System':<22} {'hit@' + str(args.k):>8} {'Wilson lo':>10} {'Wilson hi':>10} {'G1':>5}"
+    header = f"{'Row':<4} {'System':<28} {'hit@' + str(args.k):>8} {'Wilson lo':>10} {'Wilson hi':>10} {'G1':>5}"
     print(header)
     print("-" * 60)
     for r in row_results:
         g1_str = "PASS" if r["g1_passes"] else "fail"
         print(
-            f"{r['row']:<4} {r['label']:<22} "
+            f"{r['row']:<4} {r['label']:<28} "
             f"{r[f'hit_at_{args.k}']:>8.4f} "
             f"{r['wilson_lower']:>10.4f} "
             f"{r['wilson_upper']:>10.4f} "
             f"{g1_str:>5}"
         )
     print("=" * 60)
-    print("(Row 4 — BM25+Dense+RRF+Rerank — is Week 3)")
+    print("G1 reads row 4: hit@5 ≥ 0.90 AND Wilson lower > 0.85.")
 
     # ------------------------------------------------------------------
     # Write output
@@ -352,7 +372,7 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     output = {
         "script": "scripts/table1_baseline.py",
-        "table": "Table 1 rows 1–3",
+        "table": "Table 1 rows " + ", ".join(str(r["row"]) for r in row_results),
         "started_at": started_at,
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "config": {
@@ -361,9 +381,18 @@ def main() -> int:
             "k": args.k,
             "corpus_id": _BASE_CONFIG.corpus_id,
             "corpus_fingerprint": _BASE_CONFIG.corpus_fingerprint,
+            "title_segment": _BASE_CONFIG.title_segment,
+            "reranker": _BASE_CONFIG.reranker,
+            "pool_size": _BASE_CONFIG.pool_size,
+            # The index's identity, not the run's. Without it a row cannot be attributed to an
+            # index after the fact, and ADR-0014 §3 made `title_segment` part of that identity.
+            "index_fingerprint": RunConfig(
+                retrieval=_BASE_CONFIG, split=args.split
+            ).index_fingerprint(),
+            "config_version": CONFIG_VERSION,
         },
         "rows": row_results,
-        "note": "Row 4 (cross-encoder rerank) is Week 3. G1 gate requires hit@5 ≥ 0.90 and Wilson lower > 0.85.",
+        "note": "G1 gate requires hit@5 ≥ 0.90 and Wilson lower > 0.85, read off row 4.",
     }
     args.out.write_text(json.dumps(output, indent=2, ensure_ascii=False))
     print(f"\nResults written to {args.out}")

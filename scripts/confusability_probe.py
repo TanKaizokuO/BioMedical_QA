@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """ADR-0012 §2 — Distractor confusability probe.
 
-For each dev question, retrieve the RRF-fused top-5 (no reranker), drop gold passages, then score
+For each dev question, retrieve the RRF-fused top-5 (no reranker by default), drop gold passages,
+then score
 the question's gold claims against the non-gold passages with MiniCheck-Flan-T5-Large.  Reports the
 distribution of entailment scores; **no threshold is pre-committed** — this is a first observation.
 
@@ -23,6 +24,11 @@ dense index and cannot perturb the recorded retrieval numbers.
       --index-dir data/index \\
       --random-control docs/harvest/confusability_probe.json \\
       --out docs/harvest/confusability_probe_control.json
+
+**Reranked arm (W3 item 2).**  ``--rerank`` puts the cross-encoder between the pool and the top-k,
+so the distractors scored are the ones the deployed cascade actually shows the generator. Run it
+into its own ``--out``, then pair a control against *that* file — the control's ``paired_against``
+is what says which arm it belongs to.
 """
 
 from __future__ import annotations
@@ -339,6 +345,14 @@ def main() -> int:
         default=12345,
         help="Seed for the random-control draw (default: 12345)",
     )
+    ap.add_argument(
+        "--rerank",
+        action="store_true",
+        help=(
+            "Run the cross-encoder over the pool before taking the top-k (Week 3 re-confirm). "
+            "Off by default: ADR-0012 §2's first distribution is pre-rerank."
+        ),
+    )
     args = ap.parse_args()
 
     # A dropped --random-control writes the plain retrieved-side probe to a path that claims to be
@@ -384,9 +398,17 @@ def main() -> int:
         bm25=not control,
         dense=not control,
         rrf=not control,
-        rerank=False,   # ADR-0012 §2: no reranker until W3
+        # ADR-0012 §2's first observation is pre-rerank, so this stays off unless asked. W3 item 2
+        # re-confirms the probe with --rerank, on both the retrieved and the control arm, because
+        # a reranked top-5 is a different set of distractors than the fused one.
+        rerank=args.rerank and not control,
         top_k=args.top_k,
     )
+    if control and args.rerank:
+        # Not an error: a paired control run is invoked alongside a reranked probe and will carry
+        # the same flags. The control draws uniformly and never retrieves, so there is nothing to
+        # rerank; `paired_against` in the output names the probe it belongs to.
+        print("--rerank is inert in control mode (the control never retrieves); ignoring it.")
     print(f"Loading index from {args.index_dir} …")
     index = RetrievalIndex.load(args.index_dir, config)
 
