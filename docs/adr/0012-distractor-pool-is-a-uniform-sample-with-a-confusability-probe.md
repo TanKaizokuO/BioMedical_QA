@@ -65,6 +65,59 @@ cannot leak anything about citation-F1 and does not touch ADR-0009 §6.
 770M, local, `verify.py` already stubbed, call it ~½ day. W2 already holds the chunker sweep,
 `bm25s`, RRF and the 2M encode.
 
+#### Result, 2026-08-10 — the pool is confusable, but only the tail says so
+
+Run over the 2.16M index, dev split, RRF top-5 with gold dropped: **427 non-gold passages across 100
+questions**, each scored as the max over the question's gold sentences (mean 8.8 of them).
+`docs/harvest/confusability_probe.json`.
+
+**The retrieved-side distribution alone was not interpretable, and the first reading of it was wrong.**
+Mean 0.4245, median 0.3802, p90 0.7376, and 62/100 questions carrying a non-gold passage at ≥0.5
+looks like a confusable pool. It is also consistent with MiniCheck simply saying yes a lot, and with
+a max over ~9 sentences inflating any base rate — the same "passes always, means nothing" defect this
+section rejected the topic judge for. So the run was repeated against a **paired uniform-random
+control**: the same gold sentences, the same *number* of passages per question, drawn uniformly from
+the 2M corpus at seed 12345 (`--random-control`, `docs/harvest/confusability_probe_control.json`).
+Pairing is what makes it readable — the max-over-sentences inflation is identical on both arms and
+cancels in the contrast.
+
+| entailment ≥ | retrieved distractors | uniform-random passages | ratio | questions with ≥1 (ret / rand) |
+|---|---|---|---|---|
+| 0.3 | 62.1% | **67.7%** | **0.92** | 87 / 93 |
+| 0.4 | 47.1% | 39.1% | 1.20 | 81 / 77 |
+| 0.5 | 34.0% | 15.9% | 2.13 | 62 / 42 |
+| 0.6 | 24.8% | 5.9% | 4.24 | 50 / 19 |
+| 0.7 | **14.5%** | **2.1%** | **6.89** | 35 / 8 |
+| 0.8 | 1.9% | 0.2% | 8.00 | 7 / 1 |
+
+**MiniCheck's base rate is enormous, and it swallows the bulk of the distribution.** A uniformly
+random PubMed abstract scores a median 0.3613 against a gold claim and clears 0.3 more than two thirds
+of the time. **At 0.3 the retrieved distractors do worse than chance.** Any statement of the form
+"62% of our distractors are entailment-confusable" is therefore not a finding; it is the model's floor.
+
+**Retrieval's contribution is real and lives entirely in the upper tail**, where the ratio climbs
+monotonically to ~7× at 0.7. Paired per question, the retrieved arm has the higher mean on **63 of
+100** questions (sign test **p = 0.012**), with a mean per-question delta of only +0.050 — small,
+because the bulk does not move and the tail is what does.
+
+**The threshold §2 deferred, now set: τ_confusable = 0.7.** Not 0.5, MiniCheck's nominal operating
+point, where a 15.9% random base rate still contaminates a third of what gets counted. At 0.7 the
+random rate is 2.1%, so the measurement is mostly signal, and **35 of 100 dev questions carry at least
+one distractor that plausibly entails a gold claim** against 8 by chance. That is the reportable
+number for the setup section, and it replaces the mean, which is nearly chance.
+
+Setting it after seeing the distribution is what §2 licensed, and it stays honest for the reason §2
+gave: **the probe gates nothing.** No corpus, retriever or τ is tuned against it, and nothing here is
+permitted to move a G-gate.
+
+**§3 is not triggered.** Its escalation fires on a pool with nothing plausible to mis-cite; a 7×
+enrichment over chance at τ_confusable is the opposite. No MeSH-stratified redraw. Citation precision
+has something to discriminate, which is what ADR-0003's fatal scenario needed watched.
+
+**Still open, and cheap to close at W3:** the top-5 here is pre-reranker, as §2 requires. The W3
+cross-encoder changes which distractors survive, so `research_roadmap.md` W3's "re-confirm after"
+means re-running **both arms** — a control-free re-run would restate the uninterpretable number.
+
 ### 3. If the probe says the pool is too easy
 
 Escalate by **sampling more densely from the gold questions' own MeSH terms — uniformly within that

@@ -115,6 +115,48 @@ apparatus for, and pre-deciding it would be guessing.
 `scripts/g0_medcpt_throughput.py:46` puts `row["question"]` there as a throughput stand-in; copying
 that into the real encode would index the query against itself.
 
+#### Decided, 2026-08-10 — `empty`, and the index already built is the winner
+
+**`tok("", abstract)`.** Measured on the dev split against the 2.16M index:
+`docs/harvest/title_convention_pool_eval.json`.
+
+| | hit@1 | **hit@5** | hit@10 | hit@20 | hit@50 | hit@100 |
+|---|---|---|---|---|---|---|
+| `empty`  | 0.32 | **0.59** | 0.70 | 0.74 | 0.81 | 0.91 |
+| `single` | 0.35 | **0.53** | 0.64 | 0.69 | 0.79 | 0.91 |
+
+Paired on gold rank over the 91 queries whose gold is in the pool: `single` ranks it **better on 19,
+worse on 39**, unchanged on 33 — sign test **p = 0.012**, mean rank delta **+3.68 places worse**. The
+two conventions are close but not equivalent: mean cosine 0.9797, max abs component diff 0.0649.
+
+**Read the paired test, not the two intervals.** Marginally, hit@5 is 0.59 [0.492, 0.681] against
+0.53 [0.433, 0.625] — CIs that overlap heavily, which is what paired data looks like when summarised
+marginally. The queries and the candidates are identical across arms, so the paired rank test is the
+one with the power here, and it separates.
+
+**Measured the cheap way.** `scripts/title_convention_pool_eval.py` re-ranks the 100-deep dense pools
+Table 1 already recorded, re-encoding only the 9,832 pooled passages (~1 min) instead of the two ~2 h
+index builds `title_convention_eval.py` needs. Its `empty` arm re-derives Table 1 row 2 from the same
+vectors and must reproduce it exactly; `--expect-hit5 0.59` fails the run otherwise, and it passed.
+
+**Scope, stated.** The candidate set is fixed to `empty`'s pool, so recall is held constant by
+construction — both arms sit at hit@100 = 0.91 — and this cannot see a passage `single` would have
+pulled in from 2M that `empty` missed. That gap does not matter for the decision, because the
+asymmetry runs the right way: switching would require `single` to win on ordering, and it lost. Had
+it won, the full two-index build would have been owed.
+
+**Two consequences beyond the convention.** The 2M index on disk is already `empty`, so §3 closes
+with **no re-encode at all**. And **the segment convention is not why dense hit@5 is 0.59** — that
+hypothesis is dead, the weak dense row is genuine retriever quality, and the W3 cross-encoder is the
+remaining lever, exactly as the Consequences below anticipate.
+
+**The fingerprint gap this exposed.** §3 says the convention is "recorded in the index fingerprint",
+and it was not: `RunConfig.index_fingerprint()` hashed `dense_encoder`, which names the *weights* and
+not the *call*, so an `empty` and a `single` index — same corpus, same chunker, two separate 2 h
+encodes, different vectors — hashed **identically**. `encode_corpus.py`'s resume guard refused to mix
+them from its own local state while its comment claimed every one of its knobs was inside the
+fingerprint. `RetrievalConfig.title_segment` now is (`CONFIG_VERSION` 1.3.0), with a test.
+
 ## Consequences
 
 - **~9% of the corpus text is discarded** — median 88 title chars against 905 of content. Bought

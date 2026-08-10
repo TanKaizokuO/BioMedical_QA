@@ -3,7 +3,7 @@
 **Project:** Evidence-Grounded, Claim-Attributable Biomedical QA  
 **Target Submission:** November 2–6, 2026 (Workshop Venue)  
 **Current Date:** August 10, 2026  
-**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). Week 2 in progress — 2M encode, Table 1 rows 1–3 and the ADR-0012 §2 probe all landed; **G1 fails honestly at hit@5** (RRF 0.73) with **pool recall at hit@100 = 0.97**, which makes W3's reranker the load-bearing item.
+**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). **Week 2 complete (Aug 10)** — all nine items closed. **G1 fails honestly at hit@5** (RRF 0.73) while **pool recall reaches hit@100 = 0.97**, so the gap is ranking precision, not retrieval; W3's cross-encoder is the load-bearing item and the only remaining lever, τ untouched.
 
 ---
 
@@ -44,8 +44,8 @@
 - ~~Implement `bm25s` lexical index and MedCPT dense retriever in `src/biomedqa/retrieve.py`.~~ *(Completed Aug 9, 2026 — save/load round-trip and real-weights smoke test.)*
 - ~~Execute 2M MedCPT embedding pass on A4000 GPU.~~ *(Completed Aug 10, 2026 — 2,162,838 passages in 1.99 h; 1,037/1,037 gold passages present; `dense.npy` 3.1 GB, `passage_texts.jsonl` 2.5 GB, `bm25/` built.)*
 - ~~Implement Reciprocal Rank Fusion (RRF) candidate pipeline.~~ *(Completed Aug 9, 2026 — `_rrf_fuse`, arithmetic checked by hand against `1/(k+rank)`.)*
-- ~~Execute distractor confusability probe (ADR-0012 §2) using MiniCheck on ~100 dev questions.~~ *(Completed Aug 10, 2026 — `docs/harvest/confusability_probe.json`, 427 non-gold passages over 100 dev questions. Mean 0.4245, median 0.3802, p90 0.7376, max 0.8312, min 0.1345; 62/100 questions carry a non-gold passage at ≥0.5. **Near-zero entailment is ruled out, so ADR-0012 §3's escalation is not triggered.** A paired uniform-random-passage control is running to establish that the number discriminates — see the note under item 6.)*
-- [ ] Measure empty title-segment convention impact on dev hit@5 (ADR-0014 §3). *(Answered cheaply first: `scripts/title_convention_pool_eval.py` re-ranks Table 1's own 100-deep dense pools under both conventions, re-encoding only the ~9.8k pooled passages instead of two 2 h index builds. `title_segment` is now inside `RunConfig.index_fingerprint()` — it was not, so the two indices used to hash identically. The full two-index `title_convention_eval.py` runs only if the pool result shows a material reordering.)*
+- ~~Execute distractor confusability probe (ADR-0012 §2) using MiniCheck on ~100 dev questions.~~ *(Completed Aug 10, 2026 — 427 non-gold passages over 100 dev questions, plus a **paired uniform-random control** at seed 12345, because the retrieved-side distribution alone could not be distinguished from MiniCheck's base rate. It cannot: at ≥0.3 random passages score **higher** than retrieved ones (67.7% vs 62.1%). Separation is in the tail — **14.5% vs 2.1% at ≥0.7, a 6.9× enrichment**, paired sign test p = 0.012. **τ_confusable = 0.7 set post-hoc**, where **35/100 questions carry a plausible mis-citation target against 8 by chance**. ADR-0012 §3 not triggered; re-confirm **both arms** post-rerank at W3. `docs/harvest/confusability_probe{,_control}.json`.)*
+- ~~Measure empty title-segment convention impact on dev hit@5 (ADR-0014 §3).~~ *(Decided Aug 10, 2026 — **`empty` wins and is what the 2M index already holds, so no re-encode.** hit@5 0.59 vs 0.53 for `single`; paired gold rank better on 19 / worse on 39 / unchanged 33, sign test p = 0.012, mean +3.68 places worse. Measured by re-ranking Table 1's own 100-deep pools and re-encoding only the 9,832 pooled passages (~1 min) rather than two ~2 h index builds; the `empty` arm reproduced Table 1 row 2 exactly as a harness check. **The convention is not why dense hit@5 is 0.59.** Also closed the gap where `index_fingerprint()` could not tell the two indices apart — `RetrievalConfig.title_segment`, `CONFIG_VERSION` 1.3.0. `docs/harvest/title_convention_pool_eval.json`.)*
 - ~~Implement `backends.py` vLLM / local Llama-3.1-8B AWQ generator adapter.~~ *(Completed Aug 9, 2026 — HTTP to vLLM; `vllm` deliberately absent from `pyproject.toml`.)*
 - ~~Address non-blocking corpus findings from Issue #10.~~ *(All 6 findings closed Aug 9, 2026.)*
 - ~~Measure baseline Table 1 rows 1–3.~~ *(Completed Aug 10, 2026 — dev, 2.16M index, evaluated over the full 100-deep pool so a near-miss is distinguishable from a retrieval failure. BM25 hit@5 0.71 / @10 0.77 / @100 0.90; Dense 0.59 / 0.70 / 0.91; RRF 0.73 / 0.81 / 0.97. `docs/harvest/table1_rows_1_3.{json,records.jsonl}`.)*
@@ -56,7 +56,7 @@
 - [ ] Complete Table 1 (Retrieval ablation & cascade lift).
 - [ ] Draft initial joint claim-grounded generation prompts on dev set retrievals.
 - [ ] Begin logging prompt-iteration counts for equal-effort baseline protocol.
-- [ ] Re-confirm distractor confusability probe post-reranking.
+- [ ] Re-confirm the distractor confusability probe post-reranking — **both arms**. A control-free re-run restates a number that is indistinguishable from MiniCheck's base rate below τ_confusable = 0.7; see ADR-0012 §2's 2026-08-10 result.
 - [ ] Nudge annotators around Aug 19 ahead of Aug 20 response backstop.
 
 ### Week 4 (Aug 24 – Aug 30, 2026) — Joint Generation & Parity Loop

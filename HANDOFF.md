@@ -1,42 +1,56 @@
-# HANDOFF — 2026-08-09 (end of ninth session)
+# HANDOFF — 2026-08-10 (end of tenth session)
 
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
 
-`main` · **working tree dirty and `HEAD` is one commit ahead of `origin/main`.** Nothing this session
-has been committed or pushed, and **push authorization does not carry across sessions** — ask before
-either. Modified: `src/biomedqa/retrieve.py`, `src/biomedqa/backends.py`, `src/biomedqa/corpus.py`,
-`scripts/build_corpus.py`, `tests/test_corpus.py`. Untracked: `ROADMAP.md`, `scripts/encode_corpus.py`,
-`scripts/chunker_sweep.py`, `scripts/confusability_probe.py`, `scripts/title_convention_eval.py`,
-`scripts/table1_baseline.py`. The unpushed commit is `a7d6915` (the four chunkers).
+`main` · **working tree clean, `HEAD` == `origin/main` at `3a8622a`.** Everything this session is
+committed and pushed. **Push authorization does not carry across sessions** — ask before the next one.
 
-Tests: `uv run --with pytest python -m pytest tests/ -q` → **114 passed**. (The previous handoff said
-86; that predates the chunker tests. 114 is the current true count.) There is no bare `python` on this
-box and no installed `pytest`; that invocation is the one that works. `pyproject.toml`'s `pythonpath`
-is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
+Tests: `uv run --with pytest python -m pytest tests/ -q` → **119 passed**. There is no bare `python`
+on this box and no installed `pytest`; that invocation is the one that works. `pyproject.toml`'s
+`pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
 
 ---
 
 ## 1. Where the project is
 
-**W2 (Aug 10–16), Phase 1 — Retrieval gate (Aug 3–23) → C1, Table 1.**
+**W3 (Aug 17–23), Phase 1 — Retrieval gate (Aug 3–23) → C1, Table 1.**
 
 | Gate | Date | State |
 |---|---|---|
 | **G0** — 8B AWQ generator chosen, A4000 measured | Aug 4 | **PASSED 2026-08-04.** Issue #1 closed. |
-| **G1** — hit@5 ≥ 0.90, Wilson lower > 0.85 | **Aug 23** | **Unstarted, on plan.** The retrieval stack now exists; G1 is W3. |
+| **G1** — hit@5 ≥ 0.90, Wilson lower > 0.85 | **Aug 23** | **Baseline measured and failing at 0.73.** The reranker is the remaining lever. |
 | G2 · G3 · G4 · G5 | Sep 6 · Sep 20 · Sep 27 · Oct 11 | Unstarted, with due weeks. |
 
-**W1 is complete.** **W2's code half is complete and verified; W2's execution half is A4000-side.**
-Five of the nine W2 items are done (chunker-sweep driver, `retrieve.py`, RRF, `backends.py`,
-Issue #10). The other four — the 2M encode, the confusability probe, the title-convention
-measurement, Table 1 rows 1–3 — are **runs, not code**: every script is written, `--help`-clean and
-smoke-tested against real MedCPT weights, and each one waits only on the box. §8 holds the
-copy-paste block, in order.
+**W1 and W2 are both complete — all nine W2 items closed.** The 2M index exists on the box, Table 1
+rows 1–3 are measured, ADR-0012 §2's probe has run with its control, and ADR-0014 §3 is decided.
+
+### Table 1 rows 1–3 — dev, 2.16M index, `docs/harvest/table1_rows_1_3.{json,records.jsonl}`
+
+| row | hit@1 | **hit@5** | hit@10 | hit@100 | not in pool |
+|---|---|---|---|---|---|
+| BM25 | 0.55 | 0.71 | 0.77 | 0.90 | 10 |
+| Dense (MedCPT) | 0.32 | 0.59 | 0.70 | 0.91 | 9 |
+| **RRF** | — | **0.73** | 0.81 | **0.97** | 3 |
+
+**The shape of this result is the single most important thing to carry forward.** RRF puts gold in
+the 100-deep pool for **97 of 100** questions and in the top 5 for 73. The gap is **ranking precision,
+not retrieval recall**, which is exactly what a cross-encoder reranking a 100-deep pool fixes. G1 is
+reachable without touching the corpus, the chunker or τ.
+
+**Dense underperforming BM25 (0.59 vs 0.71) is genuine and unexplained.** Two hypotheses are dead:
+normalisation (`diag_dense_metric.py`, `df14e82` — CLS norms CV 0.0229, L2 vs raw dot identical to
+1 ULP) and the title-segment convention (§3 below). It is retriever quality. Do not re-litigate the
+two dead ones.
+
+### The two W2 measurements that were nearly reported wrong
+
+- **ADR-0012 §2's probe needed a control, and the first reading of it was wrong.** See §3.
+- **ADR-0014 §3 is decided: `empty`**, and the index already on disk is the winner, so no re-encode.
+  hit@5 0.59 vs 0.53; paired gold rank better on 19 / worse on 39 / unchanged 33, sign test p = 0.012.
 
 Everything past retrieval is `NotImplementedError` with a due week in its module docstring. That is
-by design, not drift. The exceptions are `scoring/abstention.py`, `retrieve.py` and `backends.py`,
-which now exist and are tested.
+by design, not drift. The exceptions are `scoring/abstention.py`, `retrieve.py` and `backends.py`.
 
 Unresolved, and **not needing re-derivation**: **W9 is triple-booked** (`research_roadmap.md` §5 ⚠)
 · the blind parity loop leaves six days between the first citation-F1 (≈Aug 31) and G2 (Sep 6)
@@ -45,10 +59,21 @@ documents the deadline it was written against, and changing it would change the 
 
 ---
 
-## 2. What is blocking, and the corpus as built
+## 2. What exists on the box, and the corpus as built
 
-**Nothing is blocking agent-side.** What is *waiting* is the box: nothing downstream of the 2M encode
-can produce a number until it runs.
+**Nothing is blocking.** The 2M index exists and every W2 number has been taken from it.
+
+### The index (built 2026-08-10 on the A4000)
+
+| | |
+|---|---|
+| location | `data/index/empty` — **the `empty` convention, which ADR-0014 §3 has now confirmed is the right one** |
+| passages | **2,162,838** encoded in **1.99 h** (the 1.6 h G0 estimate was close) |
+| gold | **1,037 gold passages present** — sourced by `_iter_passages`, not from the corpus file (trap 12) |
+| artifacts | `dense.npy` 3.1 GB · `passage_texts.jsonl` 2.5 GB · `bm25/` · all **box-only, gitignored** |
+
+**There is no `data/index/single`, and there does not need to be.** ADR-0014 §3 was answered inside
+the pool the existing index already produced; the second ~2 h build is not owed. Do not run it.
 
 ### The corpus (built 2026-08-06 on the A4000)
 
@@ -56,7 +81,7 @@ can produce a number until it runs.
 |---|---|
 | `fingerprint` | **`93321598f3f1`** — this is the corpus. The earlier `41cf7a6c9160` is the duplicate-bearing draw and **must not be used**. |
 | `gold collisions` | **1,000 of 1,000.** Every PubMedQA gold PMID is in MedRAG. The overlap ADR-0012 §1 guessed at is **total** — without draw-time exclusion every gold abstract would have been indexed twice. |
-| `gold in the draw` | **0 of 1,000** — verified this session, and this is the *design*, not a defect. See trap 12; it is the reason `encode_corpus.py` indexes gold itself. |
+| `gold in the draw` | **0 of 1,000** — this is the *design*, not a defect. See trap 12. |
 | `duplicate rows` | **300 suppressed** over 244 PMIDs (trap 3). |
 | scanned | 23,898,701 — exact |
 | artifacts | `data/corpus/corpus_manifest.json` (tracked) · `corpus.jsonl` 5.5G, `prescan.jsonl` 5.6G (gitignored, **box only**, 12 GB total) |
@@ -64,28 +89,15 @@ can produce a number until it runs.
 `load_splits()` returns `{dataset, seed, dev, test, hash}`; `dev` is 100 pubid **strings** and the
 split hash is **`71c46cc5b0ca`**.
 
-The scan ran once and completed; the draw was then redone from its on-disk superset via
-`--from-prescan` after the repeated-PMID fix. **Keep `prescan.jsonl` on the box until the encode is
-done** — it is the only way to redraw without a second 54 GB read.
+**`prescan.jsonl` can now be deleted from the box if space is needed** — it existed to allow a redraw
+without a second 54 GB read, and the encode it was protecting is done. If it is kept, `--from-prescan`
+still refuses unless the manifest records `n_prescan_rows` matching the file on disk (`198172c`); a
+count taken *after* a truncation certifies the truncation, which is why it refuses rather than
+back-filling.
 
-> **`--from-prescan` will refuse on the box until one number is added to the manifest.** Since
-> `198172c` the redraw matches `prescan.jsonl`'s row count against a `n_prescan_rows` field, and the
-> manifest on the box predates the field. **Only if that prescan has not been re-scanned since the
-> Aug 5 run**, record it:
->
-> ```
-> wc -l data/corpus/prescan.jsonl
-> ```
->
-> then add `"n_prescan_rows": <that number>` to `data/corpus/corpus_manifest.json` on the box. A
-> count taken *after* a truncation certifies the truncation, which is why the code refuses rather
-> than back-filling it automatically. The tracked copy of the manifest carries no `prescan.jsonl`
-> and does not need the field.
-
-**If the corpus is ever rebuilt from scratch**, budget **~3 h wall**, not the 1 h first estimated — a
-JSON parse per row sits on top of the network. **Network to HF is flaky**: two read timeouts hit
-retry 2/5 on the 2026-08-05 run, the budget is 5 retries per file, and the build is **not resumable**
-(trap 2), so a rebuild is a real risk rather than a formality. Four guards can stop it — row count ≠
+**If the corpus is ever rebuilt from scratch**, budget **~3 h wall**, not the 1 h first estimated.
+**Network to HF is flaky**: two read timeouts hit retry 2/5 on the 2026-08-05 run, the budget is 5
+retries per file, and the build is **not resumable** (trap 2). Four guards can stop it — row count ≠
 23,898,701 · zero gold collisions · short heap · a draw short on distinct PMIDs. **Each one means a
 corpus that must not be encoded.** Ask for the traceback rather than working around it.
 
@@ -95,56 +107,92 @@ corpus that must not be encoded.** Ask for the traceback rather than working aro
 
 `git log` and `docs/adr/` hold the rest; this is only what neither recovers.
 
+### From this session
+
+- **A diagnostic without a null is the defect ADR-0012 §2 was written to avoid, wearing a new hat.**
+  The probe's retrieved-side distribution — mean 0.4245, 62/100 questions with a non-gold passage at
+  ≥0.5 — reads as a confusable pool and is **nearly indistinguishable from MiniCheck's base rate**.
+  Measured against a paired uniform-random draw: **at ≥0.3 random passages beat retrieved ones,
+  67.7% vs 62.1%.** Separation only appears in the tail (2.13× at 0.5, **6.89× at 0.7**, 8× at 0.8).
+  §2 rejected the LLM topic judge because "a threshold pre-committed against a measurement with no
+  established discriminating power buys false comfort" — a probe with no control has the same defect,
+  and the number would have gone into the paper's setup section unchallenged.
+- **The pairing is what makes the contrast readable, and it was not incidental.** Each score is a max
+  over the question's gold sentences (mean 8.8), which inflates any base rate. Drawing the *same
+  number* of control passages per question makes that inflation identical on both arms so it cancels.
+  An unpaired control would have measured the aggregation, not the retrieval.
+- **`τ_confusable = 0.7`, set post-hoc and licensed by §2 because the probe gates nothing.** Not 0.5,
+  MiniCheck's nominal operating point, where a 15.9% random base rate still contaminates a third of
+  what gets counted. At 0.7: **35/100 dev questions carry a plausible mis-citation target against 8
+  by chance.** That is the reportable number; the mean is not.
+- **A question that costs 4 h of GPU can sometimes be answered inside data already on disk.**
+  ADR-0014 §3 nominally needed two 2 h index builds. It was answered in ~1 min by re-ranking the
+  100-deep dense pools Table 1 had already recorded and re-encoding only the 9,832 pooled passages.
+  **The trick generalises**: the least-processed artifacts (`*.records.jsonl`) are re-analysable, so
+  ask what the recorded pool can already answer before booking the box.
+- **A cheap proxy needs a check that it reproduces the expensive thing.** The pool re-rank's `empty`
+  arm re-derives Table 1 row 2 from the same vectors, so it *must* return hit@5 = 0.59;
+  `--expect-hit5` fails the run otherwise. That check is the only reason the `single` arm is
+  believable, and it is worth building into any future proxy measurement.
+- **State the scope of a conditioned measurement, then check the asymmetry runs your way.** Fixing
+  the candidate set to `empty`'s pool holds recall constant (both arms hit@100 = 0.91) and cannot see
+  a passage `single` would have surfaced from 2M. That gap is harmless *here* only because switching
+  would have required `single` to win and it lost. Had it won, the full build would have been owed.
+- **`index_fingerprint()` hashed the weights and not the call.** `dense_encoder` names the checkpoint;
+  `tok("", abstract)` and `tok(abstract)` run it differently over the same text and produce different
+  vectors (mean cosine 0.9797, max component diff 0.0649). So two indices representing **two separate
+  2 h encodes hashed identically**, while `encode_corpus.py`'s resume guard refused to mix them from
+  its own local state and its comment claimed every one of its knobs was in the fingerprint. Fixed:
+  `RetrievalConfig.title_segment`, `CONFIG_VERSION` 1.3.0, with a test. **When a config names a
+  model, ask whether it also names how the model is called.**
+- **Read the paired test, not the marginal intervals.** ADR-0014 §3's hit@5 is 0.59 [0.492, 0.681]
+  against 0.53 [0.433, 0.625] — heavily overlapping, which is what paired data looks like summarised
+  marginally. Same queries, same candidates: the paired rank test has the power, and it separates at
+  p = 0.012. A reviewer will look at the overlapping CIs first, so the write-up says this explicitly.
+
+### Carried forward from earlier sessions
+
 - **The dedup is exclusion at draw time, not reconciliation afterwards.** There is never a moment
   when two copies of a gold abstract exist, so nothing has to decide which survives and no
   half-deduped index can reach the encoder. **Its cost is trap 12** — the index has to source gold
   from somewhere, and that somewhere is `encode_corpus.py`, not the corpus file.
 - **The surviving gold copy is PubMedQA's, not MedRAG's**, and that is forced, not preferred:
   citations are char spans into `Instance.abstract_text`, so indexing MedRAG's string would
-  invalidate every gold offset and every annotation record written against one. The same fact is why
-  `_iter_passages` chunks gold via `chunk_instance` rather than re-fetching it.
+  invalidate every gold offset and every annotation record written against one.
 - **Axis 3 reversed its own shape under measurement.** It began as "titles on both sides or neither."
   The measurement that killed the middle option: **a PubMedQA question is its article's title,
   verbatim** — 60 sampled gold PMIDs, title covers the question's content tokens at **median and mean
-  1.00, 60/60 at ≥ 0.8** (`Instance.question` vs NCBI esummary, 2026-08-05). ADR-0003 called
-  retrieval here "a lexical gimme"; it is stronger than that. **Neither is the only reachable parity.**
-- **The two MedCPT title conventions are not equivalent** — measured this session on real weights:
-  same passages, `tok(["", text])` vs `tok(text)`, **max abs embedding difference 0.0349**. ADR-0014
-  §3's open question is therefore a real measurement and not a no-op, which was not known before.
-- **Citations/claim measures 1.01, not the 2–3 assumed** (89 of 92 G0 claims cite exactly one; the G0
-  prompt did not suppress multi-citation). But **G0's passages were sections of one abstract**, which
-  is not the retrieval regime. **ADR-0013 KW2: re-measure on the W4 end-to-end records.** This is the
-  single largest uncertainty left in the annotation plan.
+  1.00, 60/60 at ≥ 0.8**. ADR-0003 called retrieval here "a lexical gimme"; it is stronger than that.
+- **Citations/claim measures 1.01, not the 2–3 assumed** (89 of 92 G0 claims cite exactly one). But
+  **G0's passages were sections of one abstract**, which is not the retrieval regime. **ADR-0013 KW2:
+  re-measure on the W4 end-to-end records.** The single largest uncertainty left in the annotation plan.
 - **Per-question annotation cost is sublinear in claims; per-claim cost is linear** (2 sampled claims
   cite 1.52 distinct passages, 4 cite 2.03; 4,000 resamples/question over the G0 answers). This is
   *why* 2 claims/question beats ADR-0011's 4×19 at equal cost.
 - **How the corpus failure was diagnosed, because the method transfers.** The write step raised
   `wrote 2,000,000 rows for 1,999,703 drawn PMIDs`, whose message named **two** possible causes. The
-  guard's *direction* discriminated them without another 3 h run: a prescan that failed to contain
-  the draw writes *fewer* rows than PMIDs, more means the source holds repeats. Everything after came
-  from the on-disk `prescan.jsonl`, not the network — four throwaway scripts, each narrowing:
-  how many repeat (244/2,041,867) → do their rows differ (129 yes) → **is the difference chunking or
-  revision** → is the draw contained in the superset (exact, not statistical). **Step 3 was nearly
-  skipped as unnecessary and was the one that mattered**: had the rows been chunks of one abstract,
-  ADR-0014 §2, `chunk.py`'s input contract and `passage_text` would all have needed revisiting.
-  **Look before assuming the cheap fix is the right one.**
+  guard's *direction* discriminated them without another 3 h run. Everything after came from the
+  on-disk `prescan.jsonl`, not the network — four throwaway scripts, each narrowing: how many repeat
+  (244/2,041,867) → do their rows differ (129 yes) → **is the difference chunking or revision** → is
+  the draw contained in the superset. **Step 3 was nearly skipped as unnecessary and was the one that
+  mattered.** Look before assuming the cheap fix is the right one.
 - **Sub-agent completion reports are claims, not evidence.** Five W2 slices were delegated in
-  parallel and every one came back "verified". Checking the artifacts myself found, in code reported
-  as working: four names used at runtime and never imported in `retrieve.py`; an encoder writing
-  `embeddings.npy` against a loader reading `dense.npy`; `passage_texts.jsonl` never written at all;
-  and three sweep configs that would have collapsed onto one. **The delegation was still right — the
-  verification is the part that cannot be delegated with it.**
-- **The repo went PUBLIC on 2026-08-05.** Any earlier note calling issues "internal records the
-  annotators cannot read" is **dead**. **No names, emails or PII appear in any tracked file or
+  parallel and every one came back "verified". Checking the artifacts found, in code reported as
+  working: four names used at runtime and never imported; an encoder writing `embeddings.npy` against
+  a loader reading `dense.npy`; `passage_texts.jsonl` never written; three sweep configs collapsing
+  onto one. **The delegation was still right — the verification is the part that cannot be delegated.**
+- **The repo went PUBLIC on 2026-08-05.** **No names, emails or PII appear in any tracked file or
   issue — checked, not assumed.**
-- **Both annotators accepted on 2026-08-05** (user-reported). Issue #7's recruiting deliverable is
-  met, so **ADR-0011 §1's prohibition on revising the ask upward is live.**
+- **Both annotators accepted on 2026-08-05.** Issue #7's recruiting deliverable is met, so
+  **ADR-0011 §1's prohibition on revising the ask upward is live.**
 
 **ADR house rule.** The default is still that accepted ADRs are not edited — supersede instead. **One
-narrow exception exists and is written down in `docs/agents/domain.md`:** when a *premise* inside an
+narrow exception exists, written down in `docs/agents/domain.md`:** when a *premise* inside an
 accepted ADR is wrong but the *decision* it supported is unchanged, a dated in-place amendment is
-allowed, under three conditions (original text stays with a pointer; the amendment says what did not
-change; the header records the edit). Used exactly once — **ADR-0014 §2's Amendment, 2026-08-06**.
+allowed (original text stays with a pointer; the amendment says what did not change; the header
+records the edit). Used once — **ADR-0014 §2's Amendment, 2026-08-06**. Separately, ADR-0012 §2 and
+ADR-0014 §3 now carry dated **Result / Decided** subsections: those are not amendments but the
+measurements the sections *asked for*, which is why they are additive and change no decision text.
 ADR-0011 §1's now-stale open note is the provenance of ADR-0013 and is left standing on purpose.
 **Do not "tidy" it.**
 
@@ -178,33 +226,32 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
 
 - **Least-processed value.** Store `phi_score: 0.83`, never `supported: true`. Store `gold_rank` or
   the ranked list, never a precomputed hit@5. Store the 4-way `support_label`, never its collapse.
-  *This is the rule that decided ADR-0010.*
+  *This is the rule that decided ADR-0010, and the rule that made ADR-0014 §3 answerable for free.*
 - **Wilson, not Wald**, on gate proportions. G1 passes iff point ≥ 0.90 **and** Wilson lower > 0.85.
   **G4 is deliberately different** — it gates on the point alone; ADR-0011 §4 defends why.
 - **Every bootstrap clusters on the question, never the claim** (ADR-0011; §8 rule 10). Every table
   caption naming a CI must name its resampling unit.
 - **vLLM never enters `pyproject.toml`**, not even an optional group — it pins torch exactly and
   backtracks the workspace to pydantic 1.10.x. **It is a network boundary and a separate OS.**
-  `backends.py` reaches it over HTTP via `httpx` at `{VLLM_BASE_URL|http://localhost:8000}` and
-  re-raises `httpx.ConnectError` with a runbook pointer.
+  `backends.py` reaches it over HTTP via `httpx` at `{VLLM_BASE_URL|http://localhost:8000}`.
 - **`RAG_Debate_Agent` is retired** (ADR-0007). Never re-run it; cite `docs/harvest/`.
-- **Index identity is a content hash**, never a document count (the ADR-0007 lesson). The empty
-  title-segment convention (ADR-0014 §3) is part of that identity and goes in the fingerprint.
-  `index_fingerprint()` honours this as of `dc69341` — the corpus enters as
-  `RetrievalConfig.corpus_fingerprint`, the draw's hash over the 2M PMIDs, because `corpus_id` is
-  the literal `"pubmed-2m-v1"` at every seed. **A redraw must change that default**; the test
-  pinning it to `data/corpus/corpus_manifest.json` is what fails if it does not.
+- **Index identity is a content hash**, never a document count (the ADR-0007 lesson). It now covers
+  `corpus_id`, `corpus_fingerprint`, the chunker, `dense_encoder` **and `title_segment`** — the last
+  added this session, because the encoder name does not say how the encoder was called. **A redraw
+  must change the `corpus_fingerprint` default**; the test pinning it to the committed manifest is
+  what fails if it does not.
 - **Passages carry no titles, gold or distractor** (ADR-0014 §2). `MEDRAG_TEXT_FIELD = "content"` is
   load-bearing, not a default.
 - **MedCPT is asymmetric.** `NCBI/MedCPT-Query-Encoder` for queries, `NCBI/MedCPT-Article-Encoder`
   for passages, and **the title slot never receives the question** (trap 4).
 - **≤3 citations per claim**, identical across all three systems.
 - **`validate()` reports violations and never repairs them.**
-- **`AlignScore` is never-cut** — the middle rung of R7's only remaining ladder, and the cut fired in
-  W6, a week before G3 (§8 rule 8).
+- **`AlignScore` is never-cut** — the middle rung of R7's only remaining ladder.
 - **Never tune τ to pass a gate.** R2's ladder ends at relaxing to hit@10 and *saying so in the
-  paper*, never at moving a threshold quietly.
-- **`SCHEMA_VERSION` stays `1.0.0`; `CONFIG_VERSION` stays `1.2.0`.**
+  paper*, never at moving a threshold quietly. **`τ_confusable = 0.7` is not an exception**: it was
+  set after seeing a distribution, which ADR-0012 §2 licenses precisely because the probe gates
+  nothing. If anything ever starts gating on it, it must be re-derived before the fact.
+- **`SCHEMA_VERSION` stays `1.0.0`; `CONFIG_VERSION` is now `1.3.0`** (was 1.2.0 — `title_segment`).
 - **Schema field names that have bitten.** `QueryRecord` uses **`query_id`**, not `question_id`.
   `CostRecord` is `run_id, query_id, component, backend, input_tokens, output_tokens, usd, wall_s`.
   `RetrievedPassage` is `passage_id, rank` (1-indexed), `score, retriever, text`. Check the dataclass
@@ -214,56 +261,63 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
   puts annotators 2 and 3 on the **same randomized question order**, so any common prefix is a
   complete unbiased subsample. That requirement lands on `data.py` and the annotation UI in W5. **If
   it is dropped or simplified there, a sentence the user has already sent becomes false.**
-- **The repo is public.** Outward-facing means the whole repo, not just issues. **Nothing
-  outward-facing goes out without the user's word, and push authorization does not carry across
-  sessions.**
+- **The repo is public.** **Nothing outward-facing goes out without the user's word, and push
+  authorization does not carry across sessions.**
 
 ### Dates set outside the repo — record them, they are nowhere else
 
-- **Annotator reply: hard backstop Thu 2026-08-20.** The message was due Fri Aug 7 and sent Thu
-  Aug 6; the backstop now applies to the *answer*. It was derived backwards from the closing
-  question, not the schedule: a bad answer is recovered by finding a replacement against R3's
-  **Sep 7** hard trigger, whose fallback (intra-annotator α, 150 claims) is explicitly weaker.
-  **Silence past Aug 20 costs the same as a bad answer** — worth a nudge around Aug 19.
+- **Annotator reply: hard backstop Thu 2026-08-20.** Derived backwards from the closing question, not
+  the schedule: a bad answer is recovered by finding a replacement against R3's **Sep 7** hard
+  trigger, whose fallback (intra-annotator α, 150 claims) is explicitly weaker. **Silence past Aug 20
+  costs the same as a bad answer** — worth a nudge around Aug 19.
 - **All labeling ends Sun 2026-09-20.** Pilot **Sep 7–13 (W6)**, main pass **Sep 14–20 (W7)**;
   **W8 (Sep 21–27) is α, adjudication and G4 — not annotation time.**
 - **The dependency that makes it hold: the pilot must actually happen in W6.** If it slips, the main
   pass slides into W8 and ADR-0011's α < 0.6 branch loses its only re-run. **The gap between the two
-  sittings is load-bearing, not padding** — the pilot exists to test the guidelines, so the guideline
-  revision happens in that gap.
+  sittings is load-bearing, not padding.**
 
 ### How this user works
 
 - **One decision at a time, lettered, each with a recommendation.** Replies are terse, often a single
   letter or two words. **A one-word answer may address only part of a multi-part question** — re-ask
-  the remainder rather than assuming. This has fired in five sessions and asking was correct each time.
+  the remainder rather than assuming. This has fired in six sessions.
 - **`do it` / `go` means "the next thing you just named."** **Name the next action explicitly at the
   end of every turn**, or that instruction is ambiguous.
+- **Ambiguous confirmations about the box are usually about a different machine.** "done" and
+  "git push is done" both arrived this session meaning something other than what was asked — a
+  re-paste of an earlier digest, and a push executed *on the A4000* rather than on this laptop.
+  **Verify with `git fetch` and `git rev-list --left-right --count` rather than believing the
+  report**, and say which machine a command belongs to in the command block itself.
 - **Terse instructions are decisions, not openings for discussion.** When one cuts against a repo
-  convention, the accepted pattern is: **state the conflict in two sentences, do it anyway, and do it
-  in the shape that preserves the convention's purpose.** Do not stop and re-ask.
-- **Brevity while driving the box.** "Just tell me what to do in very brief" — lead with the command,
-  keep reasoning to what changes the next action. This never meant the reasoning should go
-  unrecorded: the commit messages are long and none has been queried.
-- **Look facts up; ask only decisions.** Every sharp finding across six sessions came from reading a
-  file, fetching a shard, querying NCBI or running the code — none from reasoning.
+  convention: **state the conflict in two sentences, do it anyway, in the shape that preserves the
+  convention's purpose.**
+- **Brevity while driving the box.** Lead with the command, keep reasoning to what changes the next
+  action. This never meant the reasoning should go unrecorded: the commit messages are long and none
+  has been queried.
+- **Look facts up; ask only decisions.** Every sharp finding across seven sessions came from reading
+  a file, fetching a shard, querying NCBI or running the code — none from reasoning.
 - **Argue against your own earlier recommendation when the evidence changes.** Reversals have been
-  accepted immediately every time. Do not defend a prior position.
-- **The A4000 is copy-paste only.** No SSH from the agent environment; `scp` to `vllm-box` fails with
-  `Permission denied (publickey…)`. Hand over commands, wait for pasted output. **Never inspect
-  `~/.ssh/`** — declined once. **Run throwaway diagnostics through a syntax check before handing them
-  over**; a one-line slip costs a full round trip.
+  accepted immediately every time. This session reversed the *previous handoff's* recommendation to
+  defer ADR-0014 §3, and the reversal was right: deferring would have left the index's identity
+  undecided under W3's reranker numbers.
+- **The A4000 is copy-paste only.** No SSH from the agent environment. Hand over commands, wait for
+  pasted output. **Never inspect `~/.ssh/`** — declined once. **Run throwaway diagnostics through a
+  syntax check before handing them over**; a one-line slip costs a full round trip.
+- **Long multi-line command blocks lose their flags.** Two runs this session were wasted because a
+  `git pull` and a `--random-control` were dropped from a pasted block. **Prefer short blocks, put
+  the load-bearing flag on its own line, and where a dropped flag would silently produce a wrong
+  artifact, make the script refuse** (as `confusability_probe.py` now does — trap 15).
 
 ### The box's environment
 
 - **Git auth uses a fine-grained PAT** (Contents: read/write). `credential.helper store` may have
   been run, which writes it in plaintext to `~/.git-credentials`. **Never read or echo that file.**
 - **`git config --global user.email` on the box differs** from the address on the user's other
-  commits. Unconfirmed whether it was changed; commits pushed from the box may not attribute
-  correctly. Cosmetic, but worth one check rather than a surprise in November.
-- **This laptop has no CUDA** (`WARNING: CUDA not available; encoding on CPU`). Both MedCPT encoders
-  are now in the local HF cache, so smoke tests re-run in seconds. `transformers` warns
-  `torch_dtype is deprecated! Use dtype instead` from `_load_model` — cosmetic, worth switching.
+  commits. Cosmetic, but worth one check rather than a surprise in November.
+- **The box pushes directly to `origin/main`**, so `git pull --rebase` here before any push; it
+  happened twice this session and once produced a commit that had to be reverted (trap 15).
+- **This laptop has no CUDA.** Both MedCPT encoders are in the local HF cache, so smoke tests re-run
+  in seconds. `transformers` warns `torch_dtype is deprecated! Use dtype instead` — cosmetic.
 
 ---
 
@@ -273,109 +327,94 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
    export — 2,209,839 rows of 23,898,701, PMID-ascending, the **oldest ~9% of PubMed**. It is within
    10% of the 2M target, so the naive load *succeeds* and yields pre-1990 abstracts against
    1990s–2010s gold: separable by era alone, G1 excellent for the wrong reason, G2 with nothing
-   plausible to mis-cite. **Read `data_files="chunk/*.jsonl"`, never the bare dataset id.**
-   ADR-0014 §1.
+   plausible to mis-cite. **Read `data_files="chunk/*.jsonl"`, never the bare dataset id.** ADR-0014 §1.
 2. **The str/int join.** PubMedQA's `pubid` is int32 and `data.py` stringifies it; MedRAG's `PMID` is
    int64. `{"21645374"} & {21645374}` is empty, so a broken dedup reports **"0 duplicates removed" —
    which reads as good news.** `draw_corpus` raises on non-`int` keys and raises again on a full scan
-   that collides with *no* gold PMID. **This is why the build is not resumable:** a partial scan could
-   otherwise satisfy the row-count guard. `--from-prescan` is the one exception and it refuses unless
-   an existing manifest already records a completed 23,898,701-row scan **and a `n_prescan_rows` that
-   still matches the superset on disk** (`198172c` — §2). The split itself is unresolved design debt,
-   noted in `corpus.py`'s module docstring; Issue #10 finding 5 left it there deliberately, because
-   it is a modelling decision and not a bug.
+   that collides with *no* gold PMID. **This is why the build is not resumable.** The split itself is
+   unresolved design debt, noted in `corpus.py`'s docstring; Issue #10 finding 5 left it there
+   deliberately, because it is a modelling decision and not a bug.
 3. **The repeated PMID.** PubMed re-publishes revised records and MedRAG keeps each revision as its
-   own row — **244 of 2,041,867 drawn PMIDs, twice inside a single shard in at least one case.**
-   Duplicates share a `selection_key`, so both copies enter the bottom-k together and the draw
-   quietly becomes 2M rows over 1,999,703 articles: **one abstract under two `passage_id`s**, which
-   is ADR-0012 §1's failure arriving from inside MedRAG rather than from gold. The revisions are
-   whole abstracts, not chunks (`22367489` is `b-subunit` vs `beta-subunit`; `22453897` appends an
-   abbreviation list), so **ADR-0014 §2's "a row is an article" holds** — its unstated "and appears
-   once" does not, and its 15,377/15,377 was one shard. One row survives per article: **longest
-   `content`, ties on smallest `id`.** Recorded in **ADR-0014 §2's Amendment (2026-08-06)**. The
-   manifest key is now **`n_duplicate_rows_in_draw`**, renamed rather than recounted: the counter
-   only sees PMIDs already in the running bottom-k, so 300 is a **lower bound**, and the rename makes
-   the manifest honest without touching the draw. **The 26 MB committed manifest was left alone** —
-   only newly written manifests carry the new key.
+   own row — **244 of 2,041,867 drawn PMIDs.** Duplicates share a `selection_key`, so both copies
+   enter the bottom-k together and the draw quietly becomes 2M rows over 1,999,703 articles: **one
+   abstract under two `passage_id`s.** The revisions are whole abstracts, not chunks, so **ADR-0014
+   §2's "a row is an article" holds** — its unstated "and appears once" does not. One row survives per
+   article: **longest `content`, ties on smallest `id`.** The manifest key is
+   **`n_duplicate_rows_in_draw`**, renamed rather than recounted: the counter only sees PMIDs already
+   in the running bottom-k, so 300 is a **lower bound**. **The 26 MB committed manifest was left
+   alone** — only newly written manifests carry the new key.
 4. **Indexing the question.** `scripts/g0_medcpt_throughput.py:46` puts `row["question"]` in MedCPT's
    title slot as a throughput stand-in. **Copying that into the real encode would index the query
-   against itself.** The title slot never receives the question.
+   against itself.**
 5. **Fetching gold titles to "fix" the title asymmetry.** The intuitive repair, and the one option
-   that is definitely wrong — the titles *are* the questions (§3).
+   that is definitely wrong — the titles *are* the questions.
 6. **A `pytest.skip` on a missing fixture is invisible in a green run.** The G0 records were under
-   gitignored `runs/`, so the only copies were on this laptop and `tests/test_abstention.py` was
-   silently skipping its three load-bearing tests on every other machine. **They now live in
-   `docs/harvest/g0/`** and `g0_generator_bakeoff.py` writes there. Those tests assert the abstention
-   predicate against both real record shapes (Llama's list-item form, Qwen's trailing prose); if
-   either fails, ADR-0010's decision to hold `SCHEMA_VERSION` at 1.0.0 must be revisited **before
-   Sep 7**. **ADR-0010's Validation section and ADR-0013's evidence table still cite `runs/g0/`** —
-   left stale on purpose (a path is neither a wrong premise nor a changed decision, so the
-   `docs/agents/domain.md` exception does not cover it). Read them as `docs/harvest/g0/`.
+   gitignored `runs/`, so `tests/test_abstention.py` was silently skipping three load-bearing tests
+   on every other machine. **They now live in `docs/harvest/g0/`.** **ADR-0010's Validation section
+   and ADR-0013's evidence table still cite `runs/g0/`** — left stale on purpose (a path is neither a
+   wrong premise nor a changed decision). Read them as `docs/harvest/g0/`.
 7. **`docs/` is gitignored** via `docs/*` with `!docs/adr/`, `!docs/harvest/` and `!docs/agents/` as
-   the **only** exceptions. Docs written anywhere else are **silently untracked** — verify with
-   `git check-ignore`. `docs/harvest/` therefore holds two unrelated things and its README says which
-   rules govern which. **Any new exception needs the same two-line pair**: the negation, and a note
-   saying what it exists for. `chunker_sweep.py` writes `docs/harvest/chunker_sweep.json`, which is
-   inside an exception and therefore tracked — deliberately.
+   the **only** exceptions, and `*.jsonl` wins inside them unless separately negated
+   (`!docs/harvest/**/*.jsonl`, added after `.gitignore` silently ate
+   `table1_rows_1_3.records.jsonl`). Docs written anywhere else are **silently untracked** — verify
+   with `git check-ignore`. **Any new exception needs the same two-line pair**: the negation, and a
+   note saying what it exists for.
 8. **VRAM drifts on the A4000** (WDDM, display attached). Always launch vLLM with
    `--gpu-memory-utilization 0.85` and `VLLM_USE_V2_MODEL_RUNNER=0`. **Do not install an NVIDIA
    driver inside WSL** — the Windows driver is passed through.
-9. **There is no box preflight script any more.** `scripts/g0_smoke.sh` was deleted 2026-08-06: it
-   never ran successfully, assumed a POSIX login shell against a box that answers with `cmd.exe`, and
-   its job was gating G0. **Its thresholds are the right ones** if one is ever rewritten: ≥ 10 GB
-   free VRAM of 16 (8B AWQ ~6 + MiniCheck-770M ~1.5 + cross-encoder ~1.3, co-resident at G3) and
-   ≥ 60 GB free disk. Recover with `git show c213b4d:scripts/g0_smoke.sh`.
+9. **There is no box preflight script any more.** `scripts/g0_smoke.sh` was deleted 2026-08-06.
+   **Its thresholds are the right ones** if one is rewritten: ≥ 10 GB free VRAM of 16 and ≥ 60 GB
+   free disk. Recover with `git show c213b4d:scripts/g0_smoke.sh`.
 10. **Scratchpad handoffs get deleted.** Three already have been. **The tracked root file is the
-    convention**; `/handoff` writes to the OS temp directory by default, so fold its output in here
-    and delete it.
+    convention**; fold any temp-directory output in here and delete it.
 11. **A guard can be unreachable by construction and still read as a guard.** `--from-prescan`
-    checked that every drawn key fell below the prescan cutoff — but the prescan only ever wrote
-    rows already under that cutoff, so the comparison could not fail, and it printed *"draw sits N%
-    inside the cutoff"* on the way to certifying nothing. **The tell was that the guard's input came
-    from the same place its subject did.** `draw_corpus` had the same shape in the redraw path: it
-    was handed the surviving rows as its own `expected_rows`, so the row-count guard compared the
-    file to itself. Both are fixed (`198172c`). **When reading a guard, ask what varies that it
-    could see** — here nothing did, and the thing that actually varied (how much of the 12 GB
-    superset was still on disk) had no check at all.
-12. **The corpus contains no gold, and an index built from it alone scores hit@5 = 0.00.** Verified:
-    2,000,000 drawn PMIDs, 1,000 gold PMIDs, **0 in common.** That is ADR-0012 §1 working — gold is
-    excluded *at draw time* so no abstract is indexed twice (trap 3's failure from the other
-    direction). The consequence is easy to miss and was: hit@5 is defined over
-    `Instance.gold_passage_ids`, which is `f"{pubid}:{i}"`, while `corpus.jsonl` chunks into
-    `f"{row_id}:{i}"` — **so an index over the corpus alone contains no id in the gold space at all,
-    and every configuration scores exactly 0.00 while reading as a broken retriever.** The fix is
-    inside the encoder: `_iter_passages` yields gold from `chunk_instance(load_instances())` **first**,
-    then distractors, so a `--limit` run still contains all of it. `--no-gold` exists to reproduce the
-    empty case on purpose; **the default is gold ON**, and `with_gold` is in the resume guard because
-    resuming across it would splice two id spaces into one `dense.npy`.
+    checked that every drawn key fell below the prescan cutoff — but the prescan only ever wrote rows
+    already under that cutoff, so the comparison could not fail. `draw_corpus` had the same shape:
+    handed the surviving rows as its own `expected_rows`, it compared the file to itself. Both fixed
+    (`198172c`). **When reading a guard, ask what varies that it could see.**
+12. **The corpus contains no gold, and an index built from it alone scores hit@5 = 0.00.** 2,000,000
+    drawn PMIDs, 1,000 gold PMIDs, **0 in common** — ADR-0012 §1 working. The consequence is easy to
+    miss: hit@5 is defined over `Instance.gold_passage_ids` (`f"{pubid}:{i}"`) while `corpus.jsonl`
+    chunks into `f"{row_id}:{i}"`, **so an index over the corpus alone contains no id in the gold
+    space and every configuration scores exactly 0.00 while reading as a broken retriever.**
+    `_iter_passages` yields gold **first**, then distractors, so a `--limit` run still contains all of
+    it. **The default is gold ON**, and `with_gold` is in the resume guard.
 13. **A missing file that does not raise.** `RetrievalIndex.load` looks `dense.npy` up **by name** and
-    leaves `dense_embeddings = None` when it is absent. The encoder wrote `embeddings.npy`. Nothing
-    raised — the index loaded cleanly, retrieved plausibly, and Table 1's dense and RRF rows would
-    have been **silently BM25-only**. The sibling bug: `passage_texts.jsonl` was written only under
-    `--build-bm25`, and with empty texts `_rerank` falls back to `p.text or p.passage_id` and scores
+    leaves `dense_embeddings = None` when absent. The encoder wrote `embeddings.npy`. Nothing raised —
+    Table 1's dense and RRF rows would have been **silently BM25-only**. Sibling bug:
+    `passage_texts.jsonl` was written only under `--build-bm25`, and with empty texts `_rerank` scores
     the query against the literal string `"pubmed23n0001_0:0"`. Both fixed; a length-agreement guard
     now `sys.exit`s if ids/texts/embeddings disagree. **Where a loader resolves by name and tolerates
     absence, the writer's name is not a preference.**
 14. **A summary in the slot where the value should be.** `table1_baseline.py` wrote a key literally
-    named `gold_rank` — holding `{rank_mean, rank_median, rank_distribution, …}`, with the 100
-    per-question ranks discarded. It passes every eye test: the rule says "store `gold_rank`", and a
-    key called `gold_rank` was there. But `rank_mean` cannot be re-thresholded at hit@10 (**R2's
-    ladder ends exactly there**) and cannot be bootstrapped clustered on the question (ADR-0011), and
-    recovering it costs an index load plus 3x100 retrievals. `title_convention_eval.py` had the worse
-    version: both conventions run the **same** 100 questions, so the test that answers ADR-0014 §3 is
-    *paired*, and two independent means cannot support a paired test at all — after two full index
-    builds. Both now emit `gold_rank_per_query` keyed by `query_id`, and Table 1 additionally writes
-    the ranked lists to `<out>.records.jsonl` (300 records). **Caught by dry-running the scripts
-    against a real 1,200-passage index before handing them to the box, not by reading them.**
+    named `gold_rank` holding `{rank_mean, rank_median, …}`, with the 100 per-question ranks
+    discarded. It passes every eye test. But `rank_mean` cannot be re-thresholded at hit@10 (**R2's
+    ladder ends exactly there**) or bootstrapped clustered on the question. The related censoring bug:
+    `retrieve.py` truncated the pool to `top_k=5` *before* Table 1 recorded ranks, conflating "rank 6"
+    with "not retrieved" — Table 1 now evaluates the full 100-deep pool and nulls text past rank 5.
+    **That fix is what made ADR-0014 §3 answerable without a second index build.**
+15. **A dropped flag can produce a confidently mislabelled artifact.** A run missing
+    `--random-control` re-scored the ordinary retrieved-side probe and wrote it to
+    `confusability_probe_control.json`; the summary was byte-identical to the real probe and it
+    reached `main` as `d9d6a13` before being reverted in `c2d8e56`. **The only tell was an absent
+    `seed` key.** A file named `control` holding the uncontrolled run is the kind of artifact that
+    gets quoted later as a null result. `confusability_probe.py` now **refuses** to write to an
+    `--out` containing "control" without `--random-control`. **Where a dropped flag silently changes
+    what an artifact means rather than failing, the script must refuse.**
+16. **A hardness diagnostic with no null measures the model, not the corpus.** See §3. The retrieved
+    scores were reported as evidence the pool is confusable; against a paired random draw, everything
+    below 0.5 is base rate and **at 0.3 random passages score higher**. Any future
+    "is this hard/plausible/on-topic?" measurement gets a control drawn from the same population in
+    the same run, or it does not get reported.
 
 ---
 
 ## 7. What to read — the shortest ordered list
 
 1. **`docs/adr/0014`, `0013`, `0012`** — the corpus's text form and source, the annotation budget,
-   the distractor pool. The answer to almost any "why is it like this?" about W1–W2.
-2. **`src/biomedqa/corpus.py`'s module docstring** — the longest-form write-up of traps 1–3, and the
-   only surviving record of the session-3 findings.
+   the distractor pool. The answer to almost any "why is it like this?" about W1–W2. **0012 §2 and
+   0014 §3 now carry their measured results inline.**
+2. **`src/biomedqa/corpus.py`'s module docstring** — the longest-form write-up of traps 1–3.
 3. **`scripts/encode_corpus.py`'s `_iter_passages` docstring** — the long form of trap 12.
 4. `CONTEXT.md` — the four frozen units and the annotation protocol; authoritative on the units.
 5. `research_roadmap.md` §3 (distractor selection), §5 (the week grid), §7 (R1–R7), §8 rules 8 and 10.
@@ -383,7 +422,8 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
 7. `docs/adr/0003`–`0008` — the decisions the newer ones refine.
 8. `docs/agents/domain.md` — the ADR conventions, including the amendment exception.
 9. `src/biomedqa/schema.py` — the frozen contract, still **1.0.0** and deliberately so.
-10. `src/biomedqa/retrieve.py`'s docstring — every settled W2 constraint, and the one open question.
+10. `scripts/title_convention_pool_eval.py`'s docstring — the pattern for answering an expensive
+    question from recorded pools, including what it cannot see.
 11. `docs/harvest/runbooks/wsl-vllm-a4000.md` — before touching the box.
 12. `paper/skeleton.md` — the five tables and the C1–C5 ledger every result must land in.
 
@@ -395,49 +435,53 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 ## 8. Open work, in the order recommended
 
-### 1. Commit and (with the user's word) push the W2 code
+### 1. W3's cross-encoder rerank — the whole of the remaining retrieval gate
 
-Nothing from this session is committed. Six new scripts, four modified modules, one modified test.
-**Push authorization does not carry across sessions** — ask.
+`RetrievalConfig.rerank` and `_rerank` exist and are untested against the 2M index.
+`reranker = "NCBI/MedCPT-Cross-Encoder"`. The cascade is pool-100 → rerank → top-5, and **the pool it
+reranks already contains gold 97% of the time**, so this is the one lever between 0.73 and G1's 0.90.
 
-### 2. The A4000 block — this is the whole remaining W2
+**Neither script takes a `--rerank` flag; both hardcode `rerank=False` and say why.** W3's first code
+change is adding row 4, not passing an argument:
 
-Copy-paste, in order. Each step's output is the input to the next; nothing here can be run from this
-laptop.
+- `scripts/table1_baseline.py` — `BASE_CONFIG` sets `rerank=False  # rerank is Row 4 (Week 3)`, and
+  `ROWS` is a hardcoded list of three `config_overrides` dicts. Append row 4
+  (`{"bm25": True, "dense": True, "rrf": True, "rerank": True}`) and update the trailing `note`,
+  which currently reads "Row 4 (cross-encoder rerank) is Week 3."
+- `scripts/confusability_probe.py` — same, with an ADR-0012 §2 comment on the line. **Update the
+  comment rather than deleting it**: pre-rerank remains the correct default, and §2 requires the
+  first distribution to have been taken without the reranker.
+
+Two things to fix while doing it:
+- **`table1_rows_1_3.json` records `corpus_fingerprint` but no `index_fingerprint`.** Against this
+  project's own "a cell whose config hash is not in `runs/` is not a result" rule that is a
+  traceability gap in a committed artifact. Add it to `table1_baseline.py`'s output rather than
+  re-running Table 1 now; the reranked run will carry it.
+- The G1 decision goes through `gate_g1()`, which already encodes point ≥ 0.90 **and** Wilson
+  lower > 0.85. Do not hand-roll the comparison.
+
+### 2. Re-confirm the confusability probe post-rerank — **both arms**
+
+ADR-0012 §2 requires re-confirmation after the reranker changes which distractors survive. A
+control-free re-run restates a number indistinguishable from base rate below τ_confusable = 0.7.
+
+Once row 4 exists, both arms are re-run against the reranked top-5 — the retrieved side first, then
+the control paired against it, exactly as this session did:
 
 ```
-# (a) the real index — gold + 2M distractors, ~1.6 h, resumable
-python scripts/encode_corpus.py --title-convention empty --build-bm25 \
-  --out data/index/empty --resume
-
-# (b) the second index, for ADR-0014 §3 only — same corpus, other convention
-python scripts/encode_corpus.py --title-convention single --build-bm25 \
-  --out data/index/single --resume
-
-# (c) ADR-0014 §3: dev hit@5 both ways. Decided by measurement, not taste.
-python scripts/title_convention_eval.py --index-dir-empty data/index/empty \
-  --index-dir-single data/index/single
-
-# (d) Table 1 rows 1-3 — BM25, dense, RRF
-python scripts/table1_baseline.py --index-dir data/index/empty
-
-# (e) ADR-0012 §2's distractor confusability probe, ~100 dev questions
-python scripts/confusability_probe.py --index-dir data/index/empty
+python scripts/confusability_probe.py --index-dir data/index/empty \
+  --out docs/harvest/confusability_probe_reranked.json
+python scripts/confusability_probe.py --index-dir data/index/empty \
+  --random-control docs/harvest/confusability_probe_reranked.json \
+  --out docs/harvest/confusability_probe_reranked_control.json
 ```
 
-`--resume` is safe to re-issue after any interruption: resume is verified **byte-equivalent** on real
-weights, and the guard refuses a resume whose `title_convention`, `strategy`, `max_chars`,
-`window_sentences`, `stride_sentences` or `with_gold` differs from `progress.json`.
+### 3. If G1 still fails after the rerank
 
-The chunker sweep (`scripts/chunker_sweep.py`, 7 named configs) is a **separate, longer** run — it
-encodes once per config. Run it with `--sample` first; **a number measured against a truncated corpus
-is not a Table 1 row**, and the script prints that warning itself.
-
-### 3. Once (c) has a number
-
-Decide whether the winning title convention is recorded in `RetrievalConfig` and noted in ADR-0014
-§3. It is already inside `index_fingerprint()`, so this is documentation of a settled question, not a
-behaviour change — but ADR-0014 §3 is currently *open* and should not stay open past a measurement.
+**R2's ladder, and it never includes tuning τ.** It ends at relaxing to hit@10 — where RRF is already
+at 0.81 pre-rerank — **and saying so in the paper**. The chunker sweep (`scripts/chunker_sweep.py`,
+7 configs, one ~2 h encode each) is the expensive rung and has not been run; consider whether the
+pool-restricted trick from ADR-0014 §3 can answer any of it from recorded pools first.
 
 ### 4. The annotator reply
 
@@ -452,16 +496,15 @@ the guideline two-pass calendar.
 ### 6. Optional, user-side
 
 `g0_medcpt_throughput.json` exists only on the box. Every number in it is transcribed into
-`research_roadmap.md` §3, so losing it costs nothing — but if convenient, `scp` it into
-`docs/harvest/g0/` beside the two bake-off records.
+`research_roadmap.md` §3, so losing it costs nothing. `prescan.jsonl` and `corpus.jsonl` (12 GB) can
+be deleted now that the encode is done, if the box needs space.
 
 ---
 
-**Suggested skills.** `/tdd` for anything that has to fail before it can be trusted — traps 12 and 13
-are both cases where the code ran green and produced a wrong number, and neither test could have been
-written honestly after the fix. `tests/test_corpus.py` is the house model: each test's docstring names
-the silent failure it prevents, and its fixture is a **real MedRAG row embedded verbatim**.
-`/grilling` is the user's preferred instrument and produced ADR-0009–0013; live target is the **W9
-triple-booking**. `/domain-modeling` for any new ADR, and for the PMID `str`/`int` split (trap 2) if
-it is judged worth a type. Not needed yet: `dataviz` (figures are W11) · `claude-api` (the Opus 5
-judge is wired in W6).
+**Suggested skills.** `/tdd` for anything that has to fail before it can be trusted — traps 12, 13
+and 15 are all cases where the code ran green and produced a wrong number or a wrong artifact.
+`tests/test_corpus.py` is the house model: each test's docstring names the silent failure it
+prevents, and its fixture is a **real MedRAG row embedded verbatim**. `/grilling` is the user's
+preferred instrument and produced ADR-0009–0013; live target is the **W9 triple-booking**.
+`/domain-modeling` for any new ADR, and for the PMID `str`/`int` split (trap 2) if it is judged worth
+a type. Not needed yet: `dataviz` (figures are W11) · `claude-api` (the Opus 5 judge is wired in W6).
