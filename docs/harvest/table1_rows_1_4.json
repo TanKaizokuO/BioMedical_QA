@@ -1,0 +1,1929 @@
+{
+  "script": "scripts/table1_baseline.py",
+  "table": "Table 1 rows 1, 2, 3, 4",
+  "started_at": "2026-08-10T05:51:21.547245+00:00",
+  "finished_at": "2026-08-10T06:23:43.788762+00:00",
+  "config": {
+    "index_dir": "data/index/empty",
+    "split": "dev",
+    "k": 5,
+    "corpus_id": "pubmed-2m-v1",
+    "corpus_fingerprint": "93321598f3f1",
+    "title_segment": "empty",
+    "reranker": "NCBI/MedCPT-Cross-Encoder",
+    "pool_size": 100,
+    "index_fingerprint": "57ab89e445f8",
+    "config_version": "1.3.0"
+  },
+  "rows": [
+    {
+      "row": 1,
+      "label": "BM25 only",
+      "config": {
+        "bm25": true,
+        "dense": false,
+        "rrf": false,
+        "rerank": false,
+        "rrf_k": 60,
+        "corpus_id": "pubmed-2m-v1",
+        "corpus_fingerprint": "93321598f3f1",
+        "top_k": 5
+      },
+      "n": 100,
+      "hits": 71,
+      "hit_at_5": 0.71,
+      "wilson_lower": 0.6146,
+      "wilson_upper": 0.7899,
+      "g1_passes": false,
+      "hit_at_k_curve": {
+        "hit_at_1": {
+          "point": 0.55,
+          "wilson_lower": 0.4524,
+          "wilson_upper": 0.6439,
+          "hits": 55
+        },
+        "hit_at_5": {
+          "point": 0.71,
+          "wilson_lower": 0.6146,
+          "wilson_upper": 0.7899,
+          "hits": 71
+        },
+        "hit_at_10": {
+          "point": 0.77,
+          "wilson_lower": 0.6785,
+          "wilson_upper": 0.8416,
+          "hits": 77
+        },
+        "hit_at_20": {
+          "point": 0.79,
+          "wilson_lower": 0.7002,
+          "wilson_upper": 0.8583,
+          "hits": 79
+        },
+        "hit_at_50": {
+          "point": 0.86,
+          "wilson_lower": 0.7786,
+          "wilson_upper": 0.9147,
+          "hits": 86
+        },
+        "hit_at_100": {
+          "point": 0.9,
+          "wilson_lower": 0.8256,
+          "wilson_upper": 0.9448,
+          "hits": 90
+        }
+      },
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 7
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": null
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 53
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 7
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 25
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": null
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": null
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 55
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": null
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 22
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 27
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 9
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 27
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 55
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 14
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 7
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 34
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 15
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": null
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 41
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 83
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 23
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 4
+        }
+      ],
+      "gold_rank": {
+        "pool_size": 100,
+        "in_pool_count": 90,
+        "not_in_pool_count": 10,
+        "rank_mean": 6.933,
+        "rank_median": 1.0,
+        "rank_min": 1,
+        "rank_max": 83,
+        "rank_histogram": {
+          "1": 55,
+          "2-5": 16,
+          "6-10": 6,
+          "11-20": 2,
+          "21-50": 7,
+          "51-100": 4
+        }
+      }
+    },
+    {
+      "row": 2,
+      "label": "Dense only",
+      "config": {
+        "bm25": false,
+        "dense": true,
+        "rrf": false,
+        "rerank": false,
+        "rrf_k": 60,
+        "corpus_id": "pubmed-2m-v1",
+        "corpus_fingerprint": "93321598f3f1",
+        "top_k": 5
+      },
+      "n": 100,
+      "hits": 59,
+      "hit_at_5": 0.59,
+      "wilson_lower": 0.492,
+      "wilson_upper": 0.6813,
+      "g1_passes": false,
+      "hit_at_k_curve": {
+        "hit_at_1": {
+          "point": 0.32,
+          "wilson_lower": 0.2367,
+          "wilson_upper": 0.4166,
+          "hits": 32
+        },
+        "hit_at_5": {
+          "point": 0.59,
+          "wilson_lower": 0.492,
+          "wilson_upper": 0.6813,
+          "hits": 59
+        },
+        "hit_at_10": {
+          "point": 0.7,
+          "wilson_lower": 0.6042,
+          "wilson_upper": 0.7811,
+          "hits": 70
+        },
+        "hit_at_20": {
+          "point": 0.74,
+          "wilson_lower": 0.6463,
+          "wilson_upper": 0.816,
+          "hits": 74
+        },
+        "hit_at_50": {
+          "point": 0.81,
+          "wilson_lower": 0.7222,
+          "wilson_upper": 0.8749,
+          "hits": 81
+        },
+        "hit_at_100": {
+          "point": 0.91,
+          "wilson_lower": 0.8377,
+          "wilson_upper": 0.9519,
+          "hits": 91
+        }
+      },
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 7
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 93
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 12
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": null
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 16
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 28
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 15
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": null
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": null
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 10
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 45
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 67
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": null
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 63
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 79
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 80
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 52
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 58
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 9
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 33
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 50
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 45
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 26
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 10
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 13
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 63
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 94
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 9
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 89
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 25
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1
+        }
+      ],
+      "gold_rank": {
+        "pool_size": 100,
+        "in_pool_count": 91,
+        "not_in_pool_count": 9,
+        "rank_mean": 13.593,
+        "rank_median": 2,
+        "rank_min": 1,
+        "rank_max": 94,
+        "rank_histogram": {
+          "1": 32,
+          "2-5": 27,
+          "6-10": 11,
+          "11-20": 4,
+          "21-50": 7,
+          "51-100": 10
+        }
+      }
+    },
+    {
+      "row": 3,
+      "label": "BM25 + Dense + RRF",
+      "config": {
+        "bm25": true,
+        "dense": true,
+        "rrf": true,
+        "rerank": false,
+        "rrf_k": 60,
+        "corpus_id": "pubmed-2m-v1",
+        "corpus_fingerprint": "93321598f3f1",
+        "top_k": 5
+      },
+      "n": 100,
+      "hits": 73,
+      "hit_at_5": 0.73,
+      "wilson_lower": 0.6357,
+      "wilson_upper": 0.8073,
+      "g1_passes": false,
+      "hit_at_k_curve": {
+        "hit_at_1": {
+          "point": 0.49,
+          "wilson_lower": 0.3942,
+          "wilson_upper": 0.5865,
+          "hits": 49
+        },
+        "hit_at_5": {
+          "point": 0.73,
+          "wilson_lower": 0.6357,
+          "wilson_upper": 0.8073,
+          "hits": 73
+        },
+        "hit_at_10": {
+          "point": 0.81,
+          "wilson_lower": 0.7222,
+          "wilson_upper": 0.8749,
+          "hits": 81
+        },
+        "hit_at_20": {
+          "point": 0.89,
+          "wilson_lower": 0.8137,
+          "wilson_upper": 0.9375,
+          "hits": 89
+        },
+        "hit_at_50": {
+          "point": 0.95,
+          "wilson_lower": 0.8882,
+          "wilson_upper": 0.9785,
+          "hits": 95
+        },
+        "hit_at_100": {
+          "point": 0.97,
+          "wilson_lower": 0.9155,
+          "wilson_upper": 0.9897,
+          "hits": 97
+        }
+      },
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 23
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 14
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 50
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 27
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 16
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 100
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 20
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 26
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 11
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 21
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 32
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 5
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 87
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 12
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 17
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 11
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 20
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1
+        }
+      ],
+      "gold_rank": {
+        "pool_size": 100,
+        "in_pool_count": 97,
+        "not_in_pool_count": 3,
+        "rank_mean": 6.753,
+        "rank_median": 1,
+        "rank_min": 1,
+        "rank_max": 100,
+        "rank_histogram": {
+          "1": 49,
+          "2-5": 24,
+          "6-10": 8,
+          "11-20": 8,
+          "21-50": 6,
+          "51-100": 2
+        }
+      }
+    },
+    {
+      "row": 4,
+      "label": "BM25 + Dense + RRF + Rerank",
+      "config": {
+        "bm25": true,
+        "dense": true,
+        "rrf": true,
+        "rerank": true,
+        "rrf_k": 60,
+        "corpus_id": "pubmed-2m-v1",
+        "corpus_fingerprint": "93321598f3f1",
+        "top_k": 5
+      },
+      "n": 100,
+      "hits": 86,
+      "hit_at_5": 0.86,
+      "wilson_lower": 0.7786,
+      "wilson_upper": 0.9147,
+      "g1_passes": false,
+      "hit_at_k_curve": {
+        "hit_at_1": {
+          "point": 0.7,
+          "wilson_lower": 0.6042,
+          "wilson_upper": 0.7811,
+          "hits": 70
+        },
+        "hit_at_5": {
+          "point": 0.86,
+          "wilson_lower": 0.7786,
+          "wilson_upper": 0.9147,
+          "hits": 86
+        },
+        "hit_at_10": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        },
+        "hit_at_50": {
+          "point": 0.97,
+          "wilson_lower": 0.9155,
+          "wilson_upper": 0.9897,
+          "hits": 97
+        },
+        "hit_at_100": {
+          "point": 0.97,
+          "wilson_lower": 0.9155,
+          "wilson_upper": 0.9897,
+          "hits": 97
+        }
+      },
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 6
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 3
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 24
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 4
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 8
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 7
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 13
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 2
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 11
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1
+        }
+      ],
+      "gold_rank": {
+        "pool_size": 100,
+        "in_pool_count": 97,
+        "not_in_pool_count": 3,
+        "rank_mean": 2.196,
+        "rank_median": 1,
+        "rank_min": 1,
+        "rank_max": 24,
+        "rank_histogram": {
+          "1": 70,
+          "2-5": 16,
+          "6-10": 8,
+          "11-20": 2,
+          "21-50": 1,
+          "51-100": 0
+        }
+      }
+    }
+  ],
+  "note": "G1 gate requires hit@5 ≥ 0.90 and Wilson lower > 0.85, read off row 4."
+}
