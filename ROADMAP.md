@@ -2,8 +2,8 @@
 
 **Project:** Evidence-Grounded, Claim-Attributable Biomedical QA  
 **Target Submission:** November 2–6, 2026 (Workshop Venue)  
-**Current Date:** August 9, 2026  
-**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). Week 2 Starts Mon Aug 10.
+**Current Date:** August 10, 2026  
+**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). Week 2 in progress — 2M encode, Table 1 rows 1–3 and the ADR-0012 §2 probe all landed; **G1 fails honestly at hit@5** (RRF 0.73) with **pool recall at hit@100 = 0.97**, which makes W3's reranker the load-bearing item.
 
 ---
 
@@ -42,13 +42,13 @@
 ### Week 2 (Aug 10 – Aug 16, 2026) — Retrieval Stack & 2M GPU Encode
 - ~~Chunker sweep (`src/biomedqa/chunk.py`): abstract-level, sentence-window, and fixed-width boundaries.~~ *(Driver `scripts/chunker_sweep.py` delivered Aug 9, 2026 — 7 named configs; sweep **execution** is A4000-side.)*
 - ~~Implement `bm25s` lexical index and MedCPT dense retriever in `src/biomedqa/retrieve.py`.~~ *(Completed Aug 9, 2026 — save/load round-trip and real-weights smoke test.)*
-- [ ] Execute 2M MedCPT embedding pass on A4000 GPU (1.6 h checkpoint/resume run). *(Script `scripts/encode_corpus.py` ready and smoke-tested — resume verified byte-equivalent; run is A4000-side.)*
+- ~~Execute 2M MedCPT embedding pass on A4000 GPU.~~ *(Completed Aug 10, 2026 — 2,162,838 passages in 1.99 h; 1,037/1,037 gold passages present; `dense.npy` 3.1 GB, `passage_texts.jsonl` 2.5 GB, `bm25/` built.)*
 - ~~Implement Reciprocal Rank Fusion (RRF) candidate pipeline.~~ *(Completed Aug 9, 2026 — `_rrf_fuse`, arithmetic checked by hand against `1/(k+rank)`.)*
-- [ ] Execute distractor confusability probe (ADR-0012 §2) using MiniCheck on ~100 dev questions. *(Script `scripts/confusability_probe.py` ready; run is A4000-side.)*
-- [ ] Measure empty title-segment convention impact on dev hit@5 (ADR-0014 §3). *(Script `scripts/title_convention_eval.py` ready; needs **two** index builds. Conventions confirmed non-equivalent — max abs embedding diff 0.0349 — so the measurement is real.)*
+- ~~Execute distractor confusability probe (ADR-0012 §2) using MiniCheck on ~100 dev questions.~~ *(Completed Aug 10, 2026 — `docs/harvest/confusability_probe.json`, 427 non-gold passages over 100 dev questions. Mean 0.4245, median 0.3802, p90 0.7376, max 0.8312, min 0.1345; 62/100 questions carry a non-gold passage at ≥0.5. **Near-zero entailment is ruled out, so ADR-0012 §3's escalation is not triggered.** A paired uniform-random-passage control is running to establish that the number discriminates — see the note under item 6.)*
+- [ ] Measure empty title-segment convention impact on dev hit@5 (ADR-0014 §3). *(Answered cheaply first: `scripts/title_convention_pool_eval.py` re-ranks Table 1's own 100-deep dense pools under both conventions, re-encoding only the ~9.8k pooled passages instead of two 2 h index builds. `title_segment` is now inside `RunConfig.index_fingerprint()` — it was not, so the two indices used to hash identically. The full two-index `title_convention_eval.py` runs only if the pool result shows a material reordering.)*
 - ~~Implement `backends.py` vLLM / local Llama-3.1-8B AWQ generator adapter.~~ *(Completed Aug 9, 2026 — HTTP to vLLM; `vllm` deliberately absent from `pyproject.toml`.)*
 - ~~Address non-blocking corpus findings from Issue #10.~~ *(All 6 findings closed Aug 9, 2026.)*
-- [ ] Measure baseline Table 1 rows 1–3. *(Script `scripts/table1_baseline.py` ready; needs the 2M index; run is A4000-side.)*
+- ~~Measure baseline Table 1 rows 1–3.~~ *(Completed Aug 10, 2026 — dev, 2.16M index, evaluated over the full 100-deep pool so a near-miss is distinguishable from a retrieval failure. BM25 hit@5 0.71 / @10 0.77 / @100 0.90; Dense 0.59 / 0.70 / 0.91; RRF 0.73 / 0.81 / 0.97. `docs/harvest/table1_rows_1_3.{json,records.jsonl}`.)*
 
 ### Week 3 (Aug 17 – Aug 23, 2026) — Reranking & Retrieval Gate G1
 - [ ] Integrate cross-encoder reranker into cascade (top-50/200 → top-5 candidate selection).
