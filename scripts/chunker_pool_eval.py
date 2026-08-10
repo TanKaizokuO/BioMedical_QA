@@ -98,6 +98,58 @@ def _pool_by_query(records_path: Path, row: int) -> dict[str, list[str]]:
     return pools
 
 
+def _pooled_passage_ids(records_path: Path, row: int) -> set[str]:
+    """Every passage id one Table 1 row pooled, flattened across queries."""
+    out: set[str] = set()
+    with records_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("table1_row") == row:
+                out.update(p["passage_id"] for p in rec["retrieved"])
+    return out
+
+
+def audit_pool(index_dir: Path, records_path: Path, row: int) -> dict:
+    """How many pooled abstracts the index stores as more than one chunk — no GPU, no text load.
+
+    This decides whether the harness check *can* be exact. Re-chunking a pooled abstract yields
+    every chunk of it, including siblings the pool never held; each of those is a competitor row 4
+    never scored. If no pooled abstract has an unpooled sibling, the abstract arm must reproduce
+    row 4 to the digit and any gap is a bug. If some do, the gap has a known, countable cause and
+    the check has to be stated against that rule instead of against row 4's raw number.
+
+    Reads `passage_ids.json` only — a few hundred MB of strings, not the 2.5 GB of passage text.
+    """
+    passage_ids: list[str] = json.loads(
+        (Path(index_dir) / "passage_ids.json").read_text(encoding="utf-8")
+    )
+    pooled = _pooled_passage_ids(records_path, row)
+    pooled_sources = {pid.split(":")[0] for pid in pooled}
+
+    chunks_by_source: dict[str, set[str]] = defaultdict(set)
+    for pid in passage_ids:
+        src = pid.split(":")[0]
+        if src in pooled_sources:
+            chunks_by_source[src].add(pid)
+
+    multi = {s: ids for s, ids in chunks_by_source.items() if len(ids) > 1}
+    with_unpooled_siblings = {s: sorted(ids - pooled) for s, ids in multi.items() if ids - pooled}
+
+    return {
+        "pooled_passages": len(pooled),
+        "pooled_abstracts": len(pooled_sources),
+        "abstracts_resolved_in_index": len(chunks_by_source),
+        "abstracts_stored_as_multiple_chunks": len(multi),
+        "max_chunks_for_one_abstract": max((len(v) for v in multi.values()), default=1),
+        "abstracts_with_unpooled_siblings": len(with_unpooled_siblings),
+        "extra_candidates_introduced": sum(len(v) for v in with_unpooled_siblings.values()),
+        "harness_check_can_be_exact": not with_unpooled_siblings,
+        "examples": dict(list(with_unpooled_siblings.items())[:5]),
+    }
+
+
 def _rechunk(
     source_ids: list[str],
     texts: dict[str, str],
@@ -133,6 +185,48 @@ def _gold_rank(ranked: list[Chunk], pubid: str) -> int | None:
     return None
 
 
+def _reconstruct_abstracts(
+    passage_ids: list[str], passage_texts: list[str], needed: set[str]
+) -> dict[str, str]:
+    """`{source_id: full abstract text}`, reassembled from however many chunks the index holds.
+
+    An abstract longer than `ChunkConfig.max_chars` is stored as `X:0`, `X:1`, … even under the
+    `abstract` strategy, because `_enforce_max_chars` cuts any over-long span. Taking the first
+    chunk per source — which this function replaced — silently truncated every long abstract, and
+    since those abstracts are the *distractors*, it weakened the competition and inflated gold.
+    That defect reads as a chunker win, which is precisely the claim this script exists to make.
+
+    `_enforce_max_chars` cuts consecutive, non-overlapping spans of the source text and inserts no
+    separator, so concatenating the pieces in index order reproduces the original exactly.
+    """
+    pieces: dict[str, dict[int, str]] = defaultdict(dict)
+    for pid, text in zip(passage_ids, passage_texts):
+        src, _, idx = pid.partition(":")
+        if src in needed:
+            pieces[src][int(idx) if idx.isdigit() else 0] = text
+    return {src: "".join(p[i] for i in sorted(p)) for src, p in pieces.items()}
+
+
+def _reference_ranks(
+    records_path: Path, row: int, instances: list[Instance]
+) -> dict[str, int | None]:
+    """Row 4's gold rank per query, read from the records the pools came from."""
+    gold_by_pubid = {i.pubid: set(i.gold_passage_ids) for i in instances}
+    ranks: dict[str, int | None] = {}
+    with records_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            rec = json.loads(line)
+            if rec.get("table1_row") != row:
+                continue
+            gold = gold_by_pubid.get(rec["query_id"], set())
+            ranks[rec["query_id"]] = next(
+                (p["rank"] for p in rec["retrieved"] if p["passage_id"] in gold), None
+            )
+    return ranks
+
+
 def _evaluate_config(
     name: str,
     config: ChunkConfig,
@@ -141,8 +235,9 @@ def _evaluate_config(
     texts: dict[str, str],
     cross_encoder,
     batch_size: int,
+    reference_ranks: dict[str, int | None] | None = None,
 ) -> dict:
-    ranks: list[tuple[str, int | None]] = []
+    per_query: list[dict] = []
     chunk_counts: list[int] = []
 
     for i, inst in enumerate(instances):
@@ -158,15 +253,33 @@ def _evaluate_config(
             [(inst.question, c.text) for c in chunks], batch_size=batch_size
         )
         ranked = [c for _, c in sorted(zip(scores, chunks), key=lambda x: -float(x[0]))]
-        ranks.append((inst.pubid, _gold_rank(ranked, inst.pubid)))
+        rank = _gold_rank(ranked, inst.pubid)
+
+        # Diagnostics carried for every query, not only on failure: they are the only way to tell
+        # an arm that beat row 4 on ordering from one that beat it by handing gold extra chunks or
+        # a different string to be scored on.
+        indexed_gold = texts.get(inst.pubid)
+        entry = {
+            "query_id": inst.pubid,
+            "gold_rank": rank,
+            "n_candidates": len(chunks),
+            "n_gold_chunks": sum(1 for c in chunks if c.source_id == inst.pubid),
+            "gold_in_pool": inst.pubid in source_ids,
+            "gold_text_matches_index": (
+                None if indexed_gold is None else indexed_gold == inst.abstract_text
+            ),
+        }
+        if reference_ranks is not None:
+            entry["reference_gold_rank"] = reference_ranks.get(inst.pubid)
+        per_query.append(entry)
 
         if (i + 1) % 20 == 0:
             print(f"    {i + 1}/{len(instances)} …")
 
-    n = len(ranks)
+    n = len(per_query)
     curve = {}
     for k in HIT_AT_K_CURVE:
-        hits = sum(1 for _, r in ranks if r is not None and r <= k)
+        hits = sum(1 for e in per_query if e["gold_rank"] is not None and e["gold_rank"] <= k)
         point, lower, upper = wilson_interval(hits, n)
         curve[f"hit_at_{k}"] = {
             "point": round(point, 4),
@@ -175,7 +288,7 @@ def _evaluate_config(
             "hits": hits,
         }
 
-    return {
+    result = {
         "chunker": name,
         "chunk_config": {
             "strategy": config.strategy,
@@ -192,8 +305,22 @@ def _evaluate_config(
             "mean": round(statistics.mean(chunk_counts), 1) if chunk_counts else None,
             "max": max(chunk_counts) if chunk_counts else None,
         },
-        "gold_rank_per_query": [{"query_id": q, "gold_rank": r} for q, r in ranks],
+        "gold_split_into_multiple_chunks": sum(1 for e in per_query if e["n_gold_chunks"] > 1),
+        "gold_text_differs_from_index": sum(
+            1 for e in per_query if e["gold_text_matches_index"] is False
+        ),
+        "gold_rank_per_query": per_query,
     }
+
+    if reference_ranks is not None:
+        disagreements = [
+            e for e in per_query if e["gold_rank"] != e.get("reference_gold_rank")
+        ]
+        result["disagreements_with_reference"] = {
+            "n": len(disagreements),
+            "queries": disagreements,
+        }
+    return result
 
 
 def main() -> int:
@@ -230,7 +357,32 @@ def main() -> int:
         "--out", type=Path, default=Path("docs/harvest/chunker_pool_eval.json")
     )
     ap.add_argument("--no-gpu-check", action="store_true")
+    ap.add_argument(
+        "--audit-pool",
+        action="store_true",
+        help=(
+            "Report how the index stores the pooled abstracts and exit. No GPU, no text load, "
+            "seconds not minutes. Run this before trusting any arm."
+        ),
+    )
     args = ap.parse_args()
+
+    if args.audit_pool:
+        report = audit_pool(args.index_dir, args.records, args.row)
+        print(json.dumps(report, indent=2))
+        print(
+            "\nharness_check_can_be_exact = "
+            f"{report['harness_check_can_be_exact']}: "
+            + (
+                "re-chunking introduces no candidate row 4 did not score, so the abstract arm "
+                "must equal row 4 exactly."
+                if report["harness_check_can_be_exact"]
+                else f"re-chunking adds {report['extra_candidates_introduced']} competitor(s) "
+                "row 4 never scored, so exact equality is not attainable and the check must be "
+                "restated."
+            )
+        )
+        return 0
 
     unknown = [c for c in args.configs.split(",") if c and c not in SWEEP]
     if unknown:
@@ -271,21 +423,28 @@ def main() -> int:
     text_config = RetrievalConfig(bm25=False, dense=False, rrf=False, rerank=False)
     print(f"Loading passage text from {args.index_dir} …")
     index = RetrievalIndex.load(args.index_dir, text_config)
-    texts: dict[str, str] = {}
-    for pid, text in zip(index.passage_ids, index.passage_texts):
-        src = pid.split(":")[0]
-        if src in needed and src not in texts:
-            texts[src] = text
+    texts = _reconstruct_abstracts(index.passage_ids, index.passage_texts, needed)
     print(f"  resolved text for {len(texts):,}/{len(needed):,} abstracts")
 
     cross_encoder = _get_cross_encoder(RetrievalConfig().reranker)
+
+    # Row 4's own per-query ranks. The abstract arm is compared against them query by query, so a
+    # harness failure names the queries that moved instead of only the aggregate that shifted.
+    reference_ranks = _reference_ranks(args.records, args.row, instances)
 
     results: list[dict] = []
     for name in selected:
         print(f"\n  {name}")
         results.append(
             _evaluate_config(
-                name, SWEEP[name], instances, pools, texts, cross_encoder, args.batch_size
+                name,
+                SWEEP[name],
+                instances,
+                pools,
+                texts,
+                cross_encoder,
+                args.batch_size,
+                reference_ranks=reference_ranks if name == "abstract" else None,
             )
         )
         c = results[-1]["hit_at_k_upper_bound"]
@@ -321,9 +480,49 @@ def main() -> int:
         print(f"\nHarness check: abstract arm {got:.4f} vs expected {args.expect_hit5:.4f} — "
               f"{'PASS' if ok else 'FAIL'}")
         if not ok:
+            # Refuse the artifact, but never throw away the run that earned the refusal: a second
+            # GPU pass to re-learn what just happened is waste, and the diagnostic is the whole
+            # value of a failed harness. The filename cannot be mistaken for a result.
+            diag = args.out.with_suffix(".HARNESS_FAILED.json")
+            abstract_arm = next(r for r in results if r["chunker"] == "abstract")
+            diag.parent.mkdir(parents=True, exist_ok=True)
+            diag.write_text(
+                json.dumps(
+                    {
+                        "script": "scripts/chunker_pool_eval.py",
+                        "status": "HARNESS CHECK FAILED — no arm here is readable as a bound",
+                        "finished_at": datetime.now(timezone.utc).isoformat(),
+                        "harness_check": check,
+                        "why_it_matters": (
+                            "The abstract arm must equal row 4 exactly, because the cross-encoder "
+                            "uses no corpus statistics and is therefore recomputing row 4 rather "
+                            "than estimating it. A gap means the candidate set or the gold text "
+                            "differs from what row 4 scored, and the same difference is present, "
+                            "unquantified, in every other arm."
+                        ),
+                        "abstract_arm": abstract_arm,
+                        "other_arms_unreadable": [
+                            {
+                                "chunker": r["chunker"],
+                                "hit_at_5": r["hit_at_k_upper_bound"]["hit_at_5"]["point"],
+                                "candidates_per_query": r["candidates_per_query"],
+                                "gold_split_into_multiple_chunks": r[
+                                    "gold_split_into_multiple_chunks"
+                                ],
+                                "gold_text_differs_from_index": r["gold_text_differs_from_index"],
+                            }
+                            for r in results
+                            if r["chunker"] != "abstract"
+                        ],
+                    },
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
             print(
-                "The abstract arm must equal row 4 exactly. Not writing an artifact that cannot be "
-                "read.",
+                f"The abstract arm must equal row 4 exactly. No result artifact written; "
+                f"diagnostics in {diag}",
                 file=sys.stderr,
             )
             return 1

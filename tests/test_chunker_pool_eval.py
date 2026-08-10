@@ -104,3 +104,67 @@ def test_an_abstract_with_no_resolvable_text_is_skipped_not_faked():
     chunks = cpe._rechunk(["missing", inst.pubid], {}, inst, ChunkConfig())
 
     assert {c.source_id for c in chunks} == {inst.pubid}
+
+
+def test_reconstructs_an_abstract_the_index_split_into_several_chunks():
+    """Taking only `X:0` truncates every long abstract — and long abstracts are the distractors.
+
+    This was a live defect: it weakened the competition, inflated gold by +0.02 hit@5, and read as
+    a chunker win until the harness check refused it.
+    """
+    rebuilt = cpe._reconstruct_abstracts(
+        ["A:0", "A:1", "A:2", "B:0"], ["first ", "second ", "third", "other"], {"A"}
+    )
+
+    assert rebuilt == {"A": "first second third"}
+
+
+def test_reconstruction_inverts_the_production_chunker():
+    """`_enforce_max_chars` cuts consecutive spans and inserts nothing, so the join is exact."""
+    text = "".join(f"Sentence number {i} is here. " for i in range(200))
+    stored = cpe.chunk_text(text, "LONG", ChunkConfig())
+    assert len(stored) > 1, "fixture must exceed max_chars or it tests nothing"
+
+    rebuilt = cpe._reconstruct_abstracts(
+        [c.passage_id for c in stored], [c.text for c in stored], {"LONG"}
+    )
+
+    assert rebuilt["LONG"] == text
+
+
+def test_chunks_are_ordered_by_index_not_by_position_in_the_index_file():
+    """A shard written out of order must not silently scramble the abstract."""
+    rebuilt = cpe._reconstruct_abstracts(
+        ["A:2", "A:10", "A:1"], ["three", "ten", "one"], {"A"}
+    )
+
+    assert rebuilt == {"A": "onethreeten"}
+
+
+def test_audit_flags_a_pool_whose_abstracts_have_unpooled_siblings(tmp_path, records_file):
+    """Re-chunking such an abstract adds a competitor row 4 never scored, so exactness is lost."""
+    index_dir = tmp_path / "index"
+    index_dir.mkdir()
+    (index_dir / "passage_ids.json").write_text(
+        json.dumps(["ccc:0", "ccc:1", "ddd:0", "eee:0", "unrelated:0"]), encoding="utf-8"
+    )
+
+    report = cpe.audit_pool(index_dir, records_file, row=4)
+
+    assert report["pooled_abstracts"] == 3
+    assert report["abstracts_with_unpooled_siblings"] == 0  # "ccc:1" is itself pooled
+    assert report["harness_check_can_be_exact"] is True
+
+
+def test_audit_is_exact_only_when_every_sibling_was_pooled(tmp_path, records_file):
+    index_dir = tmp_path / "index"
+    index_dir.mkdir()
+    (index_dir / "passage_ids.json").write_text(
+        json.dumps(["ccc:0", "ccc:1", "ddd:0", "ddd:1", "eee:0"]), encoding="utf-8"
+    )
+
+    report = cpe.audit_pool(index_dir, records_file, row=4)
+
+    assert report["abstracts_with_unpooled_siblings"] == 1
+    assert report["extra_candidates_introduced"] == 1
+    assert report["harness_check_can_be_exact"] is False
