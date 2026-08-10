@@ -56,11 +56,18 @@ from the Windows side if you need to.)
 
 ## 3. Toolchain the distro does not ship
 
-Two separate needs, discovered one after the other:
+Three separate needs, discovered one after the other:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y build-essential          # torch.compile / Triton JIT needs a C compiler
+
+# ...and the CPython headers it compiles against. Triton's runtime builds cuda_utils.c through
+# sysconfig.get_paths()["include"] (triton/runtime/build.py), which on a venv over the DISTRO
+# python3.12 resolves to /usr/include/python3.12 — and Ubuntu ships those headers separately.
+# Without it, the compiler is present and still fails: "fatal error: Python.h: No such file".
+# Observed 2026-08-10, after build-essential was already installed.
+sudo apt-get install -y python3.12-dev           # pulls libpython3.12-dev, which owns Python.h
 ```
 
 ```bash
@@ -135,6 +142,7 @@ rather than all at once.
 | `Invalid distribution name` + unversioned `--list --online` catalog | inbox WSL stub, stale catalog — **not** permissions |
 | `RuntimeError: UVA is not available` in `UvaBuffer.__init__` | `GPUModelRunnerV2` + WSL2 pinned memory |
 | `InductorError: Failed to find C compiler` | no `build-essential` |
+| `fatal error: Python.h: No such file or directory` compiling Triton's `cuda_utils.c` | no `python3.12-dev`; `build-essential` alone gives a compiler with no CPython headers |
 | `Could not find nvcc and default cuda_home='/usr/local/cuda' doesn't exist` | FlashInfer sampling-kernel JIT wants `nvcc` |
 | `wsl: command not found` | you are inside the distro; `wsl` is Windows-side |
 | `RuntimeError: operator torchvision::nms does not exist` | project env's `torch>=2.13.0` clobbered vLLM's pinned `torch==2.11.0`; observed 2026-08-10 (see the caution in §4) |
