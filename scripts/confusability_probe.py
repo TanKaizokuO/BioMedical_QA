@@ -11,12 +11,26 @@ RUNS ON THE A4000 (needs GPU for MiniCheck and the MedCPT dense index).
       --index-dir data/index \\
       --split dev \\
       --out docs/harvest/confusability_probe.json
+
+**Random control.**  A retrieved-distractor score is uninterpretable on its own: a third of passages
+clearing 0.5 could mean RRF surfaces confusable neighbours, or that MiniCheck's base rate is a third,
+or that a max over ~9 gold sentences inflates anything.  ``--random-control`` re-scores the same gold
+sentences against the same *number* of passages drawn uniformly from the corpus, paired per question,
+and reports the contrast.  It reads the retrieved-side run rather than recomputing it, so it needs no
+dense index and cannot perturb the recorded retrieval numbers.
+
+    python scripts/confusability_probe.py \\
+      --index-dir data/index \\
+      --random-control docs/harvest/confusability_probe.json \\
+      --out docs/harvest/confusability_probe_control.json
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import math
+import random
 import re
 import statistics
 import sys
@@ -116,6 +130,167 @@ def percentile(data: list[float], p: float) -> float:
     return sorted_d[lo] + (sorted_d[hi] - sorted_d[lo]) * (idx - lo)
 
 
+#: Entailment cutoffs the distribution is reported against.  Chosen after seeing the first
+#: distribution, as ADR-0012 §2 permits — the probe gates no tuning, so a post-hoc sweep is honest.
+THRESHOLD_SWEEP = (0.3, 0.4, 0.5, 0.6, 0.7, 0.8)
+
+
+def describe(scores: list[float]) -> dict:
+    """Distribution summary for a flat list of entailment scores."""
+    if not scores:
+        return {"n": 0}
+    return {
+        "n": len(scores),
+        "mean": round(statistics.mean(scores), 4),
+        "median": round(statistics.median(scores), 4),
+        "p90": round(percentile(scores, 90), 4),
+        "max": round(max(scores), 4),
+        "min": round(min(scores), 4),
+        "frac_at_or_above": {
+            str(t): round(sum(s >= t for s in scores) / len(scores), 4) for t in THRESHOLD_SWEEP
+        },
+    }
+
+
+def sign_test_p(wins: int, losses: int) -> float:
+    """Exact two-sided binomial sign test under p=0.5.  Ties are excluded by the caller."""
+    n = wins + losses
+    if n == 0:
+        return float("nan")
+    k = min(wins, losses)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / (2 ** n)
+    return min(1.0, 2 * tail)
+
+
+def run_random_control(args, instances, index, model, tok, device) -> int:
+    """Score gold sentences against uniformly-drawn corpus passages, paired to a prior run.
+
+    The pairing is what makes the contrast readable: for each question the control draws exactly
+    ``n_non_gold`` passages, so the max-over-sentences aggregation sees the same number of chances
+    on both sides and the inflation it causes cancels.
+    """
+    prior = json.loads(args.random_control.read_text(encoding="utf-8"))
+    prior_by_pubid = {q["pubid"]: q for q in prior["per_question"]}
+    print(f"Paired against {args.random_control} ({len(prior_by_pubid)} questions)")
+
+    n_index = min(len(index.passage_ids), len(index.passage_texts))
+    if n_index == 0:
+        print("Index has no passage texts — control cannot run.", file=sys.stderr)
+        return 1
+    print(f"Sampling uniformly from {n_index:,} passages, seed={args.seed}")
+
+    rng = random.Random(args.seed)
+    per_question: list[dict] = []
+    control_scores: list[float] = []
+
+    for inst in instances:
+        prior_q = prior_by_pubid.get(inst.pubid)
+        if not prior_q or not prior_q.get("passage_max_scores"):
+            continue
+        n_draw = int(prior_q["n_non_gold"])
+        gold_ids = set(inst.gold_passage_ids)
+
+        gold_sentences = split_sentences(inst.abstract_text)
+        if not gold_sentences:
+            continue
+
+        picked: list[int] = []
+        seen: set[int] = set()
+        for _ in range(n_draw * 50):
+            if len(picked) == n_draw:
+                break
+            j = rng.randrange(n_index)
+            if j in seen or index.passage_ids[j] in gold_ids:
+                continue
+            if not (index.passage_texts[j] or "").strip():
+                continue
+            seen.add(j)
+            picked.append(j)
+
+        q_scores: list[float] = []
+        for j in picked:
+            passage_max = 0.0
+            for sentence in gold_sentences:
+                passage_max = max(
+                    passage_max,
+                    minicheck_score(model, tok, index.passage_texts[j], sentence, device),
+                )
+            q_scores.append(passage_max)
+
+        if not q_scores:
+            continue
+        control_scores.extend(q_scores)
+        per_question.append(
+            {
+                "pubid": inst.pubid,
+                "n_drawn": len(q_scores),
+                "n_gold_sentences": len(gold_sentences),
+                "drawn_passage_ids": [index.passage_ids[j] for j in picked],
+                "passage_max_scores": [round(s, 4) for s in q_scores],
+                "q_mean": round(statistics.mean(q_scores), 4),
+                "q_max": round(max(q_scores), 4),
+                "retrieved_q_mean": prior_q["q_mean"],
+                "retrieved_q_max": prior_q["q_max"],
+            }
+        )
+
+        if len(per_question) % 10 == 0:
+            print(f"  {len(per_question)} questions controlled …")
+
+    retrieved_scores = [
+        s
+        for q in prior["per_question"]
+        for s in q.get("passage_max_scores", [])
+        if q["pubid"] in {p["pubid"] for p in per_question}
+    ]
+
+    wins = sum(1 for q in per_question if q["retrieved_q_mean"] > q["q_mean"])
+    losses = sum(1 for q in per_question if q["retrieved_q_mean"] < q["q_mean"])
+    deltas = [round(q["retrieved_q_mean"] - q["q_mean"], 4) for q in per_question]
+
+    summary = {
+        "n_questions_paired": len(per_question),
+        "retrieved": describe(retrieved_scores),
+        "random_control": describe(control_scores),
+        "paired_q_mean_delta": {
+            "mean": round(statistics.mean(deltas), 4) if deltas else None,
+            "median": round(statistics.median(deltas), 4) if deltas else None,
+            "retrieved_higher": wins,
+            "control_higher": losses,
+            "ties": len(per_question) - wins - losses,
+            "sign_test_p": round(sign_test_p(wins, losses), 6),
+        },
+    }
+
+    print("\n=== Random control summary ===")
+    print(json.dumps(summary, indent=2))
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(
+        json.dumps(
+            {
+                "script": "scripts/confusability_probe.py --random-control",
+                "adr": "ADR-0012 §2",
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "config": {
+                    "index_dir": str(args.index_dir),
+                    "split": args.split,
+                    "seed": args.seed,
+                    "paired_against": str(args.random_control),
+                    "minicheck_model": MINICHECK_MODEL_ID,
+                    "n_index_passages": n_index,
+                },
+                "summary": summary,
+                "per_question": per_question,
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    print(f"\nResults written to {args.out}")
+    return 0
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -148,6 +323,22 @@ def main() -> int:
         action="store_true",
         help="Skip the CUDA availability guard (for dry-run syntax checks)",
     )
+    ap.add_argument(
+        "--random-control",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a completed probe run.  Switches to control mode: draws the same number of "
+            "uniformly-random corpus passages per question and scores them against the same gold "
+            "sentences.  Skips retrieval entirely (no dense index loaded)."
+        ),
+    )
+    ap.add_argument(
+        "--seed",
+        type=int,
+        default=12345,
+        help="Seed for the random-control draw (default: 12345)",
+    )
     args = ap.parse_args()
 
     import torch
@@ -175,10 +366,12 @@ def main() -> int:
     # ------------------------------------------------------------------
     # Load retrieval index
     # ------------------------------------------------------------------
+    # Control mode needs passage text only — skip the 3.1 GB dense matrix and the BM25 model.
+    control = args.random_control is not None
     config = RetrievalConfig(
-        bm25=True,
-        dense=True,
-        rrf=True,
+        bm25=not control,
+        dense=not control,
+        rrf=not control,
         rerank=False,   # ADR-0012 §2: no reranker until W3
         top_k=args.top_k,
     )
@@ -189,6 +382,9 @@ def main() -> int:
     # Load MiniCheck
     # ------------------------------------------------------------------
     model, tok = load_minicheck(device)
+
+    if control:
+        return run_random_control(args, instances, index, model, tok, device)
 
     # ------------------------------------------------------------------
     # Probe loop
