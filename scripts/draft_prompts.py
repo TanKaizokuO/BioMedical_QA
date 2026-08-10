@@ -14,6 +14,11 @@ Context source, in order of preference:
    records were written while G1 was a hit@5 gate. Usable for wording, **not** for sizing, and the
    artifact says so rather than quietly reporting a context 5 passages short of the real one.
 
+Sizing is a **tokenizer measurement against the serving window**, not a chars/4 guess: the A4000
+serves Llama-3.1-8B-AWQ at `--max-model-len 8192` (ADR-0008's runbook), and a prompt that overruns
+it loses passages off the end of the context — a citation-recall loss the experiment would charge
+to the system under test rather than to the harness.
+
 CPU-only, runs on the laptop.
 
     uv run python scripts/draft_prompts.py
@@ -49,6 +54,30 @@ _STUB_ANSWER = (
     "CLAIM 1: The intervention reduced the primary outcome relative to control.\n"
     "CLAIM 2: The effect was larger in participants over 65 years of age."
 )
+
+#: The generator G0 selected (ROADMAP W1) and the window it is served under
+#: (`docs/harvest/runbooks/wsl-vllm-a4000.md`: `--max-model-len 8192`). A prompt that overruns this
+#: is not a slow prompt, it is a **silently truncated context** — the passage the model was told to
+#: cite disappears and the citation-recall loss is charged to the system under test.
+GENERATOR = "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4"
+MAX_MODEL_LEN = 8192
+
+
+def _token_counter(model: str):
+    """`(count, how)` — the real tokenizer if it loads, else the chars/4 rule of thumb.
+
+    The fallback is labelled in the artifact rather than silently substituted: biomedical prose
+    tokenizes nearer 3.3 chars/token than 4, so the heuristic understates the budget by ~20% in
+    exactly the direction that hides an overrun.
+    """
+    try:
+        from transformers import AutoTokenizer
+
+        tok = AutoTokenizer.from_pretrained(model)
+    except Exception as exc:  # offline box, or no transformers — say so, do not guess quietly
+        print(f"Tokenizer {model} unavailable ({type(exc).__name__}); using chars/4.", file=sys.stderr)
+        return (lambda s: len(s) // 4), "chars/4 estimate"
+    return (lambda s: len(tok(s, add_special_tokens=False)["input_ids"])), model
 
 
 def _from_contexts(path: Path) -> list[dict]:
@@ -106,6 +135,7 @@ def main() -> int:
     ap.add_argument("--row", type=int, default=4)
     ap.add_argument("--split", default="dev", choices=["dev", "test"])
     ap.add_argument("--samples", type=int, default=3, help="Queries written out in full")
+    ap.add_argument("--tokenizer", default=GENERATOR, help="HF id used to count prompt tokens")
     ap.add_argument("--out", type=Path, default=Path("docs/harvest/prompt_drafts.json"))
     args = ap.parse_args()
 
@@ -126,6 +156,7 @@ def main() -> int:
         return 1
 
     cfg = GenerationConfig()
+    count_tokens, counted_by = _token_counter(args.tokenizer)
     stages = [
         ("joint", System.JOINT, "answer", None),
         ("post_hoc_answer", System.POST_HOC, "answer", None),
@@ -134,6 +165,7 @@ def main() -> int:
     ]
 
     sizes: dict[str, list[int]] = {name: [] for name, *_ in stages}
+    tokens: dict[str, list[int]] = {name: [] for name, *_ in stages}
     for row in rows:
         ps = _passages(row)
         for name, system, stage, answer in stages:
@@ -141,17 +173,23 @@ def main() -> int:
                 system, row["question"], ps, cfg.max_citations, stage=stage, answer=answer
             )
             sizes[name].append(len(prompt))
+            tokens[name].append(count_tokens(prompt))
 
     depths = sorted({r["depth"] for r in rows})
+    budget = MAX_MODEL_LEN - cfg.max_tokens
     print(f"{len(rows)} dev queries, context depth {depths}")
-    print(f"{'stage':<18}{'chars min':>11}{'mean':>9}{'max':>9}{'~tokens max':>13}")
-    print("-" * 60)
+    print(f"prompt tokens by {counted_by}; budget {MAX_MODEL_LEN} - {cfg.max_tokens} completion = {budget}")
+    print(f"{'stage':<18}{'chars max':>11}{'tok mean':>10}{'tok max':>9}{'headroom':>10}{'fits':>7}")
+    print("-" * 65)
+    overruns = {}
     for name in sizes:
-        v = sizes[name]
-        # ~4 chars/token is the standard rough ratio; this is a budget sanity check against the
-        # generator's context window, not a tokenizer measurement.
+        t = tokens[name]
+        worst = max(t)
+        over = sum(1 for v in t if v > budget)
+        overruns[name] = over
         print(
-            f"{name:<18}{min(v):>11,}{sum(v) // len(v):>9,}{max(v):>9,}{max(v) // 4:>13,}"
+            f"{name:<18}{max(sizes[name]):>11,}{sum(t) // len(t):>10,}{worst:>9,}"
+            f"{budget - worst:>10,}{('yes' if over == 0 else f'NO ({over})'):>7}"
         )
 
     counts = iteration_counts()
@@ -190,6 +228,18 @@ def main() -> int:
                 "prompt_chars": {
                     k: {"min": min(v), "mean": sum(v) // len(v), "max": max(v)}
                     for k, v in sizes.items()
+                },
+                "token_budget": {
+                    "counted_by": counted_by,
+                    "max_model_len": MAX_MODEL_LEN,
+                    "completion_reserved": cfg.max_tokens,
+                    "prompt_budget": budget,
+                    "queries_over_budget": overruns,
+                    "fits": not any(overruns.values()),
+                },
+                "prompt_tokens": {
+                    k: {"min": min(v), "mean": sum(v) // len(v), "max": max(v)}
+                    for k, v in tokens.items()
                 },
                 "samples": samples,
             },
