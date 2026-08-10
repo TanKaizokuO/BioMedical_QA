@@ -1,0 +1,1447 @@
+{
+  "script": "scripts/confusability_probe.py",
+  "adr": "ADR-0012 §2",
+  "started_at": "2026-08-10T09:49:42.501241+00:00",
+  "finished_at": "2026-08-10T10:12:42.386538+00:00",
+  "config": {
+    "index_dir": "data/index/empty",
+    "split": "dev",
+    "top_k": 5,
+    "minicheck_model": "lytang/MiniCheck-Flan-T5-Large",
+    "retrieval": {
+      "bm25": true,
+      "dense": true,
+      "rrf": true,
+      "rerank": true,
+      "rrf_k": 60,
+      "corpus_id": "pubmed-2m-v1",
+      "corpus_fingerprint": "93321598f3f1"
+    }
+  },
+  "summary": {
+    "n_questions": 100,
+    "n_questions_with_scores": 100,
+    "n_scores_total": 414,
+    "mean": 0.4244,
+    "median": 0.38,
+    "p90": 0.7293,
+    "max": 0.8175,
+    "min": 0.1277
+  },
+  "per_question": [
+    {
+      "pubid": "9488747",
+      "question": "Syncope during bathing in infants, a pediatric form of water-induced urticaria?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.1937,
+        0.2434,
+        0.1693,
+        0.2544
+      ],
+      "q_mean": 0.2152,
+      "q_max": 0.2544
+    },
+    {
+      "pubid": "25957366",
+      "question": "Prompting Primary Care Providers about Increased Patient Risk As a Result of Family History: Does It Work?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.3998,
+        0.2804,
+        0.2027,
+        0.2173
+      ],
+      "q_mean": 0.2751,
+      "q_max": 0.3998
+    },
+    {
+      "pubid": "18534072",
+      "question": "Do general practice characteristics influence uptake of an information technology (IT) innovation in primary care?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.2135,
+        0.2175,
+        0.1617,
+        0.2465
+      ],
+      "q_mean": 0.2098,
+      "q_max": 0.2465
+    },
+    {
+      "pubid": "14599616",
+      "question": "Can a practicing surgeon detect early lymphedema reliably?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2077,
+        0.1948,
+        0.1938,
+        0.2081,
+        0.2506
+      ],
+      "q_mean": 0.211,
+      "q_max": 0.2506
+    },
+    {
+      "pubid": "19054501",
+      "question": "Is motion perception deficit in schizophrenia a consequence of eye-tracking abnormality?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.7154,
+        0.7369,
+        0.7291,
+        0.6602
+      ],
+      "q_mean": 0.7104,
+      "q_max": 0.7369
+    },
+    {
+      "pubid": "23539689",
+      "question": "Cold preparation use in young children after FDA warnings: do concerns still exist?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.1304,
+        0.1634,
+        0.155,
+        0.1579
+      ],
+      "q_mean": 0.1517,
+      "q_max": 0.1634
+    },
+    {
+      "pubid": "18235194",
+      "question": "Is a specialised training of phonological awareness indicated in every preschool child?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 4,
+      "passage_max_scores": [
+        0.2721,
+        0.1349,
+        0.6347,
+        0.1277
+      ],
+      "q_mean": 0.2924,
+      "q_max": 0.6347
+    },
+    {
+      "pubid": "24315783",
+      "question": "Aripiprazole: a new risk factor for pathological gambling?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.5521,
+        0.5031,
+        0.2854,
+        0.3712
+      ],
+      "q_mean": 0.4279,
+      "q_max": 0.5521
+    },
+    {
+      "pubid": "22427593",
+      "question": "Are normally sighted, visually impaired, and blind pedestrians accurate and reliable at making street crossing decisions?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.4338,
+        0.4852,
+        0.2328,
+        0.244
+      ],
+      "q_mean": 0.349,
+      "q_max": 0.4852
+    },
+    {
+      "pubid": "23076787",
+      "question": "Can increases in the cigarette tax rate be linked to cigarette retail prices?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.1802,
+        0.1902,
+        0.1578,
+        0.2079,
+        0.1756
+      ],
+      "q_mean": 0.1823,
+      "q_max": 0.2079
+    },
+    {
+      "pubid": "23999452",
+      "question": "Does hypoglycaemia increase the risk of cardiovascular events?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.7457,
+        0.3363,
+        0.4393,
+        0.3839
+      ],
+      "q_mean": 0.4763,
+      "q_max": 0.7457
+    },
+    {
+      "pubid": "19459018",
+      "question": "Very high serum CA 19-9 levels: a contraindication to pancreaticoduodenectomy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.3096,
+        0.3247,
+        0.3304,
+        0.4908
+      ],
+      "q_mean": 0.3639,
+      "q_max": 0.4908
+    },
+    {
+      "pubid": "25186850",
+      "question": "May student examiners be reasonable substitute examiners for faculty in an undergraduate OSCE on medical emergencies?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2207,
+        0.3881,
+        0.6188,
+        0.4578
+      ],
+      "q_mean": 0.4213,
+      "q_max": 0.6188
+    },
+    {
+      "pubid": "28359277",
+      "question": "Do healthier lifestyles lead to less utilization of healthcare resources?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.6378,
+        0.5469,
+        0.4844,
+        0.753,
+        0.6261
+      ],
+      "q_mean": 0.6097,
+      "q_max": 0.753
+    },
+    {
+      "pubid": "23791827",
+      "question": "Inpatient versus outpatient management of neutropenic fever in gynecologic oncology patients: is risk stratification useful?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.7944,
+        0.3729,
+        0.2686,
+        0.7345
+      ],
+      "q_mean": 0.5426,
+      "q_max": 0.7944
+    },
+    {
+      "pubid": "19482903",
+      "question": "Treadmill testing of children who have spina bifida and are ambulatory: does peak oxygen uptake reflect maximum oxygen uptake?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.8039,
+        0.8078,
+        0.7209,
+        0.5488
+      ],
+      "q_mean": 0.7204,
+      "q_max": 0.8078
+    },
+    {
+      "pubid": "11970923",
+      "question": "Convulsions and retinal haemorrhage: should we look further?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.1708,
+        0.3259,
+        0.4861,
+        0.5583
+      ],
+      "q_mean": 0.3853,
+      "q_max": 0.5583
+    },
+    {
+      "pubid": "22023714",
+      "question": "Does delivery mode affect women's postpartum quality of life in rural China?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.7349,
+        0.7817,
+        0.1877,
+        0.7577
+      ],
+      "q_mean": 0.6155,
+      "q_max": 0.7817
+    },
+    {
+      "pubid": "23321509",
+      "question": "Quaternary cytoreductive surgery in ovarian cancer: does surgical effort still matter?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.5207,
+        0.4474,
+        0.615,
+        0.4376
+      ],
+      "q_mean": 0.5052,
+      "q_max": 0.615
+    },
+    {
+      "pubid": "9854965",
+      "question": "Dementia and aphasia in motor neuron disease: an underrecognised association?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.2847,
+        0.2945,
+        0.369,
+        0.4692,
+        0.3718
+      ],
+      "q_mean": 0.3578,
+      "q_max": 0.4692
+    },
+    {
+      "pubid": "12407608",
+      "question": "Does ultrasound imaging before puncture facilitate internal jugular vein cannulation?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.3589,
+        0.6523,
+        0.6021,
+        0.7026
+      ],
+      "q_mean": 0.579,
+      "q_max": 0.7026
+    },
+    {
+      "pubid": "22532370",
+      "question": "Are increased carotid artery pulsatility and resistance indexes early signs of vascular abnormalities in young obese males?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 4,
+      "passage_max_scores": [
+        0.4849,
+        0.6616,
+        0.25,
+        0.2554
+      ],
+      "q_mean": 0.413,
+      "q_max": 0.6616
+    },
+    {
+      "pubid": "21850494",
+      "question": "Hepatorenal syndrome: are we missing some prognostic factors?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.2259,
+        0.6523,
+        0.3754,
+        0.6367,
+        0.7854
+      ],
+      "q_mean": 0.5351,
+      "q_max": 0.7854
+    },
+    {
+      "pubid": "23735520",
+      "question": "Can mental imagery functional magnetic resonance imaging predict recovery in patients with disorders of consciousness?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.6971,
+        0.7831,
+        0.7553,
+        0.4394
+      ],
+      "q_mean": 0.6687,
+      "q_max": 0.7831
+    },
+    {
+      "pubid": "10759659",
+      "question": "The nurse cystoscopist: a feasible option?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.5617,
+        0.606,
+        0.5935,
+        0.4255
+      ],
+      "q_mean": 0.5467,
+      "q_max": 0.606
+    },
+    {
+      "pubid": "14745753",
+      "question": "Is half-dose contrast-enhanced three-dimensional MR angiography sufficient for the abdominal aorta and pelvis?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.7559,
+        0.3282,
+        0.2675,
+        0.1756
+      ],
+      "q_mean": 0.3818,
+      "q_max": 0.7559
+    },
+    {
+      "pubid": "19520213",
+      "question": "Are UK radiologists satisfied with the training and support received in suspected child abuse?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.3307,
+        0.1485,
+        0.5917,
+        0.378
+      ],
+      "q_mean": 0.3622,
+      "q_max": 0.5917
+    },
+    {
+      "pubid": "18378554",
+      "question": "Are wandering and physically nonaggressive agitation equivalent?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.3205,
+        0.6491,
+        0.7279,
+        0.6332
+      ],
+      "q_mean": 0.5827,
+      "q_max": 0.7279
+    },
+    {
+      "pubid": "26399179",
+      "question": "Eyelid-parotid metastasis: do we screen for coexisting masses?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.681,
+        0.1481,
+        0.1487,
+        0.1982
+      ],
+      "q_mean": 0.294,
+      "q_max": 0.681
+    },
+    {
+      "pubid": "23252468",
+      "question": "Do episodic migraineurs selectively attend to headache-related visual stimuli?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.7688,
+        0.7542,
+        0.3702,
+        0.7214
+      ],
+      "q_mean": 0.6536,
+      "q_max": 0.7688
+    },
+    {
+      "pubid": "26085176",
+      "question": "MR Diagnosis of Bone Metastases at 1.5 T and 3 T: Can STIR Imaging Be Omitted?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.62,
+        0.4008,
+        0.2226,
+        0.3986
+      ],
+      "q_mean": 0.4105,
+      "q_max": 0.62
+    },
+    {
+      "pubid": "12238307",
+      "question": "Vaccine protection in the elderly: are Austrian seniors adequately protected by vaccinations?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.5663,
+        0.7666,
+        0.7401,
+        0.7878
+      ],
+      "q_mean": 0.7152,
+      "q_max": 0.7878
+    },
+    {
+      "pubid": "16414216",
+      "question": "Are endometrial polyps from pre-menopausal women similar to post-menopausal women?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.5024,
+        0.7367,
+        0.3336,
+        0.8075
+      ],
+      "q_mean": 0.5951,
+      "q_max": 0.8075
+    },
+    {
+      "pubid": "24977765",
+      "question": "Are pediatric concussion patients compliant with discharge instructions?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 15,
+      "passage_max_scores": [
+        0.7738,
+        0.7722,
+        0.7861,
+        0.6291
+      ],
+      "q_mean": 0.7403,
+      "q_max": 0.7861
+    },
+    {
+      "pubid": "27896825",
+      "question": "Is it time to reconsider lobectomy in low-risk paediatric thyroid cancer?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 14,
+      "passage_max_scores": [
+        0.6922,
+        0.4115,
+        0.6973,
+        0.581
+      ],
+      "q_mean": 0.5955,
+      "q_max": 0.6973
+    },
+    {
+      "pubid": "22117569",
+      "question": "Is an advance care planning model feasible in community palliative care?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.5163,
+        0.3878,
+        0.1993,
+        0.4617
+      ],
+      "q_mean": 0.3913,
+      "q_max": 0.5163
+    },
+    {
+      "pubid": "14631523",
+      "question": "Sub-classification of low-grade cerebellar astrocytoma: is it clinically meaningful?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.1726,
+        0.1859,
+        0.1502,
+        0.173
+      ],
+      "q_mean": 0.1704,
+      "q_max": 0.1859
+    },
+    {
+      "pubid": "25982163",
+      "question": "Appendectomy timing: Will delayed surgery increase the complications?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.4014,
+        0.3265,
+        0.7053,
+        0.3709,
+        0.4273
+      ],
+      "q_mean": 0.4463,
+      "q_max": 0.7053
+    },
+    {
+      "pubid": "23337545",
+      "question": "Is acute fibrinous and organizing pneumonia the expression of immune dysregulation?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.5937,
+        0.2246,
+        0.4668,
+        0.6558,
+        0.2338
+      ],
+      "q_mean": 0.4349,
+      "q_max": 0.6558
+    },
+    {
+      "pubid": "10490564",
+      "question": "Hypotension in patients with coronary disease: can profound hypotensive events cause myocardial ischaemic events?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.3042,
+        0.2726,
+        0.3614,
+        0.3459
+      ],
+      "q_mean": 0.321,
+      "q_max": 0.3614
+    },
+    {
+      "pubid": "23375036",
+      "question": "An HIV1/2 point of care test on sputum for screening TB/HIV co-infection in Central India - Will it work?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.7484,
+        0.2259,
+        0.1621,
+        0.2189,
+        0.2277
+      ],
+      "q_mean": 0.3166,
+      "q_max": 0.7484
+    },
+    {
+      "pubid": "18403945",
+      "question": "Does laparoscopic antireflux surgery improve quality of life in patients whose gastro-oesophageal reflux disease is well controlled with medical therapy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.3617,
+        0.7065,
+        0.3131,
+        0.2646
+      ],
+      "q_mean": 0.4115,
+      "q_max": 0.7065
+    },
+    {
+      "pubid": "24614789",
+      "question": "Is lumbar drainage of postoperative cerebrospinal fluid fistula after spine surgery effective?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.2223,
+        0.1693,
+        0.1845,
+        0.1491
+      ],
+      "q_mean": 0.1813,
+      "q_max": 0.2223
+    },
+    {
+      "pubid": "24191126",
+      "question": "Is CA72-4 a useful biomarker in differential diagnosis between ovarian endometrioma and epithelial ovarian cancer?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.314,
+        0.1832,
+        0.2239,
+        0.2621
+      ],
+      "q_mean": 0.2458,
+      "q_max": 0.314
+    },
+    {
+      "pubid": "20488985",
+      "question": "The English antibiotic awareness campaigns: did they change the public's knowledge of and attitudes to antibiotic use?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.1817,
+        0.7761,
+        0.1972,
+        0.3012
+      ],
+      "q_mean": 0.364,
+      "q_max": 0.7761
+    },
+    {
+      "pubid": "19100463",
+      "question": "Is the affinity column-mediated immunoassay method suitable as an alternative to the microparticle enzyme immunoassay method as a blood tacrolimus assay?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.2895,
+        0.7003,
+        0.251,
+        0.3739
+      ],
+      "q_mean": 0.4037,
+      "q_max": 0.7003
+    },
+    {
+      "pubid": "21074975",
+      "question": "Ultra high risk (UHR) for psychosis criteria: are there different levels of risk for transition to psychosis?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2347,
+        0.2518,
+        0.2642,
+        0.2463
+      ],
+      "q_mean": 0.2493,
+      "q_max": 0.2642
+    },
+    {
+      "pubid": "10757151",
+      "question": "Does ischemic preconditioning require reperfusion before index ischemia?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.4312,
+        0.3594,
+        0.3533,
+        0.2944
+      ],
+      "q_mean": 0.3596,
+      "q_max": 0.4312
+    },
+    {
+      "pubid": "18537964",
+      "question": "Does a physician's specialty influence the recording of medication history in patients' case notes?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.3038,
+        0.3832,
+        0.3503,
+        0.2881
+      ],
+      "q_mean": 0.3314,
+      "q_max": 0.3832
+    },
+    {
+      "pubid": "26104852",
+      "question": "Can echocardiography and ECG discriminate hereditary transthyretin V30M amyloidosis from hypertrophic cardiomyopathy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.3277,
+        0.191,
+        0.71,
+        0.4059
+      ],
+      "q_mean": 0.4086,
+      "q_max": 0.71
+    },
+    {
+      "pubid": "9142039",
+      "question": "Does pediatric housestaff experience influence tests ordered for infants in the neonatal intensive care unit?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.218,
+        0.2091,
+        0.1768,
+        0.1833
+      ],
+      "q_mean": 0.1968,
+      "q_max": 0.218
+    },
+    {
+      "pubid": "12632437",
+      "question": "Are environmental factors important in primary systemic vasculitis?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.6127,
+        0.5543,
+        0.6196,
+        0.5855
+      ],
+      "q_mean": 0.593,
+      "q_max": 0.6196
+    },
+    {
+      "pubid": "15052394",
+      "question": "Are higher rates of depression in women accounted for by differential symptom reporting?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.6274,
+        0.6854,
+        0.6132,
+        0.613
+      ],
+      "q_mean": 0.6348,
+      "q_max": 0.6854
+    },
+    {
+      "pubid": "23264436",
+      "question": "Follow-up of patients with new cardiovascular implantable electronic devices: are experts' recommendations implemented in routine clinical practice?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.2632,
+        0.3854,
+        0.4468,
+        0.2132
+      ],
+      "q_mean": 0.3271,
+      "q_max": 0.4468
+    },
+    {
+      "pubid": "12913347",
+      "question": "Do microbiological factors account for poor pregnancy outcome among unmarried pregnant women in Poland?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.4564,
+        0.3361,
+        0.31,
+        0.34
+      ],
+      "q_mean": 0.3606,
+      "q_max": 0.4564
+    },
+    {
+      "pubid": "25280365",
+      "question": "Reporting and interpreting red blood cell morphology: is there discordance between clinical pathologists and clinicians?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 12,
+      "passage_max_scores": [
+        0.1865,
+        0.5215,
+        0.2497,
+        0.2064
+      ],
+      "q_mean": 0.291,
+      "q_max": 0.5215
+    },
+    {
+      "pubid": "20401819",
+      "question": "Is ultrasound equal to X-ray in pediatric fracture diagnosis?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.1904,
+        0.191,
+        0.2101,
+        0.2697
+      ],
+      "q_mean": 0.2153,
+      "q_max": 0.2697
+    },
+    {
+      "pubid": "10927144",
+      "question": "Can p53 alterations be used to predict tumour response to pre-operative chemo-radiotherapy in locally advanced rectal cancer?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.4686,
+        0.256,
+        0.2516,
+        0.4192
+      ],
+      "q_mean": 0.3489,
+      "q_max": 0.4686
+    },
+    {
+      "pubid": "12607666",
+      "question": "Is extended aortic replacement in acute type A dissection justifiable?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.6576,
+        0.4618,
+        0.2338,
+        0.3001,
+        0.4693
+      ],
+      "q_mean": 0.4245,
+      "q_max": 0.6576
+    },
+    {
+      "pubid": "17224424",
+      "question": "Effects of exercise training on heart rate and QT interval in healthy young individuals: are there gender differences?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.7391,
+        0.4018,
+        0.6256,
+        0.2773
+      ],
+      "q_mean": 0.511,
+      "q_max": 0.7391
+    },
+    {
+      "pubid": "25571931",
+      "question": "Do elderly patients call 911 when presented with clinical scenarios suggestive of acute stroke?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.5308,
+        0.4995,
+        0.469,
+        0.2888
+      ],
+      "q_mean": 0.447,
+      "q_max": 0.5308
+    },
+    {
+      "pubid": "18616781",
+      "question": "Is there a relationship between homocysteine and vitiligo?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.3702,
+        0.4601,
+        0.4966,
+        0.4252
+      ],
+      "q_mean": 0.438,
+      "q_max": 0.4966
+    },
+    {
+      "pubid": "10375486",
+      "question": "Are variations in the use of carotid endarterectomy explained by population Need?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.4431,
+        0.2762,
+        0.1596,
+        0.2235
+      ],
+      "q_mean": 0.2756,
+      "q_max": 0.4431
+    },
+    {
+      "pubid": "24374414",
+      "question": "Does health information exchange reduce redundant imaging?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.312,
+        0.455,
+        0.4514,
+        0.3543
+      ],
+      "q_mean": 0.3932,
+      "q_max": 0.455
+    },
+    {
+      "pubid": "20736887",
+      "question": "Is decompressive surgery effective for spinal cord sarcoidosis accompanied with compressive cervical myelopathy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.3827,
+        0.3799,
+        0.4202,
+        0.4767
+      ],
+      "q_mean": 0.4149,
+      "q_max": 0.4767
+    },
+    {
+      "pubid": "15369037",
+      "question": "Do people who were passive smokers during childhood have increased risk of long-term work disability?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.6917,
+        0.6805,
+        0.2912,
+        0.5983
+      ],
+      "q_mean": 0.5655,
+      "q_max": 0.6917
+    },
+    {
+      "pubid": "18603989",
+      "question": "Can homemade alcohol (Raksi) be useful for preserving dead bodies?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2629,
+        0.3099,
+        0.257,
+        0.1916
+      ],
+      "q_mean": 0.2554,
+      "q_max": 0.3099
+    },
+    {
+      "pubid": "25699562",
+      "question": "Does the Transmissible Liability Index (TLI) assessed in late childhood predict suicidal symptoms at young adulthood?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.6768,
+        0.6863,
+        0.1771,
+        0.5858
+      ],
+      "q_mean": 0.5315,
+      "q_max": 0.6863
+    },
+    {
+      "pubid": "17682349",
+      "question": "Are there gender differences in the reasons why African Americans delay in seeking medical help for symptoms of an acute myocardial infarction?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.5618,
+        0.7293,
+        0.7127,
+        0.7141
+      ],
+      "q_mean": 0.6795,
+      "q_max": 0.7293
+    },
+    {
+      "pubid": "18251357",
+      "question": "Does histologic chorioamnionitis correspond to clinical chorioamnionitis?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.3071,
+        0.2719,
+        0.1993,
+        0.5854
+      ],
+      "q_mean": 0.3409,
+      "q_max": 0.5854
+    },
+    {
+      "pubid": "15962678",
+      "question": "Does preloading with colloids prevent hemodynamic changes when neurosurgical patients are subsequently changed to the seated position?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.7999,
+        0.5168,
+        0.3828,
+        0.2354
+      ],
+      "q_mean": 0.4837,
+      "q_max": 0.7999
+    },
+    {
+      "pubid": "17429333",
+      "question": "Does menopausal transition affect the quality of life?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2266,
+        0.5693,
+        0.2638,
+        0.2938
+      ],
+      "q_mean": 0.3384,
+      "q_max": 0.5693
+    },
+    {
+      "pubid": "24599411",
+      "question": "Is gastric cancer different in Korea and the United States?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.5903,
+        0.482,
+        0.5774,
+        0.4452,
+        0.5419
+      ],
+      "q_mean": 0.5274,
+      "q_max": 0.5903
+    },
+    {
+      "pubid": "25079920",
+      "question": "Do parents recall and understand children's weight status information after BMI screening?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 12,
+      "passage_max_scores": [
+        0.6627,
+        0.6849,
+        0.6428,
+        0.3861
+      ],
+      "q_mean": 0.5941,
+      "q_max": 0.6849
+    },
+    {
+      "pubid": "14968373",
+      "question": "Can CT predict the level of CSF block in tuberculous hydrocephalus?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.5194,
+        0.3892,
+        0.4924,
+        0.7777
+      ],
+      "q_mean": 0.5447,
+      "q_max": 0.7777
+    },
+    {
+      "pubid": "12790890",
+      "question": "Is the cell death in mesial temporal sclerosis apoptotic?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.67,
+        0.6464,
+        0.393,
+        0.3099
+      ],
+      "q_mean": 0.5048,
+      "q_max": 0.67
+    },
+    {
+      "pubid": "17578985",
+      "question": "Parasacral sciatic nerve block: does the elicited motor response predict the success rate?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.5885,
+        0.2823,
+        0.2864,
+        0.3329
+      ],
+      "q_mean": 0.3725,
+      "q_max": 0.5885
+    },
+    {
+      "pubid": "9569972",
+      "question": "Proliferative index obtained by DNA image cytometry. Does it add prognostic information in Auer IV breast cancer?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 5,
+      "passage_max_scores": [
+        0.5551,
+        0.1962,
+        0.1977,
+        0.2534
+      ],
+      "q_mean": 0.3006,
+      "q_max": 0.5551
+    },
+    {
+      "pubid": "18319270",
+      "question": "Does confined placental mosaicism account for adverse perinatal outcomes in IVF pregnancies?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 9,
+      "passage_max_scores": [
+        0.2347,
+        0.4397,
+        0.2405,
+        0.2617
+      ],
+      "q_mean": 0.2942,
+      "q_max": 0.4397
+    },
+    {
+      "pubid": "19406119",
+      "question": "Does telmisartan prevent hepatic fibrosis in rats with alloxan-induced diabetes?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.3595,
+        0.2827,
+        0.236,
+        0.3313
+      ],
+      "q_mean": 0.3024,
+      "q_max": 0.3595
+    },
+    {
+      "pubid": "26516021",
+      "question": "Does evidence-based practice improve patient outcomes?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 15,
+      "passage_max_scores": [
+        0.2203,
+        0.1946,
+        0.2625,
+        0.2016,
+        0.3857
+      ],
+      "q_mean": 0.253,
+      "q_max": 0.3857
+    },
+    {
+      "pubid": "24340838",
+      "question": "Do ventricular arrhythmias in athletes subside over time?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.4335,
+        0.4495,
+        0.701,
+        0.4415
+      ],
+      "q_mean": 0.5064,
+      "q_max": 0.701
+    },
+    {
+      "pubid": "27832831",
+      "question": "Does an additional antirotation U-Blade (RC) lag screw improve treatment of AO/OTA 31 A1-3 fractures with gamma 3 nail?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.2358,
+        0.2613,
+        0.3531,
+        0.7401
+      ],
+      "q_mean": 0.3976,
+      "q_max": 0.7401
+    },
+    {
+      "pubid": "22540518",
+      "question": "Is micro-computed tomography reliable to determine the microstructure of the maxillary alveolar bone?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.2754,
+        0.2814,
+        0.2968,
+        0.2827
+      ],
+      "q_mean": 0.2841,
+      "q_max": 0.2968
+    },
+    {
+      "pubid": "17890090",
+      "question": "Can computerised tomography replace bone scintigraphy in detecting bone metastases from breast cancer?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.2806,
+        0.2423,
+        0.2843,
+        0.3515,
+        0.2153
+      ],
+      "q_mean": 0.2748,
+      "q_max": 0.3515
+    },
+    {
+      "pubid": "23422012",
+      "question": "Is vancomycin MIC creep a worldwide phenomenon?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 12,
+      "passage_max_scores": [
+        0.7999,
+        0.753,
+        0.7923,
+        0.7069
+      ],
+      "q_mean": 0.763,
+      "q_max": 0.7999
+    },
+    {
+      "pubid": "11500608",
+      "question": "Does short-term treatment with proton pump inhibitors cause rebound aggravation of symptoms?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 6,
+      "passage_max_scores": [
+        0.4678,
+        0.7815,
+        0.8175,
+        0.3543
+      ],
+      "q_mean": 0.6053,
+      "q_max": 0.8175
+    },
+    {
+      "pubid": "14627582",
+      "question": "Double reading of barium enemas: is it necessary?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.2814,
+        0.2605,
+        0.2987,
+        0.2966
+      ],
+      "q_mean": 0.2843,
+      "q_max": 0.2987
+    },
+    {
+      "pubid": "19430778",
+      "question": "Can magnetic resonance imaging accurately predict concordant pain provocation during provocative disc injection?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.511,
+        0.5169,
+        0.5163,
+        0.4266
+      ],
+      "q_mean": 0.4927,
+      "q_max": 0.5169
+    },
+    {
+      "pubid": "19351635",
+      "question": "Do older patients receive adequate stroke care?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 15,
+      "passage_max_scores": [
+        0.7413,
+        0.696,
+        0.7602,
+        0.5052,
+        0.7028
+      ],
+      "q_mean": 0.6811,
+      "q_max": 0.7602
+    },
+    {
+      "pubid": "26471488",
+      "question": "Does Mammographic Density have an Impact on the Margin Re-excision Rate After Breast-Conserving Surgery?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.377,
+        0.2844,
+        0.4649,
+        0.3692
+      ],
+      "q_mean": 0.3739,
+      "q_max": 0.4649
+    },
+    {
+      "pubid": "22970993",
+      "question": "Does sex affect the outcome of laparoscopic cholecystectomy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.7635,
+        0.7033,
+        0.4511,
+        0.6545
+      ],
+      "q_mean": 0.6431,
+      "q_max": 0.7635
+    },
+    {
+      "pubid": "25735444",
+      "question": "Rectal cancer threatening or affecting the prostatic plane: is partial prostatectomy oncologically adequate?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.2003,
+        0.169,
+        0.1658,
+        0.2586
+      ],
+      "q_mean": 0.1984,
+      "q_max": 0.2586
+    },
+    {
+      "pubid": "9722752",
+      "question": "Does bone anchor fixation improve the outcome of percutaneous bladder neck suspension in female stress urinary incontinence?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.2461,
+        0.24,
+        0.4183,
+        0.4537
+      ],
+      "q_mean": 0.3395,
+      "q_max": 0.4537
+    },
+    {
+      "pubid": "9920954",
+      "question": "Do \"America's Best Hospitals\" perform better for acute myocardial infarction?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.3435,
+        0.3194,
+        0.3802,
+        0.3381
+      ],
+      "q_mean": 0.3453,
+      "q_max": 0.3802
+    },
+    {
+      "pubid": "25891436",
+      "question": "Is serum total bilirubin useful to differentiate cardioembolic stroke from other stroke subtypes?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 7,
+      "passage_max_scores": [
+        0.2812,
+        0.3518,
+        0.3432,
+        0.7098
+      ],
+      "q_mean": 0.4215,
+      "q_max": 0.7098
+    },
+    {
+      "pubid": "24450673",
+      "question": "Delayed imaging in routine CT examinations of the abdomen and pelvis: is it worth the additional cost of radiation and time?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 13,
+      "passage_max_scores": [
+        0.4245,
+        0.3976,
+        0.4818,
+        0.6494
+      ],
+      "q_mean": 0.4883,
+      "q_max": 0.6494
+    },
+    {
+      "pubid": "21228436",
+      "question": "Can teaching medical students to investigate medication errors change their attitudes towards patient safety?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 8,
+      "passage_max_scores": [
+        0.748,
+        0.1613,
+        0.1946,
+        0.5419
+      ],
+      "q_mean": 0.4115,
+      "q_max": 0.748
+    },
+    {
+      "pubid": "11977907",
+      "question": "Subclavian steal syndrome: can the blood pressure difference between arms predict the severity of steal?",
+      "n_non_gold": 5,
+      "n_gold_sentences": 11,
+      "passage_max_scores": [
+        0.6219,
+        0.3948,
+        0.2911,
+        0.3264,
+        0.2972
+      ],
+      "q_mean": 0.3863,
+      "q_max": 0.6219
+    },
+    {
+      "pubid": "24783217",
+      "question": "Can ki-67 play a role in prediction of breast cancer patients' response to neoadjuvant chemotherapy?",
+      "n_non_gold": 4,
+      "n_gold_sentences": 10,
+      "passage_max_scores": [
+        0.7585,
+        0.7775,
+        0.6842,
+        0.6957
+      ],
+      "q_mean": 0.729,
+      "q_max": 0.7775
+    }
+  ]
+}
