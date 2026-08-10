@@ -1,8 +1,14 @@
 """Retrieval metrics — **Table 1**, and the G1 gate.
 
-`gold_rank`, `hit_at_k`, and `wilson_interval` are implemented: they are what G1 is decided on, and
-the failure mode they prevent (reporting a Wald interval, or fixing k at write time) is the kind
-that is only discovered when a reviewer asks. `recall_at_k`, `mrr`, and `ndcg` follow in W3.
+Every metric here is a function of two stored things: the full ranked list and the gold passage id
+set. Nothing is precomputed at a fixed `k`, which is what let G1 move from k=5 to k=10 (ADR-0015)
+as a re-score rather than a re-run.
+
+Relevance is **binary and set-valued**. One gold abstract becomes many chunks, so the gold set has
+2–7 members per dev query and a passage is relevant iff its id is in that set
+(`docs/harvest/gold-passage-tracking.md`). Gold chunks the corpus never indexed stay in the
+denominator of `recall_at_k`: a passage the pipeline cannot reach is a passage it did not retrieve,
+and shrinking the denominator to the reachable subset would report a recall no user could observe.
 """
 
 from __future__ import annotations
@@ -64,16 +70,58 @@ def _z_for(confidence: float) -> float:
 
 
 def recall_at_k(records: Iterable[QueryRecord], k: int = 5) -> float:
-    """Fraction of an instance's gold passages retrieved by rank k, averaged over instances."""
-    raise NotImplementedError("W3")
+    """Fraction of an instance's gold passages retrieved by rank k, averaged over instances.
+
+    Macro-averaged: every query weighs the same regardless of how many chunks its abstract cut
+    into, so a 7-chunk instance cannot dominate a 2-chunk one. Empty input is `nan`, matching
+    `wilson_interval`.
+    """
+    total = 0.0
+    n = 0
+    for record in records:
+        gold = set(record.gold_passage_ids)
+        if not gold:
+            raise ValueError(
+                f"{record.query_id}: recall is undefined with no gold passages; dropping the "
+                "query would silently change the denominator of a reported number"
+            )
+        found = {p.passage_id for p in record.retrieved if p.rank <= k and p.passage_id in gold}
+        total += len(found) / len(gold)
+        n += 1
+    return total / n if n else float("nan")
 
 
 def mrr(records: Iterable[QueryRecord]) -> float:
-    raise NotImplementedError("W3")
+    """Mean reciprocal rank of the **first** gold chunk; a query with no gold retrieved scores 0."""
+    total = 0.0
+    n = 0
+    for record in records:
+        r = gold_rank(record)
+        total += 1.0 / r if r is not None else 0.0
+        n += 1
+    return total / n if n else float("nan")
 
 
 def ndcg(records: Iterable[QueryRecord], k: int = 10) -> float:
-    raise NotImplementedError("W3")
+    """Binary-relevance nDCG@k, macro-averaged over queries.
+
+    Gain is 1 for a gold chunk and 0 otherwise, discounted by `1 / log2(rank + 1)`. The ideal
+    ranking puts `min(|gold|, k)` gold chunks first, so a query whose abstract cut into more chunks
+    than `k` is not penalised for the ones that cannot fit.
+    """
+    total = 0.0
+    n = 0
+    for record in records:
+        gold = set(record.gold_passage_ids)
+        dcg = sum(
+            1.0 / math.log2(p.rank + 1)
+            for p in record.retrieved
+            if p.rank <= k and p.passage_id in gold
+        )
+        ideal = sum(1.0 / math.log2(i + 1) for i in range(1, min(len(gold), k) + 1))
+        total += dcg / ideal if ideal else 0.0
+        n += 1
+    return total / n if n else float("nan")
 
 
 def gate_g1(records: Sequence[QueryRecord], k: int = 5) -> dict:

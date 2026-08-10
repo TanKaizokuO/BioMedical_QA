@@ -1,7 +1,8 @@
 # Evidence-Grounded, Claim-Attributable Biomedical QA
 
 **Venue:** workshop, hard November deadline (ADR-0001) · ~8 pages · **5-table budget**
-**Status:** skeleton created 2026-07-31 (W0). No numbers exist yet, and none may be invented here.
+**Status:** skeleton created 2026-07-31 (W0). Table 1 is populated from a real run (W3); every
+other table is still empty, and no number may be invented here.
 
 > **How this document is used.** The paper is written **backwards from its tables**. Every table
 > below is present now, with real column headers and a real caption, before any number exists. The
@@ -72,19 +73,29 @@ nothing the table does not.
 
 ### Table 1 — Retrieval cascade → **C1**
 
-*Caption:* Gold-passage retrieval on the dev split at a documented `(chunker, τ)`, over the ~2M
-abstract corpus. Wilson intervals, not Wald. **Populated by `scoring/retrieval.py::gate_g1`,
-`hit_at_k`, `recall_at_k`, `mrr`, `ndcg`.**
+*Caption:* Gold-passage retrieval on the 100-question dev split, `chunker = abstract`, over the ~2M
+abstract corpus (`index_fingerprint 57ab89e445f8`, `config_version 1.3.0`). Wilson intervals, not
+Wald. Relevance is the **gold chunk set** — one abstract cuts into 2–7 chunks — so hit@k asks
+whether any gold chunk surfaced and recall@5 asks what share of them did; MRR is over the first
+gold chunk. **Populated by `scoring/retrieval.py::gate_g1`, `hit_at_k`, `recall_at_k`, `mrr`,
+`ndcg`, via `scripts/table1_report.py` → `docs/harvest/table1_metrics.json`.**
 
-| System | hit@5 | 95% CI (Wilson) | recall@5 | MRR | nDCG@10 |
-|---|---|---|---|---|---|
-| BM25 only | | | | | |
-| MedCPT dense only | | | | | |
-| BM25 + dense (RRF) | | | | | |
-| **+ cross-encoder rerank (full)** | | | | | |
+| System | hit@5 | 95% CI (Wilson) | hit@10 | 95% CI (Wilson) | recall@5 | MRR | nDCG@10 |
+|---|---|---|---|---|---|---|---|
+| BM25 only | 0.71 | [0.61, 0.79] | 0.77 | [0.68, 0.84] | 0.22 | 0.62 | 0.29 |
+| MedCPT dense only | 0.59 | [0.49, 0.68] | 0.70 | [0.60, 0.78] | 0.19 | 0.45 | 0.23 |
+| BM25 + dense (RRF) | 0.73 | [0.64, 0.81] | 0.81 | [0.72, 0.87] | 0.24 | 0.61 | 0.30 |
+| **+ cross-encoder rerank (full)** | **0.86** | [0.78, 0.91] | **0.94** | [0.88, 0.97] | 0.28 | 0.79 | 0.38 |
 
-> **G1:** hit@5 ≥ 0.90 with the Wilson lower bound above 0.85. If missed, the paper reports hit@10
-> and reframes as conditional attribution — **never** by tuning τ.
+> **G1, as gated: hit@10 ≥ 0.90 with the Wilson lower bound above 0.85 — 0.9400, lower 0.8752,
+> passes.** This is a **relaxation of k, made once and on the record** (ADR-0015). The gate was
+> written at k=5 and the full cascade reads **hit@5 = 0.86, Wilson lower 0.7786, which fails both
+> clauses**; that reading is printed above and is not withdrawn. The thresholds, 0.90 and 0.85, are
+> unchanged. τ was not tuned, and the chunker sweep that preceded the relaxation refused all seven
+> of its candidate index builds on evidence (`docs/harvest/chunker_arm_eligibility.json`) — the one
+> arm that cleared 0.90 cuts gold differently from distractors and measures its own privilege.
+> Attribution is therefore reported as **conditional on a 10-passage context**, which is the
+> context every system in Table 2 receives.
 
 ### Table 2 — Attribution quality → **C2** *(the headline)*
 

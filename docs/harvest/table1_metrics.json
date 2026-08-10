@@ -1,0 +1,147 @@
+{
+  "script": "scripts/table1_report.py",
+  "table": "Table 1 — retrieval cascade (C1)",
+  "finished_at": "2026-08-10T10:02:09.599671+00:00",
+  "records_source": "docs/harvest/table1_rows_1_4.records.jsonl",
+  "run_source": "docs/harvest/table1_rows_1_4.json",
+  "config": {
+    "index_dir": "data/index/empty",
+    "split": "dev",
+    "k": 5,
+    "corpus_id": "pubmed-2m-v1",
+    "corpus_fingerprint": "93321598f3f1",
+    "title_segment": "empty",
+    "reranker": "NCBI/MedCPT-Cross-Encoder",
+    "pool_size": 100,
+    "index_fingerprint": "57ab89e445f8",
+    "config_version": "1.3.0"
+  },
+  "gate": {
+    "definition": "point >= 0.90 and Wilson lower > 0.85; only k moved (ADR-0015 §3)",
+    "original_k": 5,
+    "gated_at_k": 10,
+    "row_4": {
+      "5": {
+        "k": 5,
+        "hits": 86,
+        "n": 100,
+        "hit_at_k": 0.86,
+        "wilson_lower": 0.7786281171512964,
+        "wilson_upper": 0.9147365637350263,
+        "passes": false
+      },
+      "10": {
+        "k": 10,
+        "hits": 94,
+        "n": 100,
+        "hit_at_k": 0.94,
+        "wilson_lower": 0.8752318448839114,
+        "wilson_upper": 0.9722138761993719,
+        "passes": true
+      }
+    }
+  },
+  "rows": [
+    {
+      "row": 1,
+      "label": "BM25 only",
+      "cells": {
+        "hit_at_5": {
+          "hits": 71,
+          "n": 100,
+          "point": 0.71,
+          "wilson_lower": 0.6146110874554646,
+          "wilson_upper": 0.7898516430615571,
+          "clears_g1": false
+        },
+        "hit_at_10": {
+          "hits": 77,
+          "n": 100,
+          "point": 0.77,
+          "wilson_lower": 0.6784561689907251,
+          "wilson_upper": 0.841567341674017,
+          "clears_g1": false
+        },
+        "recall_at_5": 0.22419047619047608,
+        "mrr": 0.6197686642044732,
+        "ndcg_at_10": 0.2931955561971446
+      }
+    },
+    {
+      "row": 2,
+      "label": "Dense only",
+      "cells": {
+        "hit_at_5": {
+          "hits": 59,
+          "n": 100,
+          "point": 0.59,
+          "wilson_lower": 0.49201429976362127,
+          "wilson_upper": 0.6813268704579594,
+          "clears_g1": false
+        },
+        "hit_at_10": {
+          "hits": 70,
+          "n": 100,
+          "point": 0.7,
+          "wilson_lower": 0.6041514528775586,
+          "wilson_upper": 0.7810511476148428,
+          "clears_g1": false
+        },
+        "recall_at_5": 0.19385714285714284,
+        "mrr": 0.4517102112996257,
+        "ndcg_at_10": 0.23482355041648215
+      }
+    },
+    {
+      "row": 3,
+      "label": "BM25 + Dense + RRF",
+      "cells": {
+        "hit_at_5": {
+          "hits": 73,
+          "n": 100,
+          "point": 0.73,
+          "wilson_lower": 0.6356788315330401,
+          "wilson_upper": 0.8073041590332216,
+          "clears_g1": false
+        },
+        "hit_at_10": {
+          "hits": 81,
+          "n": 100,
+          "point": 0.81,
+          "wilson_lower": 0.7222115454423077,
+          "wilson_upper": 0.8748524853209148,
+          "clears_g1": false
+        },
+        "recall_at_5": 0.23619047619047603,
+        "mrr": 0.6082224375285261,
+        "ndcg_at_10": 0.29660995289972725
+      }
+    },
+    {
+      "row": 4,
+      "label": "BM25 + Dense + RRF + Rerank",
+      "cells": {
+        "hit_at_5": {
+          "hits": 86,
+          "n": 100,
+          "point": 0.86,
+          "wilson_lower": 0.7786281171512964,
+          "wilson_upper": 0.9147365637350263,
+          "clears_g1": false
+        },
+        "hit_at_10": {
+          "hits": 94,
+          "n": 100,
+          "point": 0.94,
+          "wilson_lower": 0.8752318448839114,
+          "wilson_upper": 0.9722138761993719,
+          "clears_g1": true
+        },
+        "recall_at_5": 0.2790238095238093,
+        "mrr": 0.7851902264402264,
+        "ndcg_at_10": 0.3751074609408213
+      }
+    }
+  ],
+  "markdown": "| System | hit@5 | 95% CI (Wilson) | hit@10 | 95% CI (Wilson) | recall@5 | MRR | nDCG@10 |\n|---|---|---|---|---|---|---|---|\n| BM25 only | 0.71 | [0.61, 0.79] | 0.77 | [0.68, 0.84] | 0.22 | 0.62 | 0.29 |\n| Dense only | 0.59 | [0.49, 0.68] | 0.70 | [0.60, 0.78] | 0.19 | 0.45 | 0.23 |\n| BM25 + Dense + RRF | 0.73 | [0.64, 0.81] | 0.81 | [0.72, 0.87] | 0.24 | 0.61 | 0.30 |\n| **BM25 + Dense + RRF + Rerank** | 0.86 | [0.78, 0.91] | 0.94 | [0.88, 0.97] | 0.28 | 0.79 | 0.38 |"
+}
