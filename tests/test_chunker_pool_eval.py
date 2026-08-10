@@ -220,3 +220,52 @@ def test_an_arm_above_row_4_fails_even_with_no_per_query_promotion():
     arm = _arm([(1, 1), (3, 3)], hit5=0.90)
 
     assert cpe._harness_check(arm, 0.86, exact=False)["passed"] is False
+
+
+def _inst(text="Aims here. Methods here. Results here.", spans=None):
+    from biomedqa.data import GoldPassage, Instance
+
+    spans = spans or [(0, 10, "BACKGROUND"), (11, 25, "METHODS"), (26, len(text), "RESULTS")]
+    return Instance(
+        pubid="p1",
+        question="q?",
+        passages=[
+            GoldPassage(
+                passage_id=f"p1:{i}",
+                pubid="p1",
+                index=i,
+                label=label,
+                text=text[a:b],
+                char_start=a,
+                char_end=b,
+            )
+            for i, (a, b, label) in enumerate(spans)
+        ],
+        long_answer="",
+        final_decision="yes",
+    )
+
+
+def test_section_cuts_gold_unlike_every_distractor():
+    """The disqualifying asymmetry, caught by the check rather than by a reader's memory.
+
+    MedRAG rows carry no section labels, so `chunk_text(sections=None)` degrades 'section' to
+    'abstract' for every distractor while gold splits on its real boundaries. That is ADR-0014 §2's
+    rejected signal, and it is what made the `section` arm read 0.94.
+    """
+    report = cpe.gold_cut_asymmetry(cpe.SWEEP["section"], [_inst()])
+
+    assert report["cuts_gold_unlike_distractors"] is True
+    assert report["abstracts_cut_differently_than_a_distractor"] == 1
+    assert report["gold_chunks_via_chunk_instance"] > report["gold_chunks_via_distractor_path"]
+
+
+@pytest.mark.parametrize(
+    "name", [n for n in cpe.SWEEP if n != "section"]
+)
+def test_every_other_strategy_cuts_gold_exactly_as_it_cuts_a_distractor(name):
+    """One splitter cuts both, which is `chunk.py`'s stated invariant. Only 'section' breaks it."""
+    report = cpe.gold_cut_asymmetry(cpe.SWEEP[name], [_inst()])
+
+    assert report["cuts_gold_unlike_distractors"] is False
+    assert report["gold_chunks_via_chunk_instance"] == report["gold_chunks_via_distractor_path"]

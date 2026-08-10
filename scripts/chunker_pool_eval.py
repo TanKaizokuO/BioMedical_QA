@@ -236,6 +236,40 @@ def _reference_ranks(
     return ranks
 
 
+def gold_cut_asymmetry(config: ChunkConfig, instances: list[Instance]) -> dict:
+    """Does this configuration cut gold differently from every distractor? CPU-only.
+
+    `encode_corpus.py` builds gold with `chunk_instance` (real PubMedQA section spans) and MedRAG
+    rows with `chunk_text(sections=None)`, because the corpus carries no section labels. For every
+    strategy that ignores `sections` the two paths agree and the splitter is one splitter, which is
+    what `chunk.py`'s module docstring requires. For `section` they do not agree: gold splits on
+    real BACKGROUND/METHODS boundaries and *every* distractor stays a whole abstract.
+
+    That is "the one property every gold passage shares and no distractor has" — ADR-0014 §2's
+    rejection criterion, sitting in the space hit@5 is measured in. An arm that trips this is
+    measuring the leak, so the check runs automatically rather than depending on a reader
+    remembering the ADR while looking at a number that flatters the gate.
+    """
+    differing = 0
+    gold_chunks = 0
+    as_distractor_chunks = 0
+    for inst in instances:
+        gold = chunk_instance(inst, config)
+        # The same text put through the path a MedRAG row takes.
+        mirror = chunk_text(inst.abstract_text, inst.pubid, config, sections=None)
+        gold_chunks += len(gold)
+        as_distractor_chunks += len(mirror)
+        if [c.text for c in gold] != [c.text for c in mirror]:
+            differing += 1
+    return {
+        "abstracts_cut_differently_than_a_distractor": differing,
+        "n_abstracts": len(instances),
+        "gold_chunks_via_chunk_instance": gold_chunks,
+        "gold_chunks_via_distractor_path": as_distractor_chunks,
+        "cuts_gold_unlike_distractors": differing > 0,
+    }
+
+
 def _evaluate_config(
     name: str,
     config: ChunkConfig,
@@ -314,6 +348,9 @@ def _evaluate_config(
             "mean": round(statistics.mean(chunk_counts), 1) if chunk_counts else None,
             "max": max(chunk_counts) if chunk_counts else None,
         },
+        # An arm that cuts gold unlike every distractor is measuring ADR-0014 §2's rejected
+        # signal, so its bound is not a retrieval reading and cannot earn a build.
+        "gold_cut_asymmetry": gold_cut_asymmetry(config, instances),
         "gold_split_into_multiple_chunks": sum(1 for e in per_query if e["n_gold_chunks"] > 1),
         "gold_text_differs_from_index": sum(
             1 for e in per_query if e["gold_text_matches_index"] is False
@@ -526,18 +563,28 @@ def main() -> int:
             f"candidates/query mean {results[-1]['candidates_per_query']['mean']}"
         )
 
-    print(f"\n{'='*72}")
-    print(f"{'chunker':<22}{'hit@5 (UB)':>12}{'Wilson lo':>12}{'hit@10 (UB)':>13}{'≥0.90?':>9}")
-    print("-" * 72)
+    print(f"\n{'='*84}")
+    print(
+        f"{'chunker':<22}{'hit@5 (UB)':>12}{'Wilson lo':>12}{'hit@10 (UB)':>13}"
+        f"{'≥0.90?':>9}{'eligible?':>16}"
+    )
+    print("-" * 84)
     for r in results:
         c = r["hit_at_k_upper_bound"]
+        leaks = r["gold_cut_asymmetry"]["cuts_gold_unlike_distractors"]
         print(
             f"{r['chunker']:<22}{c['hit_at_5']['point']:>12.4f}"
             f"{c['hit_at_5']['wilson_lower']:>12.4f}{c['hit_at_10']['point']:>13.4f}"
             f"{('yes' if c['hit_at_5']['point'] >= 0.90 else 'no'):>9}"
+            f"{('GOLD-ONLY CUT' if leaks else 'yes'):>16}"
         )
-    print("=" * 72)
+    print("=" * 84)
     print("An arm reading 'no' cannot pass G1 for real; its full build is refused on this evidence.")
+    print(
+        "An arm reading GOLD-ONLY CUT is cut differently from every distractor, so its bound "
+        "measures ADR-0014 §2's rejected signal rather than retrieval, and no reading of it — "
+        "including one above 0.90 — earns a build."
+    )
 
     check: dict | None = None
     if args.expect_hit5 is not None:
