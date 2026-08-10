@@ -12,7 +12,7 @@ knowing *which* 14 fail and why, because the two candidate levers repair differe
 
 Runs anywhere — CPU only, reads the recorded records and the frozen split.
 
-    python scripts/g1_miss_analysis.py --out docs/harvest/g1_miss_analysis.json
+    uv run python scripts/g1_miss_analysis.py --out docs/harvest/g1_miss_analysis.json
 
 The prediction this file registers is checked by `chunker_pool_eval.py`, and it is written down
 *first* on purpose: a hypothesis confirmed after seeing the answer is not evidence.

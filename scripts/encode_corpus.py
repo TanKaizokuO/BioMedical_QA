@@ -6,7 +6,7 @@ Estimated time: ~1.6 h for 2M abstracts at batch 64 on an A4000 (G0 measurement)
 
 Usage::
 
-    python scripts/encode_corpus.py \\
+    uv run python scripts/encode_corpus.py \\
         --corpus data/corpus/corpus.jsonl \\
         --out data/index \\
         --title-convention empty \\

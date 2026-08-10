@@ -27,7 +27,7 @@ reproduce the recorded row.  `--expect-hit5` fails the run if it does not.
 
 RUNS ON THE A4000 (needs the article encoder and `dense.npy`).
 
-    python scripts/title_convention_pool_eval.py \\
+    uv run python scripts/title_convention_pool_eval.py \\
       --index-dir data/index/empty \\
       --out docs/harvest/title_convention_pool_eval.json
 """

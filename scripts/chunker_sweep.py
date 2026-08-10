@@ -14,11 +14,11 @@ passages is a different set of retrievable units, so the passages must be re-enc
 RUNS ON THE A4000.
 
     # cheap first pass over a 50k-row sample, all four strategies
-    python scripts/chunker_sweep.py --corpus data/corpus/corpus.jsonl \\
+    uv run python scripts/chunker_sweep.py --corpus data/corpus/corpus.jsonl \\
         --work data/sweep --sample 50000
 
     # the real thing, over the configurations that survived
-    python scripts/chunker_sweep.py --corpus data/corpus/corpus.jsonl \\
+    uv run python scripts/chunker_sweep.py --corpus data/corpus/corpus.jsonl \\
         --work data/sweep --configs abstract,sentence_window_3_1
 
 **The sweep never picks τ to pass G1.** It reports every configuration it ran; the escalation

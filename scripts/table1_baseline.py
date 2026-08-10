@@ -10,7 +10,7 @@ Each row reports hit@5, Wilson 95% CI, and gold-rank distribution over the dev s
 
 RUNS ON THE A4000 (dense retrieval and the cross-encoder need GPU).
 
-    python scripts/table1_baseline.py \\
+    uv run python scripts/table1_baseline.py \\
       --index-dir data/index \\
       --out docs/harvest/table1_rows_1_4.json
 

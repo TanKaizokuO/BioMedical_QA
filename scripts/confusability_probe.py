@@ -8,7 +8,7 @@ distribution of entailment scores; **no threshold is pre-committed** — this is
 
 RUNS ON THE A4000 (needs GPU for MiniCheck and the MedCPT dense index).
 
-    python scripts/confusability_probe.py \\
+    uv run python scripts/confusability_probe.py \\
       --index-dir data/index \\
       --split dev \\
       --out docs/harvest/confusability_probe.json
@@ -20,7 +20,7 @@ sentences against the same *number* of passages drawn uniformly from the corpus,
 and reports the contrast.  It reads the retrieved-side run rather than recomputing it, so it needs no
 dense index and cannot perturb the recorded retrieval numbers.
 
-    python scripts/confusability_probe.py \\
+    uv run python scripts/confusability_probe.py \\
       --index-dir data/index \\
       --random-control docs/harvest/confusability_probe.json \\
       --out docs/harvest/confusability_probe_control.json

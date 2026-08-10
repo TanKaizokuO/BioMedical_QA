@@ -46,7 +46,7 @@ asymmetry is not an artifact of this script — it is how the real index would b
 
 RUNS ON THE A4000 (cross-encoder; needs the index only for passage text, not the 3.1 GB matrix).
 
-    python scripts/chunker_pool_eval.py --index-dir data/index/empty --out docs/harvest/chunker_pool_eval.json
+    uv run python scripts/chunker_pool_eval.py --index-dir data/index/empty --out docs/harvest/chunker_pool_eval.json
 """
 
 from __future__ import annotations

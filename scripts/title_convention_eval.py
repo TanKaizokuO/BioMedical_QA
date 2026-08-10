@@ -12,7 +12,7 @@ separately-built indices.  Query encoding is identical for both.
 
 RUNS ON THE A4000.
 
-    python scripts/title_convention_eval.py \\
+    uv run python scripts/title_convention_eval.py \\
       --index-dir-empty  data/index-empty \\
       --index-dir-single data/index-single \\
       --out docs/harvest/title_convention_eval.json
