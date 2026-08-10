@@ -1,0 +1,6078 @@
+{
+  "script": "scripts/chunker_pool_eval.py",
+  "question": "Can a chunker rescue G1's hit@5, before spending ~2 h/config on builds?",
+  "started_at": "2026-08-10T08:42:13.889938+00:00",
+  "finished_at": "2026-08-10T09:05:37.463709+00:00",
+  "config": {
+    "index_dir": "data/index/empty",
+    "records": "docs/harvest/table1_rows_1_4.records.jsonl",
+    "table1_row": 4,
+    "split": "dev",
+    "reranker": "NCBI/MedCPT-Cross-Encoder",
+    "index_fingerprint": "57ab89e445f8"
+  },
+  "scope": "Upper bound. Candidate abstracts are fixed to the recorded row-4 pool, and every chunk of them is reranked rather than a 100-deep chunk pool, so a real build reports no more than this. The 'abstract' arm is row 4 recomputed, not estimated: the cross-encoder uses no corpus statistics.",
+  "harness_check": {
+    "rule": "abstract arm <= row 4 and no query's gold rank improves (audit: re-chunking adds candidates row 4 never scored, and those can only demote gold)",
+    "exact_equality_attainable": false,
+    "expected_hit5_row4": 0.86,
+    "abstract_arm_hit5": 0.86,
+    "queries_gold_improved": {
+      "n": 0,
+      "queries": []
+    },
+    "queries_gold_demoted": {
+      "n": 0,
+      "queries": []
+    },
+    "passed": true
+  },
+  "pool_audit": {
+    "pooled_passages": 9907,
+    "pooled_abstracts": 9785,
+    "abstracts_resolved_in_index": 9785,
+    "abstracts_stored_as_multiple_chunks": 1559,
+    "max_chunks_for_one_abstract": 5,
+    "abstracts_with_unpooled_siblings": 1444,
+    "extra_candidates_introduced": 1466,
+    "harness_check_can_be_exact": false,
+    "examples": {
+      "pubmed23n0003_11210": [
+        "pubmed23n0003_11210:0"
+      ],
+      "pubmed23n0006_7972": [
+        "pubmed23n0006_7972:1"
+      ],
+      "pubmed23n0050_1225": [
+        "pubmed23n0050_1225:0"
+      ],
+      "pubmed23n0053_3514": [
+        "pubmed23n0053_3514:0"
+      ],
+      "pubmed23n0055_11390": [
+        "pubmed23n0055_11390:1"
+      ]
+    }
+  },
+  "arms": [
+    {
+      "chunker": "abstract",
+      "chunk_config": {
+        "strategy": "abstract",
+        "window_sentences": 3,
+        "stride_sentences": 1,
+        "max_chars": 2000,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.7,
+          "wilson_lower": 0.6042,
+          "wilson_upper": 0.7811,
+          "hits": 70
+        },
+        "hit_at_5": {
+          "point": 0.86,
+          "wilson_lower": 0.7786,
+          "wilson_upper": 0.9147,
+          "hits": 86
+        },
+        "hit_at_10": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 115.1,
+        "max": 147
+      },
+      "gold_split_into_multiple_chunks": 0,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 125,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 130,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 6,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 6
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 2,
+          "n_candidates": 109,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 128,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 8,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 8
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 4,
+          "n_candidates": 120,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 4
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 6,
+          "n_candidates": 123,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 6
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 2,
+          "n_candidates": 147,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 109,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 131,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 2,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 8,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 8
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 107,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 8,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 8
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1,
+          "n_candidates": 132,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 2,
+          "n_candidates": 116,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 107,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 107,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 120,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2,
+          "n_candidates": 119,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 3,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 3
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 115,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null,
+          "reference_gold_rank": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 6,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 6
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 128,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 119,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null,
+          "reference_gold_rank": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 2,
+          "n_candidates": 128,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 104,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 113,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 3,
+          "n_candidates": 128,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 3
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 121,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 102,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 123,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 2,
+          "n_candidates": 117,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 122,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 24,
+          "n_candidates": 109,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 24
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 120,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2,
+          "n_candidates": 108,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 131,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 107,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 4,
+          "n_candidates": 117,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 4
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 8,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 8
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 106,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 125,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1,
+          "n_candidates": 124,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 127,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 113,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null,
+          "reference_gold_rank": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 133,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 109,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 7,
+          "n_candidates": 111,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 7
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 119,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 102,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 2,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 13,
+          "n_candidates": 125,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 13
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 2,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 2
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 120,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 11,
+          "n_candidates": 103,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 11
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true,
+          "reference_gold_rank": 1
+        }
+      ],
+      "disagreements_with_reference": {
+        "n": 0,
+        "queries": []
+      }
+    },
+    {
+      "chunker": "section",
+      "chunk_config": {
+        "strategy": "section",
+        "window_sentences": 3,
+        "stride_sentences": 1,
+        "max_chars": 2000,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.71,
+          "wilson_lower": 0.6146,
+          "wilson_upper": 0.7899,
+          "hits": 71
+        },
+        "hit_at_5": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_10": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 117.3,
+        "max": 149
+      },
+      "gold_split_into_multiple_chunks": 97,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 127,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 132,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 2,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 2,
+          "n_candidates": 110,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 130,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 8,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 4,
+          "n_candidates": 121,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1,
+          "n_candidates": 109,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 2,
+          "n_candidates": 125,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 2,
+          "n_candidates": 149,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 135,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 5,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 109,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 3,
+          "n_candidates": 110,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1,
+          "n_candidates": 134,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 2,
+          "n_candidates": 117,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 108,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 122,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 119,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2,
+          "n_candidates": 121,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 2,
+          "n_candidates": 116,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 115,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 131,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 119,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 2,
+          "n_candidates": 130,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 106,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 115,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 2,
+          "n_candidates": 130,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 123,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 110,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 104,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 125,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 2,
+          "n_candidates": 119,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 124,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 21,
+          "n_candidates": 111,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 122,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2,
+          "n_candidates": 111,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 118,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 2,
+          "n_candidates": 120,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 122,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 133,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 119,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 115,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 109,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 10,
+          "n_candidates": 119,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 3,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 127,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1,
+          "n_candidates": 126,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 129,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 113,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 119,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 135,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 5,
+          "n_candidates": 113,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 120,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 104,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 2,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 1,
+          "n_candidates": 127,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 117,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 2,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 111,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 2,
+          "n_candidates": 122,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 116,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 120,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 112,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 4,
+          "n_candidates": 105,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 114,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    },
+    {
+      "chunker": "sentence_window_3_1",
+      "chunk_config": {
+        "strategy": "sentence_window",
+        "window_sentences": 3,
+        "stride_sentences": 1,
+        "max_chars": 2000,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.68,
+          "wilson_lower": 0.5834,
+          "wilson_upper": 0.7633,
+          "hits": 68
+        },
+        "hit_at_5": {
+          "point": 0.85,
+          "wilson_lower": 0.7672,
+          "wilson_upper": 0.9069,
+          "hits": 85
+        },
+        "hit_at_10": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 749.0,
+        "max": 1002
+      },
+      "gold_split_into_multiple_chunks": 97,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 2,
+          "n_candidates": 646,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 807,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 840,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 5,
+          "n_candidates": 689,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 710,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 664,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 1,
+          "n_candidates": 607,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 796,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 697,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 18,
+          "n_candidates": 775,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 9,
+          "n_candidates": 745,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 3,
+          "n_candidates": 794,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 732,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 6,
+          "n_candidates": 718,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 3,
+          "n_candidates": 1002,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 803,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 559,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 996,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 5,
+          "n_candidates": 761,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 16,
+          "n_candidates": 584,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 611,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 742,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 10,
+          "n_candidates": 713,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 596,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 2,
+          "n_candidates": 783,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 714,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 6,
+          "n_candidates": 735,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 677,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 588,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 731,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 748,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 702,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 795,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 3,
+          "n_candidates": 848,
+          "n_gold_chunks": 15,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 5,
+          "n_candidates": 756,
+          "n_gold_chunks": 12,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 702,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 727,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 954,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 4,
+          "n_candidates": 696,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 3,
+          "n_candidates": 780,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 859,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 796,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 3,
+          "n_candidates": 782,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 672,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 1,
+          "n_candidates": 910,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 577,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 856,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 4,
+          "n_candidates": 789,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 782,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 641,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 741,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 523,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 4,
+          "n_candidates": 734,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 745,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 831,
+          "n_gold_chunks": 12,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 685,
+          "n_gold_chunks": 10,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 3,
+          "n_candidates": 700,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 841,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 80,
+          "n_candidates": 756,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 846,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 875,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 1,
+          "n_candidates": 776,
+          "n_gold_chunks": 13,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 812,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 591,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 694,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 865,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 547,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 729,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 801,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 742,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 730,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 8,
+          "n_candidates": 714,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 10,
+          "n_candidates": 786,
+          "n_gold_chunks": 12,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 837,
+          "n_gold_chunks": 12,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 785,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 694,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 820,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 679,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1,
+          "n_candidates": 853,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 806,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 540,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 671,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 985,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 792,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 9,
+          "n_candidates": 683,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 844,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 876,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 459,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 2,
+          "n_candidates": 710,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 1,
+          "n_candidates": 818,
+          "n_gold_chunks": 13,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 912,
+          "n_gold_chunks": 12,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 8,
+          "n_candidates": 875,
+          "n_gold_chunks": 10,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 618,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 895,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 680,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 837,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 760,
+          "n_gold_chunks": 11,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 860,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 7,
+          "n_candidates": 559,
+          "n_gold_chunks": 9,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 803,
+          "n_gold_chunks": 8,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    },
+    {
+      "chunker": "sentence_window_3_3",
+      "chunk_config": {
+        "strategy": "sentence_window",
+        "window_sentences": 3,
+        "stride_sentences": 3,
+        "max_chars": 2000,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.71,
+          "wilson_lower": 0.6146,
+          "wilson_upper": 0.7899,
+          "hits": 71
+        },
+        "hit_at_5": {
+          "point": 0.89,
+          "wilson_lower": 0.8137,
+          "wilson_upper": 0.9375,
+          "hits": 89
+        },
+        "hit_at_10": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 347.4,
+        "max": 437
+      },
+      "gold_split_into_multiple_chunks": 97,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1,
+          "n_candidates": 312,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 370,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 2,
+          "n_candidates": 324,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 337,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 319,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 1,
+          "n_candidates": 302,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 362,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 329,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 17,
+          "n_candidates": 355,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 4,
+          "n_candidates": 343,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1,
+          "n_candidates": 361,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 335,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 5,
+          "n_candidates": 337,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 1,
+          "n_candidates": 429,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 365,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 287,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 437,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 3,
+          "n_candidates": 350,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 12,
+          "n_candidates": 292,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 296,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 347,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 5,
+          "n_candidates": 336,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 299,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 2,
+          "n_candidates": 358,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 331,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 8,
+          "n_candidates": 343,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 320,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 292,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 344,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 347,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 2,
+          "n_candidates": 331,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 360,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2,
+          "n_candidates": 382,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 3,
+          "n_candidates": 352,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 327,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 344,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 417,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 4,
+          "n_candidates": 330,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 359,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 380,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 365,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 1,
+          "n_candidates": 358,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 321,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 1,
+          "n_candidates": 400,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 292,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 384,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 3,
+          "n_candidates": 363,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 360,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 310,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 345,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 273,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 1,
+          "n_candidates": 347,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 345,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 322,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 1,
+          "n_candidates": 325,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 53,
+          "n_candidates": 351,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 381,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 6,
+          "n_candidates": 390,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 1,
+          "n_candidates": 358,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 369,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 293,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 331,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 389,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 281,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 338,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 368,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 342,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 344,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 7,
+          "n_candidates": 337,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 6,
+          "n_candidates": 362,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 376,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 356,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 325,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 367,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 326,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 2,
+          "n_candidates": 390,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 365,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 279,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 2,
+          "n_candidates": 316,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 428,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 366,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 6,
+          "n_candidates": 331,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 379,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 394,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 248,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 5,
+          "n_candidates": 334,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 1,
+          "n_candidates": 369,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 402,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 5,
+          "n_candidates": 387,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 307,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 399,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 324,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 381,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 350,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 379,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 4,
+          "n_candidates": 284,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 366,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    },
+    {
+      "chunker": "sentence_window_5_2",
+      "chunk_config": {
+        "strategy": "sentence_window",
+        "window_sentences": 5,
+        "stride_sentences": 2,
+        "max_chars": 2000,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.67,
+          "wilson_lower": 0.5731,
+          "wilson_upper": 0.7544,
+          "hits": 67
+        },
+        "hit_at_5": {
+          "point": 0.87,
+          "wilson_lower": 0.7902,
+          "wilson_upper": 0.9224,
+          "hits": 87
+        },
+        "hit_at_10": {
+          "point": 0.92,
+          "wilson_lower": 0.85,
+          "wilson_upper": 0.9589,
+          "hits": 92
+        },
+        "hit_at_20": {
+          "point": 0.95,
+          "wilson_lower": 0.8882,
+          "wilson_upper": 0.9785,
+          "hits": 95
+        }
+      },
+      "candidates_per_query": {
+        "mean": 355.2,
+        "max": 481
+      },
+      "gold_split_into_multiple_chunks": 89,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1,
+          "n_candidates": 308,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 386,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 397,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 4,
+          "n_candidates": 331,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 332,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 316,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 3,
+          "n_candidates": 280,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 328,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 23,
+          "n_candidates": 372,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 4,
+          "n_candidates": 353,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 2,
+          "n_candidates": 377,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 348,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 15,
+          "n_candidates": 336,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 3,
+          "n_candidates": 481,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 380,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 268,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 472,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 2,
+          "n_candidates": 359,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 14,
+          "n_candidates": 278,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 2,
+          "n_candidates": 296,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 347,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 5,
+          "n_candidates": 335,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 280,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 341,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 3,
+          "n_candidates": 353,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 314,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 279,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 344,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 353,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 333,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 375,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 6,
+          "n_candidates": 405,
+          "n_gold_chunks": 7,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 2,
+          "n_candidates": 356,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 331,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 344,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 456,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 13,
+          "n_candidates": 329,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 366,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 411,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 385,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 2,
+          "n_candidates": 376,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 320,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 1,
+          "n_candidates": 431,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 269,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 405,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 3,
+          "n_candidates": 373,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 374,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 305,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 352,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 245,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 4,
+          "n_candidates": 346,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 353,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 396,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 331,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 3,
+          "n_candidates": 339,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 398,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 29,
+          "n_candidates": 361,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 403,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 418,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 1,
+          "n_candidates": 366,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 384,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 280,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 327,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 410,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 258,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 345,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 381,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 347,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 342,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 6,
+          "n_candidates": 340,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 5,
+          "n_candidates": 373,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 394,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 371,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 327,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 390,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 318,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 2,
+          "n_candidates": 403,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 380,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 255,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 318,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 472,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 381,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 10,
+          "n_candidates": 319,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 405,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 417,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 220,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 3,
+          "n_candidates": 336,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 4,
+          "n_candidates": 387,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 431,
+          "n_gold_chunks": 6,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 7,
+          "n_candidates": 416,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 290,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 430,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 321,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 397,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 363,
+          "n_gold_chunks": 5,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 402,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 8,
+          "n_candidates": 267,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 377,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    },
+    {
+      "chunker": "fixed_width_512",
+      "chunk_config": {
+        "strategy": "fixed_width",
+        "window_sentences": 3,
+        "stride_sentences": 1,
+        "max_chars": 512,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.68,
+          "wilson_lower": 0.5834,
+          "wilson_upper": 0.7633,
+          "hits": 68
+        },
+        "hit_at_5": {
+          "point": 0.87,
+          "wilson_lower": 0.7902,
+          "wilson_upper": 0.9224,
+          "hits": 87
+        },
+        "hit_at_10": {
+          "point": 0.91,
+          "wilson_lower": 0.8377,
+          "wilson_upper": 0.9519,
+          "hits": 91
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 324.1,
+        "max": 383
+      },
+      "gold_split_into_multiple_chunks": 97,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 3,
+          "n_candidates": 277,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 361,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 371,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 3,
+          "n_candidates": 294,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 328,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 320,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 3,
+          "n_candidates": 312,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 356,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 333,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 11,
+          "n_candidates": 341,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 6,
+          "n_candidates": 353,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1,
+          "n_candidates": 313,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 318,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 13,
+          "n_candidates": 341,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 3,
+          "n_candidates": 374,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 325,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 253,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 383,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 1,
+          "n_candidates": 318,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 12,
+          "n_candidates": 288,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 265,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 356,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 7,
+          "n_candidates": 311,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 312,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1,
+          "n_candidates": 320,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 311,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 5,
+          "n_candidates": 314,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 313,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 247,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 8,
+          "n_candidates": 325,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 312,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 328,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 324,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2,
+          "n_candidates": 345,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 3,
+          "n_candidates": 328,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 2,
+          "n_candidates": 330,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 329,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 349,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 11,
+          "n_candidates": 318,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 359,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 342,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 320,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 2,
+          "n_candidates": 314,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 304,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 1,
+          "n_candidates": 369,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 280,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 1,
+          "n_candidates": 362,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 3,
+          "n_candidates": 353,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 338,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 291,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 319,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 2,
+          "n_candidates": 254,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 2,
+          "n_candidates": 333,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 334,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 348,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 317,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 1,
+          "n_candidates": 291,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 356,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 49,
+          "n_candidates": 308,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 353,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 340,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 1,
+          "n_candidates": 311,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 334,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 305,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 289,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 1,
+          "n_candidates": 371,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 271,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 339,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 349,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 328,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 318,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 4,
+          "n_candidates": 326,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 11,
+          "n_candidates": 336,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 345,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 312,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 326,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 2,
+          "n_candidates": 325,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 312,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 1,
+          "n_candidates": 350,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 346,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 288,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 314,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 372,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 342,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 6,
+          "n_candidates": 315,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 328,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 348,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 228,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 5,
+          "n_candidates": 308,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 2,
+          "n_candidates": 344,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 352,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 5,
+          "n_candidates": 341,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 279,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 343,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 332,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 349,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 321,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 341,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 4,
+          "n_candidates": 247,
+          "n_gold_chunks": 4,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 345,
+          "n_gold_chunks": 3,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    },
+    {
+      "chunker": "fixed_width_1024",
+      "chunk_config": {
+        "strategy": "fixed_width",
+        "window_sentences": 3,
+        "stride_sentences": 1,
+        "max_chars": 1024,
+        "keep_section_labels": true
+      },
+      "n": 100,
+      "hit_at_k_upper_bound": {
+        "hit_at_1": {
+          "point": 0.69,
+          "wilson_lower": 0.5937,
+          "wilson_upper": 0.7722,
+          "hits": 69
+        },
+        "hit_at_5": {
+          "point": 0.86,
+          "wilson_lower": 0.7786,
+          "wilson_upper": 0.9147,
+          "hits": 86
+        },
+        "hit_at_10": {
+          "point": 0.94,
+          "wilson_lower": 0.8752,
+          "wilson_upper": 0.9722,
+          "hits": 94
+        },
+        "hit_at_20": {
+          "point": 0.96,
+          "wilson_lower": 0.9016,
+          "wilson_upper": 0.9843,
+          "hits": 96
+        }
+      },
+      "candidates_per_query": {
+        "mean": 185.4,
+        "max": 215
+      },
+      "gold_split_into_multiple_chunks": 71,
+      "gold_text_differs_from_index": 0,
+      "gold_rank_per_query": [
+        {
+          "query_id": "9488747",
+          "gold_rank": 1,
+          "n_candidates": 163,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25957366",
+          "gold_rank": 1,
+          "n_candidates": 205,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18534072",
+          "gold_rank": 1,
+          "n_candidates": 206,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14599616",
+          "gold_rank": 4,
+          "n_candidates": 171,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19054501",
+          "gold_rank": 1,
+          "n_candidates": 188,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23539689",
+          "gold_rank": 1,
+          "n_candidates": 185,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18235194",
+          "gold_rank": 2,
+          "n_candidates": 185,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24315783",
+          "gold_rank": 1,
+          "n_candidates": 202,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22427593",
+          "gold_rank": 1,
+          "n_candidates": 191,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23076787",
+          "gold_rank": 10,
+          "n_candidates": 190,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23999452",
+          "gold_rank": 3,
+          "n_candidates": 203,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19459018",
+          "gold_rank": 1,
+          "n_candidates": 184,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25186850",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "28359277",
+          "gold_rank": 18,
+          "n_candidates": 198,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23791827",
+          "gold_rank": 1,
+          "n_candidates": 207,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19482903",
+          "gold_rank": 1,
+          "n_candidates": 185,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11970923",
+          "gold_rank": 1,
+          "n_candidates": 151,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22023714",
+          "gold_rank": 1,
+          "n_candidates": 215,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23321509",
+          "gold_rank": 1,
+          "n_candidates": 179,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9854965",
+          "gold_rank": 12,
+          "n_candidates": 167,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12407608",
+          "gold_rank": 1,
+          "n_candidates": 155,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22532370",
+          "gold_rank": 1,
+          "n_candidates": 198,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21850494",
+          "gold_rank": 10,
+          "n_candidates": 176,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23735520",
+          "gold_rank": 1,
+          "n_candidates": 180,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10759659",
+          "gold_rank": 1,
+          "n_candidates": 194,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14745753",
+          "gold_rank": 1,
+          "n_candidates": 184,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19520213",
+          "gold_rank": 2,
+          "n_candidates": 180,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18378554",
+          "gold_rank": 1,
+          "n_candidates": 181,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26399179",
+          "gold_rank": 1,
+          "n_candidates": 147,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23252468",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26085176",
+          "gold_rank": 1,
+          "n_candidates": 179,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12238307",
+          "gold_rank": 1,
+          "n_candidates": 191,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "16414216",
+          "gold_rank": 1,
+          "n_candidates": 185,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24977765",
+          "gold_rank": 2,
+          "n_candidates": 195,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27896825",
+          "gold_rank": 3,
+          "n_candidates": 185,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22117569",
+          "gold_rank": 1,
+          "n_candidates": 187,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14631523",
+          "gold_rank": 1,
+          "n_candidates": 189,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25982163",
+          "gold_rank": null,
+          "n_candidates": 196,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "23337545",
+          "gold_rank": 8,
+          "n_candidates": 180,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10490564",
+          "gold_rank": 1,
+          "n_candidates": 201,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23375036",
+          "gold_rank": null,
+          "n_candidates": 197,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "18403945",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24614789",
+          "gold_rank": 1,
+          "n_candidates": 180,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24191126",
+          "gold_rank": 1,
+          "n_candidates": 177,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20488985",
+          "gold_rank": 2,
+          "n_candidates": 215,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19100463",
+          "gold_rank": 2,
+          "n_candidates": 162,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21074975",
+          "gold_rank": 2,
+          "n_candidates": 203,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10757151",
+          "gold_rank": 2,
+          "n_candidates": 199,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18537964",
+          "gold_rank": 1,
+          "n_candidates": 189,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26104852",
+          "gold_rank": 1,
+          "n_candidates": 166,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9142039",
+          "gold_rank": 1,
+          "n_candidates": 183,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12632437",
+          "gold_rank": 1,
+          "n_candidates": 148,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15052394",
+          "gold_rank": 3,
+          "n_candidates": 192,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23264436",
+          "gold_rank": 1,
+          "n_candidates": 190,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12913347",
+          "gold_rank": 1,
+          "n_candidates": 196,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25280365",
+          "gold_rank": 1,
+          "n_candidates": 181,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20401819",
+          "gold_rank": 2,
+          "n_candidates": 167,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10927144",
+          "gold_rank": 1,
+          "n_candidates": 202,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12607666",
+          "gold_rank": 22,
+          "n_candidates": 175,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17224424",
+          "gold_rank": 1,
+          "n_candidates": 196,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25571931",
+          "gold_rank": 1,
+          "n_candidates": 192,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18616781",
+          "gold_rank": 2,
+          "n_candidates": 179,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "10375486",
+          "gold_rank": 1,
+          "n_candidates": 189,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24374414",
+          "gold_rank": 1,
+          "n_candidates": 178,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "20736887",
+          "gold_rank": 1,
+          "n_candidates": 169,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15369037",
+          "gold_rank": 3,
+          "n_candidates": 213,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18603989",
+          "gold_rank": 1,
+          "n_candidates": 158,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25699562",
+          "gold_rank": 1,
+          "n_candidates": 195,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17682349",
+          "gold_rank": 1,
+          "n_candidates": 193,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18251357",
+          "gold_rank": 1,
+          "n_candidates": 189,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "15962678",
+          "gold_rank": 1,
+          "n_candidates": 181,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17429333",
+          "gold_rank": 6,
+          "n_candidates": 184,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24599411",
+          "gold_rank": 6,
+          "n_candidates": 187,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25079920",
+          "gold_rank": 1,
+          "n_candidates": 195,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14968373",
+          "gold_rank": 1,
+          "n_candidates": 178,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "12790890",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17578985",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9569972",
+          "gold_rank": 1,
+          "n_candidates": 181,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "18319270",
+          "gold_rank": 2,
+          "n_candidates": 206,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19406119",
+          "gold_rank": 1,
+          "n_candidates": 197,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26516021",
+          "gold_rank": null,
+          "n_candidates": 170,
+          "n_gold_chunks": 0,
+          "gold_in_pool": false,
+          "gold_text_matches_index": null
+        },
+        {
+          "query_id": "24340838",
+          "gold_rank": 1,
+          "n_candidates": 177,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "27832831",
+          "gold_rank": 1,
+          "n_candidates": 212,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22540518",
+          "gold_rank": 1,
+          "n_candidates": 193,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "17890090",
+          "gold_rank": 8,
+          "n_candidates": 177,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "23422012",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11500608",
+          "gold_rank": 1,
+          "n_candidates": 197,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "14627582",
+          "gold_rank": 1,
+          "n_candidates": 137,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19430778",
+          "gold_rank": 2,
+          "n_candidates": 176,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "19351635",
+          "gold_rank": 6,
+          "n_candidates": 194,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "26471488",
+          "gold_rank": 1,
+          "n_candidates": 198,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "22970993",
+          "gold_rank": 2,
+          "n_candidates": 198,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25735444",
+          "gold_rank": 1,
+          "n_candidates": 164,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9722752",
+          "gold_rank": 1,
+          "n_candidates": 196,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "9920954",
+          "gold_rank": 1,
+          "n_candidates": 184,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "25891436",
+          "gold_rank": 1,
+          "n_candidates": 192,
+          "n_gold_chunks": 1,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24450673",
+          "gold_rank": 1,
+          "n_candidates": 186,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "21228436",
+          "gold_rank": 1,
+          "n_candidates": 194,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "11977907",
+          "gold_rank": 7,
+          "n_candidates": 144,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        },
+        {
+          "query_id": "24783217",
+          "gold_rank": 1,
+          "n_candidates": 195,
+          "n_gold_chunks": 2,
+          "gold_in_pool": true,
+          "gold_text_matches_index": true
+        }
+      ]
+    }
+  ]
+}
