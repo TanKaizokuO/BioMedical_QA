@@ -3,7 +3,7 @@
 **Project:** Evidence-Grounded, Claim-Attributable Biomedical QA  
 **Target Submission:** November 2–6, 2026 (Workshop Venue)  
 **Current Date:** August 10, 2026  
-**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). **Week 2 complete (Aug 10)** — all nine items closed. **G1 fails honestly at hit@5** (RRF 0.73) while **pool recall reaches hit@100 = 0.97**, so the gap is ranking precision, not retrieval; W3's cross-encoder is the load-bearing item and the only remaining lever, τ untouched.
+**Status Summary:** Week 1 Complete (Splits & 2M Corpus Frozen; G0 Passed). Week 2 complete (Aug 10). **W3: Table 1 is complete and G1 was executed early, on Aug 10 — it FAILS at hit@5.** Row 4 (cross-encoder rerank) reaches **hit@5 0.86, Wilson [0.7786, 0.9147]**, short of the 0.90 point and the 0.85 lower bound; at **hit@10 it is 0.94, Wilson lower 0.8752, which passes**. Reranking is worth +0.13 hit@5 and +0.21 hit@1 over RRF and is a strict permutation of the fused pool (`not_in_pool` = 3 in both rows, hit@100 = 0.97). 8 of the 14 misses sit at ranks 6–10. Before taking R2's last rung — relax to hit@10 and say so in the paper — the chunker sweep is being upper-bounded inside the recorded pool (`scripts/chunker_pool_eval.py`), which refuses or earns each ~2 h build on evidence. τ untouched.
 
 ---
 
@@ -12,7 +12,7 @@
 | Gate | Target Date | Status | Pass Condition & Result |
 |---|---|---|---|
 | **G0** — Generator Bake-off & Compute Preflight | **Aug 4, 2026** | **PASSED (2026-08-04)** | ~~Llama-3.1-8B-Instruct-AWQ-INT4 selected; MedCPT throughput 343.6 abs/s at 0.80 GB VRAM (2M encode = 1.6 h). Issue #1 closed.~~ |
-| **G1** — Retrieval Gate | **Aug 23, 2026** | **Unstarted** | hit@5 ≥ 0.90 on dev set with Wilson lower bound > 0.85 at documented `(chunker, τ)`. |
+| **G1** — Retrieval Gate | **Aug 23, 2026** | **EXECUTED, FAILED at k=5 (2026-08-10)** | hit@5 ≥ 0.90 with Wilson lower > 0.85 at documented `(chunker, τ)`. **Got 0.86, Wilson [0.7786, 0.9147]** on dev at `(abstract, τ untouched)`, index `57ab89e445f8`. Passes at k=10 (0.94, lower 0.8752). Disposition pending the pool-restricted chunker bound. |
 | **G2** — Joint Attribution Gate | **Sep 6, 2026** | **Unstarted** | On dev, joint attribution beats post-hoc citation on citation-F1 by margin > paired-bootstrap CI; ≥95% valid claim parse. |
 | **G3** — Cheap Verifier Gate | **Sep 20, 2026** | **Unstarted** | Verifier AUROC ≥ 0.75 for unsupported claim detection at ≥10× lower cost than Opus 5 judge baseline. |
 | **G4** — Human Gold Attribution Gate | **Sep 27, 2026** | **Unstarted** | ≥250 claims labeled; point estimate Krippendorff's α ≥ 0.6 on binary collapse across overlap set. |
@@ -51,9 +51,10 @@
 - ~~Measure baseline Table 1 rows 1–3.~~ *(Completed Aug 10, 2026 — dev, 2.16M index, evaluated over the full 100-deep pool so a near-miss is distinguishable from a retrieval failure. BM25 hit@5 0.71 / @10 0.77 / @100 0.90; Dense 0.59 / 0.70 / 0.91; RRF 0.73 / 0.81 / 0.97. `docs/harvest/table1_rows_1_3.{json,records.jsonl}`.)*
 
 ### Week 3 (Aug 17 – Aug 23, 2026) — Reranking & Retrieval Gate G1
-- [ ] Integrate cross-encoder reranker into cascade (top-50/200 → top-5 candidate selection).
-- [ ] **Gate G1 Execution (Aug 23, 2026):** Measure hit@5 ≥ 0.90 on dev set with Wilson lower bound > 0.85 at documented `(chunker, τ)`.
-- [ ] Complete Table 1 (Retrieval ablation & cascade lift).
+- ~~Integrate cross-encoder reranker into cascade (top-100 pool → top-5).~~ *(Completed Aug 10, 2026 — `retrieve.py` `_rerank` was already written but untested against 2M; it now refuses a pool carrying no passage text rather than reranking identifier strings. `tests/test_rerank.py`.)*
+- ~~**Gate G1 Execution:** Measure hit@5 ≥ 0.90 on dev with Wilson lower > 0.85.~~ *(Executed Aug 10, 2026, 13 days early. **FAILS: 0.86, Wilson [0.7786, 0.9147]** via `gate_g1()` on the records. Passes at k=10: 0.94, lower 0.8752. Disposition pending.)*
+- ~~Complete Table 1 (Retrieval ablation & cascade lift).~~ *(Completed Aug 10, 2026 — rows 1–3 reproduced exactly (0.71 / 0.59 / 0.73) alongside row 4's 0.86. `docs/harvest/table1_rows_1_4.{json,records.jsonl}`, now carrying `index_fingerprint`.)*
+- [ ] Decide G1's disposition: run `scripts/chunker_pool_eval.py` for the upper bound on each chunker inside the recorded pool, then either owe a full ~2 h build to any arm clearing 0.90 or relax to hit@10 and say so in the paper.
 - [ ] Draft initial joint claim-grounded generation prompts on dev set retrievals.
 - [ ] Begin logging prompt-iteration counts for equal-effort baseline protocol.
 - [ ] Re-confirm the distractor confusability probe post-reranking — **both arms**. A control-free re-run restates a number that is indistinguishable from MiniCheck's base rate below τ_confusable = 0.7; see ADR-0012 §2's 2026-08-10 result.
