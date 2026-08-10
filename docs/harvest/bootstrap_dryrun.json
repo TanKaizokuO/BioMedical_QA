@@ -1,0 +1,181 @@
+{
+  "script": "scripts/bootstrap_dryrun.py",
+  "adr": "ADR-0011 §2 — every bootstrap cluster-resamples questions, not claims",
+  "question": "what does question-clustering cost in CI width, measured in August?",
+  "finished_at": "2026-08-10T14:42:26.317300+00:00",
+  "sources": {
+    "records": "docs/harvest/table1_rows_1_4.records.jsonl",
+    "probe": "docs/harvest/confusability_probe_reranked.json",
+    "control": "docs/harvest/confusability_probe_reranked_control.json"
+  },
+  "config": {
+    "tau_confusable": 0.7,
+    "table1_row": 4,
+    "n_boot": 10000,
+    "seeds": [
+      20260804,
+      1,
+      7,
+      42,
+      999983
+    ],
+    "confidence": 0.95
+  },
+  "harness_check": {
+    "arm": "harness_hit_at_5",
+    "rule": "one observation per cluster; clustering must not move the interval",
+    "width_gap": 0.0,
+    "passed": true
+  },
+  "arms": {
+    "harness_hit_at_5": {
+      "unclustered": {
+        "point": 0.86,
+        "lower": 0.79,
+        "upper": 0.92,
+        "width": 0.13,
+        "n_units": 100,
+        "n_clusters": 100,
+        "resampling_unit": "observation",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "clustered": {
+        "point": 0.86,
+        "lower": 0.79,
+        "upper": 0.92,
+        "width": 0.13,
+        "n_units": 100,
+        "n_clusters": 100,
+        "resampling_unit": "question",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "width_ratio": 1.0,
+      "width_ratio_over_seeds": {
+        "seeds": [
+          20260804,
+          1,
+          7,
+          42,
+          999983
+        ],
+        "values": [
+          1.0,
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "median": 1.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "design_effect": 1.0,
+      "effective_n": 100.0
+    },
+    "confusable_fraction": {
+      "unclustered": {
+        "point": 0.14251207729468598,
+        "lower": 0.1111111111111111,
+        "upper": 0.17632850241545894,
+        "width": 0.06521739130434784,
+        "n_units": 414,
+        "n_clusters": 414,
+        "resampling_unit": "observation",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "clustered": {
+        "point": 0.14251207729468598,
+        "lower": 0.09685230024213075,
+        "upper": 0.19174757281553398,
+        "width": 0.09489527257340323,
+        "n_units": 414,
+        "n_clusters": 100,
+        "resampling_unit": "question",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "width_ratio": 1.4551,
+      "width_ratio_over_seeds": {
+        "seeds": [
+          20260804,
+          1,
+          7,
+          42,
+          999983
+        ],
+        "values": [
+          1.4551,
+          1.3556,
+          1.3692,
+          1.3712,
+          1.3748
+        ],
+        "median": 1.3712,
+        "min": 1.3556,
+        "max": 1.4551
+      },
+      "design_effect": 1.8802,
+      "effective_n": 220.2
+    },
+    "paired_retrieved_minus_control": {
+      "unclustered": {
+        "point": 0.12077294685990338,
+        "lower": 0.08695652173913043,
+        "upper": 0.1570048309178744,
+        "width": 0.07004830917874397,
+        "n_units": 414,
+        "n_clusters": 414,
+        "resampling_unit": "observation",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "clustered": {
+        "point": 0.12077294685990338,
+        "lower": 0.07785888077858881,
+        "upper": 0.16747572815533981,
+        "width": 0.089616847376751,
+        "n_units": 414,
+        "n_clusters": 100,
+        "resampling_unit": "question",
+        "n_boot": 10000,
+        "confidence": 0.95,
+        "seed": 20260804
+      },
+      "width_ratio": 1.2794,
+      "width_ratio_over_seeds": {
+        "seeds": [
+          20260804,
+          1,
+          7,
+          42,
+          999983
+        ],
+        "values": [
+          1.2794,
+          1.2697,
+          1.2822,
+          1.2821,
+          1.2985
+        ],
+        "median": 1.2821,
+        "min": 1.2697,
+        "max": 1.2985
+      },
+      "design_effect": 1.6437,
+      "effective_n": 251.9
+    }
+  },
+  "cluster_size": {
+    "probe_units_per_question": 4.14,
+    "generator_claims_per_question": 9.2,
+    "note": "The probe's clusters are smaller than G2's will be, so every widening below is a lower bound on what the headline gate pays (ADR-0011 §Context)."
+  }
+}
