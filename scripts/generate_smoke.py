@@ -137,13 +137,15 @@ def _fake_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, C
         raise AssertionError(f"canned completer found {len(ctx)} passages in the prompt, need 2")
     (pid1, text1), (pid2, text2) = ctx[0], ctx[1]
     sep = "||"
+    # Bracketed ids, exactly as the format block now teaches and as render_context prints them.
+    # This is also the offline exercise of the parser's bracket-stripping path.
     lines = ["DECISION: maybe", "CLAIM 1: Utilisation varies beyond what population need explains."]
     if "CITE 1:" in prompt:
-        lines.append(f"CITE 1: {pid1} {sep} {text1[:60].strip()}")
-        lines.append(f"CITE 1: {pid2} {sep} {text2[:60].strip()}")
+        lines.append(f"CITE 1: [{pid1}] {sep} {text1[:60].strip()}")
+        lines.append(f"CITE 1: [{pid2}] {sep} {text2[:60].strip()}")
     lines.append("CLAIM 2: The variation persists after case-mix adjustment.")
     if "CITE 1:" in prompt:
-        lines.append(f"CITE 2: {pid1} {sep} {text1[:40].strip()}")
+        lines.append(f"CITE 2: [{pid1}] {sep} {text1[:40].strip()}")
     return (
         "\n".join(lines),
         CostRecord(
@@ -167,7 +169,7 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=3, help="questions (default: %(default)s; a smoke test, not a sample)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--depth", type=int, default=CONTEXT_DEPTH)
-    ap.add_argument("--max-tokens", type=int, default=768)
+    ap.add_argument("--max-tokens", type=int, default=GenerationConfig().max_tokens)
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--out-prefix", type=Path, default=Path("docs/harvest/generate_smoke"))
     ap.add_argument("--fake", action="store_true", help="canned completer; no network, no GPU")

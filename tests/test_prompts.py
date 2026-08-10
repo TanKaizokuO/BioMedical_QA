@@ -77,6 +77,35 @@ def test_the_citation_cap_is_stated_identically_wherever_a_system_cites():
     assert "CITE" not in vanilla
 
 
+def test_the_format_example_spells_passage_ids_the_way_the_context_does():
+    """W4 live smoke, 0/3 clean parses on both citing systems. The context block printed `[p1]`
+    while the format example asked for a bare `passage_id`, so the model echoed the brackets it had
+    been shown and every CITE line was rejected for an id the harness itself spelled two ways. The
+    example and `render_context` have to agree, or the loss is booked against the system."""
+    ps = _passages(1)
+
+    assert render_context(ps).splitlines()[0] == "[p1]"
+
+    joint = build_prompt(System.JOINT, "Q?", ps, MAX_CITATIONS)
+    example = next(ln for ln in joint.splitlines() if ln.startswith("CITE 1:"))
+
+    assert "[passage_id]" in example
+    assert "passage_id ||" not in joint  # the unbracketed spelling that caused the mismatch
+
+
+def test_both_citing_stages_are_told_to_number_cites_by_claim():
+    """The 8B model restarted CITE numbering at 1 under each claim, and the parser reads that
+    number as a claim id. Stated in the shared format block so joint and post-hoc's cite stage get
+    the identical instruction — a rule only one of them saw would move C2's gap by itself."""
+    joint = build_prompt(System.JOINT, "Q?", _passages(), MAX_CITATIONS)
+    post_hoc = build_prompt(
+        System.POST_HOC, "Q?", _passages(), MAX_CITATIONS, stage="cite", answer="CLAIM 1: X."
+    )
+
+    rule = "Do not restart CITE numbering at 1 under each claim."
+    assert rule in joint and rule in post_hoc
+
+
 def test_all_three_systems_are_asked_for_the_same_claim_unit():
     """ADR-0005's unit is the treatment-invariant part: a baseline whose claims are shaped
     differently is being compared on the wrong axis."""
@@ -176,6 +205,17 @@ def test_citing_a_passage_outside_the_context_is_an_error():
     out = parse_response(raw, _passages(), MAX_CITATIONS)
 
     assert any("not in the context" in e for e in out.errors)
+
+
+def test_a_bracketed_passage_id_parses_because_that_is_the_taught_spelling():
+    """Brackets are the delimiter `render_context` prints, not part of the id. Stripping them
+    reads the grammar; it does not repair a wrong answer, and a bad quote is still an error."""
+    raw = "DECISION: yes\nCLAIM 1: X.\nCITE 1: [p1] || Metformin reduced HbA1c by 1.2%\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert out.errors == []
+    assert out.claims[0].citations[0].passage_id == "p1"
 
 
 def test_missing_decision_and_claims_are_both_reported():

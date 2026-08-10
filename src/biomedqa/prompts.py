@@ -23,7 +23,10 @@ Citations quote biomedical prose containing commas, colons, brackets, percent si
 double quotes. Asking a small quantised model for nested JSON puts the dominant failure mode
 (escaping a quote inside a quoted string) directly on top of the field the whole experiment
 measures. `||` separates the passage id from the quote, and only the first occurrence splits, so a
-quote containing `||` still parses.
+quote containing `||` still parses. The id is written in square brackets, the same surface form
+`render_context` gives it: an example that spells the id differently from the context block teaches
+the model a syntax the parser then rejects, and the loss is booked against the system instead of
+the harness. `parse_response` strips the brackets before looking the id up.
 
 **3. The citation cap is rendered from `GenerationConfig.max_citations`, never typed into the
 prose.** ADR-0005 and `CONTEXT.md` both make an unequal cap the thing that would turn C2's gap into
@@ -80,6 +83,14 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             "context per ADR-0015.",
             stages_touched=("joint",),
         ),
+        Iteration(
+            n=2,
+            date="2026-08-10",
+            rationale="W4 live smoke: 0/3 clean parses. Bracketed the passage id in the format "
+            "example to match render_context, and named the two compliance failures the 8B model "
+            "actually made — dropping '||' and restarting CITE numbering at 1 under each claim.",
+            stages_touched=("joint",),
+        ),
     ),
     System.POST_HOC: (
         Iteration(
@@ -88,6 +99,14 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
             rationale="Initial draft. Same context, same cap, same output grammar as joint; the "
             "only difference is that the answer is written before any passage is cited.",
             stages_touched=("answer", "cite"),
+        ),
+        Iteration(
+            n=2,
+            date="2026-08-10",
+            rationale="Same format-block fix as joint, and only the cite stage sees it. The answer "
+            "stage is untouched, so the pass that writes claims still knows nothing about "
+            "citations.",
+            stages_touched=("cite",),
         ),
     ),
     System.VANILLA: (
@@ -164,12 +183,16 @@ CLAIM 2: the second claim"""
 
 DECISION: one of {", ".join(DECISIONS)}
 CLAIM 1: the first claim
-CITE 1: passage_id {_CITATION_SEP} exact quote from that passage
+CITE 1: [passage_id] {_CITATION_SEP} exact quote from that passage
 CLAIM 2: the second claim
-CITE 2: passage_id {_CITATION_SEP} exact quote from that passage
-CITE 2: passage_id {_CITATION_SEP} a second exact quote, if the claim needs it
+CITE 2: [passage_id] {_CITATION_SEP} exact quote from that passage
+CITE 2: [passage_id] {_CITATION_SEP} a second exact quote, if the claim needs it
 
-The number on a CITE line is the number of the claim it supports.
+Write the passage id in square brackets, exactly as it appears above the passage text.
+Put {_CITATION_SEP} between the passage id and the quote. A CITE line with no {_CITATION_SEP} is discarded.
+Write the quote as bare text after {_CITATION_SEP}, and do not wrap it in quotation marks.
+The number on a CITE line is the number of the claim it supports, so every CITE line under CLAIM 2
+is numbered 2. Do not restart CITE numbering at 1 under each claim.
 A claim may have up to {max_citations} CITE lines.
 Every CITE line must name one of the passage ids listed above."""
 
@@ -366,6 +389,11 @@ def parse_response(
             errors.append(f"line {lineno}: CITE line has no {_CITATION_SEP!r} separator")
             continue
         pid, quote = pid.strip(), quote.strip()
+        # render_context writes ids as "[id]", so the model is taught to echo the brackets. They
+        # are delimiters, not part of the id; stripping them is reading the grammar, not repairing
+        # a wrong answer. A quote that does not match is still an error (module docstring, §1).
+        if len(pid) > 1 and pid[0] == "[" and pid[-1] == "]":
+            pid = pid[1:-1].strip()
         if pid not in text_by_id:
             errors.append(f"line {lineno}: cites {pid!r}, which is not in the context")
             continue

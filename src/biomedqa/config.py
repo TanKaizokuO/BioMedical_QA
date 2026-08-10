@@ -84,7 +84,12 @@ class GenerationConfig:
     backend: str = "vllm"                    # "vllm" | "anthropic" — the W8 deferral (ADR-0004)
     model: str = ""                          # chosen at G0, on citation-format compliance
     max_citations: int = 3
-    max_tokens: int = 768
+    # Raised from 768 after the W4 live smoke truncated joint mid-CLAIM: joint interleaves CITE
+    # lines with verbatim quotes, so it needs the most completion tokens of the three, and a budget
+    # that only joint hits is a budget that hands C2 a gap for free. Shared by all three systems,
+    # like max_citations. Worst measured prompt is 4568 tokens (post_hoc_cite,
+    # docs/harvest/prompt_drafts.json), so 8192 - 1536 = 6656 still clears it.
+    max_tokens: int = 1536
     temperature: float = 0.0
     seeds: tuple[int, ...] = (0, 1, 2)       # ≥3 seeds; only implementable locally (ADR-0004)
     granularity: str = "decontextualized_atomic"
