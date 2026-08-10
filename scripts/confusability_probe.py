@@ -341,6 +341,18 @@ def main() -> int:
     )
     args = ap.parse_args()
 
+    # A dropped --random-control writes the plain retrieved-side probe to a path that claims to be
+    # a control, and the two are indistinguishable downstream except by the absent `seed` key.
+    # That has already happened once and reached main as d9d6a13.  Refuse the combination.
+    if args.random_control is None and "control" in args.out.stem.lower():
+        print(
+            f"--out is {args.out} but --random-control was not passed, so this run would write the "
+            "ordinary retrieved-side probe under a control filename. Pass --random-control "
+            "<prior probe json>, or choose an --out that does not say 'control'.",
+            file=sys.stderr,
+        )
+        return 1
+
     import torch
 
     if not torch.cuda.is_available() and not args.no_gpu_check:
