@@ -33,6 +33,19 @@ class TestConfigIdentity:
         other = base.ablate("other-encoder", **{"retrieval.dense_encoder": "some/other-model"})
         assert base.index_fingerprint() != other.index_fingerprint()
 
+    def test_title_segment_change_changes_the_index_fingerprint(self):
+        """ADR-0014 §3: the convention is part of the index's identity, not a call detail.
+
+        `dense_encoder` names the checkpoint; it does not say how the checkpoint was called.
+        `tok("", abstract)` and `tok(abstract)` are the same weights over the same title-free text
+        and still produce different vectors, so without this axis the `empty` and `single` indices —
+        two separate 2 h encodes — hash the same. `encode_corpus.py`'s resume guard already refused
+        to concatenate them; the fingerprint could not tell them apart.
+        """
+        base = RunConfig()
+        other = base.ablate("single-segment", **{"retrieval.title_segment": "single"})
+        assert base.index_fingerprint() != other.index_fingerprint()
+
     def test_a_different_corpus_draw_changes_the_index_fingerprint(self):
         """ADR-0012 §1 requires the drawn ID list, not just its name, to reach the fingerprint.
         `corpus_id` is the literal string `"pubmed-2m-v1"` for every draw at every seed, so on its

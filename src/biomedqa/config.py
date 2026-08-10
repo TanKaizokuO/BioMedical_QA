@@ -24,9 +24,11 @@ from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
 #: 1.1.0 adds ScoringConfig (ADR-0010). 1.2.0 adds RetrievalConfig.corpus_fingerprint, so that the
-#: drawn ID list reaches index_fingerprint() as ADR-0012 §1 requires. SCHEMA_VERSION is unaffected
-#: by either — this versions the knobs, not the records.
-CONFIG_VERSION = "1.2.0"
+#: drawn ID list reaches index_fingerprint() as ADR-0012 §1 requires. 1.3.0 adds
+#: RetrievalConfig.title_segment, which ADR-0014 §3 says is part of the index's identity and which
+#: index_fingerprint() did not previously see. SCHEMA_VERSION is unaffected by any of them — this
+#: versions the knobs, not the records.
+CONFIG_VERSION = "1.3.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +58,13 @@ class RetrievalConfig:
     dense: bool = True
     dense_encoder: str = "NCBI/MedCPT-Article-Encoder"
     query_encoder: str = "NCBI/MedCPT-Query-Encoder"   # MedCPT is asymmetric — two encoders
+    #: ADR-0014 §3 — how the article encoder is called on a title-free passage: ``"empty"`` for
+    #: ``tok("", abstract)`` or ``"single"`` for ``tok(abstract)``. Two indices built from the same
+    #: corpus, chunker and encoder under different conventions hold **different vectors** (max abs
+    #: component diff 0.0349), so this belongs in the fingerprint. `encode_corpus.py`'s resume guard
+    #: already refused to mix the two; until now the fingerprint could not tell them apart, and its
+    #: comment claiming "every knob here is inside index_fingerprint()" was false for this one.
+    title_segment: str = "empty"
     rrf: bool = True
     rrf_k: int = 60
     rerank: bool = True
@@ -128,13 +137,18 @@ class RunConfig:
         return canonical_hash(asdict(self))
 
     def index_fingerprint(self) -> str:
-        """Identity of the retrieval index. Changing the corpus, the chunker, or the encoder means
-        a different index — anything else does not.
+        """Identity of the retrieval index. Changing the corpus, the chunker, the encoder, or how
+        the encoder is *called* means a different index — anything else does not.
 
         The corpus enters as the **draw's content hash**, not only its name. `corpus_id` is
         `"pubmed-2m-v1"` for every draw at every seed, so a fingerprint built on the name alone
         cannot tell two corpora apart — which is the ADR-0007 failure this module's docstring cites,
         in the one place it would do the most damage.
+
+        `title_segment` is here for the same reason one step down: `dense_encoder` names the weights,
+        not the call. `tok("", abstract)` and `tok(abstract)` run the same checkpoint over the same
+        text and produce different vectors, so on the encoder name alone two genuinely different
+        indices hash identically (ADR-0014 §3).
         """
         return canonical_hash(
             {
@@ -142,6 +156,7 @@ class RunConfig:
                 "corpus_fingerprint": self.retrieval.corpus_fingerprint,
                 "chunk": asdict(self.chunk),
                 "encoder": self.retrieval.dense_encoder,
+                "title_segment": self.retrieval.title_segment,
             }
         )
 
