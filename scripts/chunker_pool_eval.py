@@ -17,9 +17,17 @@ whether a chunk of the gold abstract lands in the top 5.
 
 This is sound to run without a GPU-hours index build because **the cross-encoder needs no corpus
 statistics**. Unlike BM25's idf — which shifts when re-chunking changes document frequencies across
-all 2M rows — a `(query, passage)` cross-encoder score is a function of that pair alone. The
-number this produces for the `abstract` configuration is therefore not an approximation of row 4;
-it *is* row 4, which is what `--expect-hit5` pins.
+all 2M rows — a `(query, passage)` cross-encoder score is a function of that pair alone. Every
+candidate row 4 scored is therefore scored identically here, and the `abstract` configuration
+recomputes row 4 rather than estimating it.
+
+It does not always *equal* row 4, and `--audit-pool` says which case holds. An abstract longer
+than `max_chars` is stored as several chunks, and row 4's top 100 may have surfaced only some of
+them; reassembling and re-chunking that abstract puts its remaining siblings back in the candidate
+set. Those additions can demote gold or leave it — they can never promote it. So the harness
+demands equality when the audit reports no additions, and "no better than row 4, and gold promoted
+in zero queries" when it reports additions. The rule is derived from the measured pool, never
+loosened after a failure.
 
 Scope, stated plainly
 ---------------------
@@ -46,7 +54,8 @@ asymmetry is not an artifact of this script — it is how the real index would b
 
 RUNS ON THE A4000 (cross-encoder; needs the index only for passage text, not the 3.1 GB matrix).
 
-    uv run python scripts/chunker_pool_eval.py --index-dir data/index/empty --out docs/harvest/chunker_pool_eval.json
+    uv run python scripts/chunker_pool_eval.py --index-dir data/index/empty --audit-pool
+    uv run python scripts/chunker_pool_eval.py --index-dir data/index/empty --expect-hit5 0.86 --out docs/harvest/chunker_pool_eval.json
 """
 
 from __future__ import annotations
@@ -323,6 +332,57 @@ def _evaluate_config(
     return result
 
 
+def _rank_key(rank: int | None) -> float:
+    """Gold that was never found sorts after gold that was, so ranks compare with one operator."""
+    return float("inf") if rank is None else float(rank)
+
+
+def _harness_check(abstract_arm: dict, expected: float, exact: bool) -> dict:
+    """Is the 'abstract' arm consistent with row 4, given what the pool audit found?
+
+    A cross-encoder score is a function of the `(query, passage)` pair alone, so every candidate
+    row 4 scored is scored identically here, and gold's own chunks are unchanged. Re-chunking only
+    ever *adds* candidates: the siblings of pooled abstracts that never reached row 4's top 100.
+    An added candidate can demote gold or leave it. It cannot promote gold. So:
+
+    * audit says nothing is added -> the arm must equal row 4 exactly;
+    * audit says candidates are added -> the arm must be no better than row 4, in aggregate and
+      per query. One improved gold rank is impossible under the invariant, so it is a defect —
+      a sharper instrument than any tolerance on the aggregate, which would pass a run that
+      promoted gold in five queries and demoted it in five others.
+    """
+    per_query = abstract_arm["gold_rank_per_query"]
+    improved = [
+        e
+        for e in per_query
+        if _rank_key(e["gold_rank"]) < _rank_key(e.get("reference_gold_rank"))
+    ]
+    demoted = [
+        e
+        for e in per_query
+        if _rank_key(e["gold_rank"]) > _rank_key(e.get("reference_gold_rank"))
+    ]
+    got = abstract_arm["hit_at_k_upper_bound"]["hit_at_5"]["point"]
+    if exact:
+        rule = "abstract arm == row 4 exactly (audit: re-chunking introduces no new candidate)"
+        passed = abs(got - expected) < 1e-9 and not improved and not demoted
+    else:
+        rule = (
+            "abstract arm <= row 4 and no query's gold rank improves (audit: re-chunking adds "
+            "candidates row 4 never scored, and those can only demote gold)"
+        )
+        passed = got <= expected + 1e-9 and not improved
+    return {
+        "rule": rule,
+        "exact_equality_attainable": exact,
+        "expected_hit5_row4": expected,
+        "abstract_arm_hit5": got,
+        "queries_gold_improved": {"n": len(improved), "queries": improved},
+        "queries_gold_demoted": {"n": len(demoted), "queries": demoted},
+        "passed": passed,
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Upper-bound the chunker sweep inside Table 1's recorded pool (A4000)"
@@ -346,10 +406,10 @@ def main() -> int:
         type=float,
         default=None,
         help=(
-            "Harness check: the 'abstract' arm must reproduce this (row 4's 0.86). The cross-"
-            "encoder needs no corpus statistics, so that arm is row 4 recomputed, not an estimate "
-            "of it — a mismatch means the pool or the gold predicate is being read wrongly and "
-            "every other arm is unreadable."
+            "Row 4's hit@5 (0.86), which the 'abstract' arm is checked against. The cross-encoder "
+            "needs no corpus statistics, so that arm recomputes row 4 rather than estimating it. "
+            "Whether the check demands equality or only 'no better than, and never promoted' is "
+            "decided by the pool audit, which runs first and is recorded in the artifact."
         ),
     )
     ap.add_argument("--batch-size", type=int, default=64)
@@ -418,6 +478,17 @@ def main() -> int:
     needed = {src for ids in pools.values() for src in ids}
     print(f"{len(needed):,} distinct pooled abstracts")
 
+    # The audit decides what the harness may demand, so it runs before the GPU does and is
+    # recorded beside the arms. Deriving the rule from a measured property of the pool beats
+    # asserting equality and then loosening it when equality turns out to be unattainable.
+    audit = audit_pool(args.index_dir, args.records, args.row)
+    print(
+        f"Pool audit: {audit['abstracts_with_unpooled_siblings']:,} abstract(s) have siblings "
+        f"outside the pool, adding {audit['extra_candidates_introduced']:,} candidate(s) row "
+        f"{args.row} never scored — exact equality attainable: "
+        f"{audit['harness_check_can_be_exact']}"
+    )
+
     # Text only: bm25=False and dense=False keep the 3.1 GB matrix and the BM25 model off the box's
     # 16 GB, exactly as the probe's control mode does.
     text_config = RetrievalConfig(bm25=False, dense=False, rrf=False, rerank=False)
@@ -470,21 +541,23 @@ def main() -> int:
 
     check: dict | None = None
     if args.expect_hit5 is not None:
-        got = next(
-            r["hit_at_k_upper_bound"]["hit_at_5"]["point"]
-            for r in results
-            if r["chunker"] == "abstract"
+        abstract_arm = next(r for r in results if r["chunker"] == "abstract")
+        check = _harness_check(
+            abstract_arm, args.expect_hit5, audit["harness_check_can_be_exact"]
         )
-        ok = abs(got - args.expect_hit5) < 1e-9
-        check = {"expected_hit5": args.expect_hit5, "abstract_arm_hit5": got, "passed": ok}
-        print(f"\nHarness check: abstract arm {got:.4f} vs expected {args.expect_hit5:.4f} — "
-              f"{'PASS' if ok else 'FAIL'}")
-        if not ok:
+        print(
+            f"\nHarness check — {check['rule']}"
+            f"\n  abstract arm {check['abstract_arm_hit5']:.4f} vs row 4 "
+            f"{args.expect_hit5:.4f}; gold improved in "
+            f"{check['queries_gold_improved']['n']} query(s), demoted in "
+            f"{check['queries_gold_demoted']['n']} — "
+            f"{'PASS' if check['passed'] else 'FAIL'}"
+        )
+        if not check["passed"]:
             # Refuse the artifact, but never throw away the run that earned the refusal: a second
             # GPU pass to re-learn what just happened is waste, and the diagnostic is the whole
             # value of a failed harness. The filename cannot be mistaken for a result.
             diag = args.out.with_suffix(".HARNESS_FAILED.json")
-            abstract_arm = next(r for r in results if r["chunker"] == "abstract")
             diag.parent.mkdir(parents=True, exist_ok=True)
             diag.write_text(
                 json.dumps(
@@ -494,11 +567,12 @@ def main() -> int:
                         "finished_at": datetime.now(timezone.utc).isoformat(),
                         "harness_check": check,
                         "why_it_matters": (
-                            "The abstract arm must equal row 4 exactly, because the cross-encoder "
-                            "uses no corpus statistics and is therefore recomputing row 4 rather "
-                            "than estimating it. A gap means the candidate set or the gold text "
-                            "differs from what row 4 scored, and the same difference is present, "
-                            "unquantified, in every other arm."
+                            "The abstract arm recomputes row 4 rather than estimating it, because "
+                            "the cross-encoder uses no corpus statistics. Re-chunking may add "
+                            "candidates, which can only demote gold. A better-than-row-4 gold "
+                            "rank, or an aggregate above row 4, means the candidate set or the "
+                            "gold text differs from what row 4 scored — and the same difference "
+                            "is present, unquantified, in every other arm."
                         ),
                         "abstract_arm": abstract_arm,
                         "other_arms_unreadable": [
@@ -550,6 +624,7 @@ def main() -> int:
                     "estimated: the cross-encoder uses no corpus statistics."
                 ),
                 "harness_check": check,
+                "pool_audit": audit,
                 "arms": results,
             },
             indent=2,

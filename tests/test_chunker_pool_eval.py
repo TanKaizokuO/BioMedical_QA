@@ -168,3 +168,55 @@ def test_audit_is_exact_only_when_every_sibling_was_pooled(tmp_path, records_fil
     assert report["abstracts_with_unpooled_siblings"] == 1
     assert report["extra_candidates_introduced"] == 1
     assert report["harness_check_can_be_exact"] is False
+
+
+
+def _arm(pairs, hit5):
+    """An 'abstract' arm carrying `(gold_rank, reference_gold_rank)` per query."""
+    return {
+        "chunker": "abstract",
+        "hit_at_k_upper_bound": {"hit_at_5": {"point": hit5}},
+        "gold_rank_per_query": [
+            {"query_id": str(i), "gold_rank": got, "reference_gold_rank": ref}
+            for i, (got, ref) in enumerate(pairs)
+        ],
+    }
+
+
+def test_harness_demands_equality_when_the_audit_says_nothing_was_added():
+    arm = _arm([(1, 1), (3, 3), (None, None)], hit5=0.86)
+
+    assert cpe._harness_check(arm, 0.86, exact=True)["passed"] is True
+    # Same aggregate, but a gold rank moved: with no new candidates in play, nothing may move.
+    moved = _arm([(1, 1), (4, 3), (None, None)], hit5=0.86)
+    assert cpe._harness_check(moved, 0.86, exact=True)["passed"] is False
+
+
+def test_added_candidates_may_demote_gold_but_never_promote_it():
+    """The whole point of the restated rule: demotion is expected, promotion is impossible."""
+    demoted = _arm([(1, 1), (9, 3), (None, None)], hit5=0.85)
+    check = cpe._harness_check(demoted, 0.86, exact=False)
+    assert check["passed"] is True
+    assert check["queries_gold_demoted"]["n"] == 1
+
+    promoted = _arm([(1, 1), (2, 3), (None, None)], hit5=0.86)
+    check = cpe._harness_check(promoted, 0.86, exact=False)
+    assert check["passed"] is False
+    assert [q["query_id"] for q in check["queries_gold_improved"]["queries"]] == ["1"]
+
+
+def test_gold_found_where_row_4_never_found_it_is_a_promotion():
+    """`None` is not a neutral value: finding gold that row 4 missed means the pool differs."""
+    arm = _arm([(1, 1), (7, None)], hit5=0.86)
+    check = cpe._harness_check(arm, 0.86, exact=False)
+
+    assert check["passed"] is False
+    assert check["queries_gold_improved"]["n"] == 1
+
+
+def test_an_arm_above_row_4_fails_even_with_no_per_query_promotion():
+    """A hit@5 above row 4's without a single promoted rank is arithmetically impossible, so it
+    means the two are being computed over different query sets — refuse rather than reconcile."""
+    arm = _arm([(1, 1), (3, 3)], hit5=0.90)
+
+    assert cpe._harness_check(arm, 0.86, exact=False)["passed"] is False
