@@ -69,6 +69,23 @@ def _z_for(confidence: float) -> float:
     return table[confidence]
 
 
+def _gold_or_raise(record: QueryRecord, metric: str) -> set[str]:
+    """The record's gold chunk set, or a refusal.
+
+    A record carrying no gold is corrupt input, not a zero. Scoring it as zero would deflate a
+    reported mean and dropping it would move the denominator; both are silent. Every Table 1
+    metric refuses it the same way, so one bad records file cannot crash one column and quietly
+    bias the next two.
+    """
+    gold = set(record.gold_passage_ids)
+    if not gold:
+        raise ValueError(
+            f"{record.query_id}: {metric} is undefined with no gold passages; scoring it as zero "
+            "would silently move a reported number"
+        )
+    return gold
+
+
 def recall_at_k(records: Iterable[QueryRecord], k: int = 5) -> float:
     """Fraction of an instance's gold passages retrieved by rank k, averaged over instances.
 
@@ -79,12 +96,7 @@ def recall_at_k(records: Iterable[QueryRecord], k: int = 5) -> float:
     total = 0.0
     n = 0
     for record in records:
-        gold = set(record.gold_passage_ids)
-        if not gold:
-            raise ValueError(
-                f"{record.query_id}: recall is undefined with no gold passages; dropping the "
-                "query would silently change the denominator of a reported number"
-            )
+        gold = _gold_or_raise(record, "recall@k")
         found = {p.passage_id for p in record.retrieved if p.rank <= k and p.passage_id in gold}
         total += len(found) / len(gold)
         n += 1
@@ -92,10 +104,13 @@ def recall_at_k(records: Iterable[QueryRecord], k: int = 5) -> float:
 
 
 def mrr(records: Iterable[QueryRecord]) -> float:
-    """Mean reciprocal rank of the **first** gold chunk; a query with no gold retrieved scores 0."""
+    """Mean reciprocal rank of the **first** gold chunk. A query whose gold was not retrieved
+    scores 0 — that is a retrieval miss, and it is the thing being measured. A query with no gold
+    at all raises, because that is not a miss but a broken record."""
     total = 0.0
     n = 0
     for record in records:
+        _gold_or_raise(record, "MRR")
         r = gold_rank(record)
         total += 1.0 / r if r is not None else 0.0
         n += 1
@@ -108,11 +123,18 @@ def ndcg(records: Iterable[QueryRecord], k: int = 10) -> float:
     Gain is 1 for a gold chunk and 0 otherwise, discounted by `1 / log2(rank + 1)`. The ideal
     ranking puts `min(|gold|, k)` gold chunks first, so a query whose abstract cut into more chunks
     than `k` is not penalised for the ones that cannot fit.
+
+    **The cap at `k` is not the binding constraint on this corpus.** Dev gold averages 3.3 chunks
+    per query but at most one of them is present anywhere in a 100-deep list, so the ideal is
+    summed over gold the index cannot return and nDCG@10 is bounded near `1 / |gold|` — it reads
+    partly as gold-chunk count, not only as ranking quality. That ceiling is disclosed in Table 1's
+    caption rather than divided out here: changing the denominator to "reachable gold" would raise
+    a reported number by redefining it.
     """
     total = 0.0
     n = 0
     for record in records:
-        gold = set(record.gold_passage_ids)
+        gold = _gold_or_raise(record, "nDCG@k")
         dcg = sum(
             1.0 / math.log2(p.rank + 1)
             for p in record.retrieved

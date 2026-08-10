@@ -148,11 +148,31 @@ class TestVanilla:
         assert gen.record.validate() == []
         assert all(not c.citations for c in gen.record.claims)
 
+    def test_a_vanilla_completion_that_cites_is_reported_not_repaired(self):
+        """Issue #3: vanilla carries no citations by definition, and `validate()` is what enforces
+        it. `parse_response` is system-blind, so if `generate_one` did not run the check nothing on
+        the generation path would notice the baseline quietly acquiring attribution."""
+        gen, _ = _run(System.VANILLA, _cited_response())
+        assert gen.errors == (), "the grammar parsed; this is a contract breach, not a parse error"
+        assert any("vanilla" in v for v in gen.violations)
+        assert any(c.citations for c in gen.record.claims), "reported, never silently stripped"
+
     def test_receives_the_same_passages_as_the_other_systems(self):
         """It isolates attribution, not retrieval (schema.py:73)."""
         _, stub = _run(System.VANILLA, _uncited_response())
         for pid in _TEXT:
             assert f"[{pid}]" in stub.prompts[0]
+
+
+class TestContractCheck:
+    def test_a_clean_record_reports_no_violations(self):
+        gen, _ = _run(System.JOINT, _cited_response())
+        assert gen.violations == ()
+
+    def test_violations_match_the_record_s_own_verdict(self):
+        """`violations` is `validate()`, not a second opinion that can drift from it."""
+        gen, _ = _run(System.VANILLA, _cited_response())
+        assert gen.violations == tuple(gen.record.validate())
 
 
 class TestFailureIsData:

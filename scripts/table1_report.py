@@ -19,29 +19,40 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from biomedqa.config import RunConfig  # noqa: E402
 from biomedqa.schema import QueryRecord, query_record_from_dict  # noqa: E402
-from biomedqa.scoring.retrieval import (  # noqa: E402
-    gate_g1,
-    hit_at_k,
-    mrr,
-    ndcg,
-    recall_at_k,
-    wilson_interval,
-)
+from biomedqa.scoring.retrieval import gate_g1, mrr, ndcg, recall_at_k  # noqa: E402
 
-#: G1 as written. Only `k` ever moved, once, on the record (ADR-0015 §3).
-G1_POINT = 0.90
-G1_WILSON_LOWER = 0.85
+#: The k the gate was written at, and the k it is gated at. Only `k` ever moved, once, on the
+#: record (ADR-0015 §3); the thresholds live in `retrieval.gate_g1` and are not restated here.
+ORIGINAL_K = 5
+GATE_K = 10
 
-#: The gate's original k and the relaxed one. Table 1 prints both columns.
-GATE_K = 5
-RELAXED_K = 10
+#: G1 is read on the full cascade and on nothing else (ADR-0015 §3). Scoring whichever row happens
+#: to be last in the file would print a gate verdict computed on RRF-only if row 4 were absent.
+CASCADE_ROW = 4
+
+
+def chunk_config_behind(index_fingerprint: str) -> dict | None:
+    """The `(chunker, τ)` pair the records were scored under, or `None` if it cannot be named.
+
+    Issue #2: "hit@5 is only defined per `(chunker, τ)` pair — report per pair, never
+    marginalised." The records file carries a fingerprint, not the pair, and the fingerprint is a
+    one-way hash of it. So the pair is recovered by candidate: `RunConfig()`'s chunker is hashed
+    and returned only if it reproduces the recorded fingerprint. A pair that does not hash to the
+    index the numbers came from is a caption that lies, which is worse than no caption.
+    """
+    candidate = RunConfig()
+    if candidate.index_fingerprint() != index_fingerprint:
+        return None
+    return asdict(candidate.chunk)
 
 
 def load_rows(path: Path) -> dict[int, list[QueryRecord]]:
@@ -62,19 +73,12 @@ def load_rows(path: Path) -> dict[int, list[QueryRecord]]:
 
 
 def score(records: list[QueryRecord]) -> dict:
-    """Every Table 1 cell for one system, plus the G1 reading at both k."""
-    cells = {}
-    for k in (GATE_K, RELAXED_K):
-        hits, n = hit_at_k(records, k)
-        point, lower, upper = wilson_interval(hits, n)
-        cells[f"hit_at_{k}"] = {
-            "hits": hits,
-            "n": n,
-            "point": point,
-            "wilson_lower": lower,
-            "wilson_upper": upper,
-            "clears_g1": point >= G1_POINT and lower > G1_WILSON_LOWER,
-        }
+    """Every Table 1 cell for one system, plus the G1 reading at both k.
+
+    The pass/fail comes from `gate_g1`, which owns the 0.90 / 0.85 arithmetic. Re-spelling it here
+    would let a threshold edit in `retrieval.py` leave these cells reading the old gate.
+    """
+    cells: dict = {f"hit_at_{k}": gate_g1(records, k) for k in (ORIGINAL_K, GATE_K)}
     cells["recall_at_5"] = recall_at_k(records, 5)
     cells["mrr"] = mrr(records)
     cells["ndcg_at_10"] = ndcg(records, 10)
@@ -85,18 +89,22 @@ def _ci(cell: dict) -> str:
     return f"[{cell['wilson_lower']:.2f}, {cell['wilson_upper']:.2f}]"
 
 
-def markdown(rows: list[dict]) -> str:
-    """The table body, in the column order `paper/skeleton.md` already committed to."""
+def markdown(rows: list[dict], cascade_row: int) -> str:
+    """The table body, in the column order `paper/skeleton.md` already committed to.
+
+    `cascade_row` is bolded and is the row G1 is read on — one notion, passed in, so the table
+    cannot bold one row while the gate block scores another.
+    """
     lines = [
         "| System | hit@5 | 95% CI (Wilson) | hit@10 | 95% CI (Wilson) | recall@5 | MRR | nDCG@10 |",
         "|---|---|---|---|---|---|---|---|",
     ]
     for r in rows:
-        label = f"**{r['label']}**" if r["row"] == 4 else r["label"]
+        label = f"**{r['label']}**" if r["row"] == cascade_row else r["label"]
         c = r["cells"]
         lines.append(
-            f"| {label} | {c['hit_at_5']['point']:.2f} | {_ci(c['hit_at_5'])} | "
-            f"{c['hit_at_10']['point']:.2f} | {_ci(c['hit_at_10'])} | "
+            f"| {label} | {c['hit_at_5']['hit_at_k']:.2f} | {_ci(c['hit_at_5'])} | "
+            f"{c['hit_at_10']['hit_at_k']:.2f} | {_ci(c['hit_at_10'])} | "
             f"{c['recall_at_5']:.2f} | {c['mrr']:.2f} | {c['ndcg_at_10']:.2f} |"
         )
     return "\n".join(lines)
@@ -118,23 +126,38 @@ def main() -> int:
     if missing:
         print(f"{args.records} has no records for row(s) {sorted(missing)}", file=sys.stderr)
         return 1
+    if CASCADE_ROW not in grouped:
+        print(
+            f"{args.records} carries no row {CASCADE_ROW}; G1 is read on the full cascade and on "
+            "nothing else (ADR-0015 §3)",
+            file=sys.stderr,
+        )
+        return 1
+
+    recorded_fingerprint = source["config"]["index_fingerprint"]
+    chunk = chunk_config_behind(recorded_fingerprint)
+    if chunk is None:
+        print(
+            f"index_fingerprint {recorded_fingerprint} is not the one RunConfig() describes, so "
+            "this script cannot say which (chunker, τ) produced these records",
+            file=sys.stderr,
+        )
+        return 1
 
     rows = [
         {"row": row, "label": labels[row], "cells": score(grouped[row])} for row in sorted(grouped)
     ]
-    table = markdown(rows)
+    table = markdown(rows, CASCADE_ROW)
     print(table)
 
-    full = grouped[max(grouped)]
-    gate = {str(k): gate_g1(full, k) for k in (GATE_K, RELAXED_K)}
+    gate = {str(k): gate_g1(grouped[CASCADE_ROW], k) for k in (ORIGINAL_K, GATE_K)}
+    original, gated = gate[str(ORIGINAL_K)], gate[str(GATE_K)]
     print(
-        f"\nG1 on row {max(grouped)} — "
-        f"k={GATE_K}: {gate[str(GATE_K)]['hit_at_k']:.4f} / "
-        f"{gate[str(GATE_K)]['wilson_lower']:.4f} "
-        f"{'passes' if gate[str(GATE_K)]['passes'] else 'FAILS'}   ·   "
-        f"k={RELAXED_K}: {gate[str(RELAXED_K)]['hit_at_k']:.4f} / "
-        f"{gate[str(RELAXED_K)]['wilson_lower']:.4f} "
-        f"{'passes' if gate[str(RELAXED_K)]['passes'] else 'FAILS'}"
+        f"\nG1 on row {CASCADE_ROW} ({labels[CASCADE_ROW]}) — "
+        f"k={ORIGINAL_K}: {original['hit_at_k']:.4f} / {original['wilson_lower']:.4f} "
+        f"{'passes' if original['passes'] else 'FAILS'}   ·   "
+        f"k={GATE_K}: {gated['hit_at_k']:.4f} / {gated['wilson_lower']:.4f} "
+        f"{'passes' if gated['passes'] else 'FAILS'}"
     )
 
     report = {
@@ -143,12 +166,17 @@ def main() -> int:
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "records_source": str(args.records),
         "run_source": str(args.run),
-        "config": source["config"],
+        # hit@5 is only defined per (chunker, τ) pair (issue #2), so the pair travels with the
+        # numbers. It is not asserted: `chunk_config_behind` returns it only when it hashes to the
+        # fingerprint the records were scored under.
+        "config": {**source["config"], "chunk": chunk},
         "gate": {
             "definition": "point >= 0.90 and Wilson lower > 0.85; only k moved (ADR-0015 §3)",
-            "original_k": GATE_K,
-            "gated_at_k": RELAXED_K,
-            "row_4": gate,
+            "computed_by": "biomedqa.scoring.retrieval.gate_g1",
+            "original_k": ORIGINAL_K,
+            "gated_at_k": GATE_K,
+            "row": CASCADE_ROW,
+            "readings": gate,
         },
         "rows": rows,
         "markdown": table,

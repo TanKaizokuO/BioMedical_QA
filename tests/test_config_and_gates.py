@@ -198,6 +198,12 @@ class TestMRR:
         miss = _record(["x"], gold=["g"], query_id="2")
         assert mrr([hit, miss]) == pytest.approx(0.5)
 
+    def test_a_query_with_no_gold_raises_rather_than_scoring_zero(self):
+        """Every Table 1 metric refuses a gold-less record the same way. Scoring it 0 here while
+        recall_at_k raises would let one bad file crash one column and quietly deflate the next."""
+        with pytest.raises(ValueError, match="undefined"):
+            mrr([_record(["a"], gold=[])])
+
 
 class TestNDCG:
     def test_perfect_ranking_is_one(self):
@@ -216,3 +222,7 @@ class TestNDCG:
     def test_gold_below_k_contributes_nothing(self):
         r = _record(["a", "b", "g1"], gold=["g1"])
         assert ndcg([r], 2) == 0.0
+
+    def test_a_query_with_no_gold_raises_rather_than_scoring_zero(self):
+        with pytest.raises(ValueError, match="undefined"):
+            ndcg([_record(["a"], gold=[])], 10)

@@ -1,7 +1,7 @@
 """Drive one (question, system, seed) through the generator and return a `QueryRecord`.
 
 This is the layer between `prompts.py` (what to ask) and `backends.py` (how to ask it). It owns
-three things and deliberately nothing else:
+four things and deliberately nothing else:
 
 1. **Stage orchestration.** Joint and vanilla are one call. Post-hoc is two — answer, then cite —
    and the first call must not know the second exists (`prompts._citation_rules` is withheld from
@@ -16,6 +16,13 @@ three things and deliberately nothing else:
 3. **Lossless raw text.** `QueryRecord.raw_generation` holds *both* post-hoc stages, joined by
    `STAGE_SEPARATOR` and recoverable with `split_stages`. Storing only the parsed claims, or only
    the stage that happened to parse, would make a decomposition-error post-mortem impossible.
+
+4. **The contract check, run and reported.** `QueryRecord.validate()` is where the ≤3-citation cap
+   and "vanilla carries no citations" are enforced, and both are fairness controls G2's gap rests
+   on rather than decoration. A control whose only caller is a smoke test is not a control, so the
+   generation path runs it every query and returns the problems verbatim. It never repairs them:
+   a violation is a measurement, and silently trimming a fourth citation would hide the thing the
+   cap exists to expose.
 
 **Parse errors are not stored.** `parse_response` derives them from `raw_generation`, `retrieved`,
 and `max_citations`, all of which the record already carries, so re-deriving them at scoring time
@@ -54,11 +61,20 @@ def split_stages(raw: str) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class Generation:
-    """One query's output: the record, the per-stage cost rows, and what failed to parse."""
+    """One query's output: the record, the per-stage cost rows, what failed to parse, and what the
+    record's own contract says about it.
+
+    `errors` and `violations` are different questions. `errors` is "the grammar did not parse" —
+    G2's valid-parse rate. `violations` is `QueryRecord.validate()`: the fairness controls G2 rests
+    on, chiefly the ≤3-citation cap and vanilla carrying no citations at all. Both are reported,
+    neither is repaired, and neither raises: a record that breaks its contract still has to reach
+    the denominator or the rate it feeds is measured on the survivors.
+    """
 
     record: QueryRecord
     costs: tuple[CostRecord, ...]
     errors: tuple[str, ...]
+    violations: tuple[str, ...]
 
 
 def generate_one(
@@ -136,7 +152,7 @@ def generate_one(
         prompt_tokens=_total(c.input_tokens for c in costs),
         completion_tokens=_total(c.output_tokens for c in costs),
     )
-    return Generation(record, tuple(costs), tuple(parsed.errors))
+    return Generation(record, tuple(costs), tuple(parsed.errors), tuple(record.validate()))
 
 
 def _total(values: Iterable[float | None]) -> float | None:

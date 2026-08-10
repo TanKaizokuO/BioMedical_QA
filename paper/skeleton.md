@@ -73,12 +73,20 @@ nothing the table does not.
 
 ### Table 1 — Retrieval cascade → **C1**
 
-*Caption:* Gold-passage retrieval on the 100-question dev split, `chunker = abstract`, over the ~2M
-abstract corpus (`index_fingerprint 57ab89e445f8`, `config_version 1.3.0`). Wilson intervals, not
-Wald. Relevance is the **gold chunk set** — one abstract cuts into 2–7 chunks — so hit@k asks
-whether any gold chunk surfaced and recall@5 asks what share of them did; MRR is over the first
-gold chunk. **Populated by `scoring/retrieval.py::gate_g1`, `hit_at_k`, `recall_at_k`, `mrr`,
-`ndcg`, via `scripts/table1_report.py` → `docs/harvest/table1_metrics.json`.**
+*Caption:* Gold-passage retrieval on the 100-question dev split over the ~2M abstract corpus, at
+the pair `(chunker = abstract, τ = {max_chars 2000, window 3, stride 1, section labels kept})` —
+τ is the chunker's own parameters, it was never tuned, and at abstract granularity only
+`max_chars` binds (`index_fingerprint 57ab89e445f8`, `config_version 1.3.0`). Wilson intervals,
+not Wald. Relevance is the **gold chunk set** — one abstract cuts into 2–7 chunks, 3.3 on average
+— so hit@k asks whether any gold chunk surfaced and recall@5 asks what share of them did; MRR is
+over the first gold chunk. **recall@5 and nDCG@10 carry a ceiling below 1 that is not a retrieval
+failure:** at most **one** gold chunk per query is present anywhere in the 100-deep pool, so a
+query with 3 gold chunks cannot exceed recall@5 = 0.33 however well the cascade ranks. Both
+columns are therefore read as *hit@5 divided by gold-set size*, and only hit@k and MRR are
+comparable across systems without that caveat. The denominator is not adjusted to the reachable
+subset: that would raise a reported number by redefining it. **Populated by
+`scoring/retrieval.py::gate_g1`, `hit_at_k`, `recall_at_k`, `mrr`, `ndcg`, via
+`scripts/table1_report.py` → `docs/harvest/table1_metrics.json`.**
 
 | System | hit@5 | 95% CI (Wilson) | hit@10 | 95% CI (Wilson) | recall@5 | MRR | nDCG@10 |
 |---|---|---|---|---|---|---|---|
