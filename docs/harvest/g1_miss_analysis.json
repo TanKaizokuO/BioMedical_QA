@@ -1,0 +1,838 @@
+{
+  "script": "scripts/g1_miss_analysis.py",
+  "question": "Is G1's k=5 failure dilution (chunkable) or underspecified queries (not)?",
+  "finished_at": "2026-08-10T06:50:53.520441+00:00",
+  "config": {
+    "records": "docs/harvest/table1_rows_1_4.records.jsonl",
+    "table1_row": 4,
+    "k": 5,
+    "split": "dev",
+    "seed": 7,
+    "n_permutations": 200000
+  },
+  "n_miss": 14,
+  "n_hit": 86,
+  "contrasts": {
+    "question_chars": {
+      "miss_mean": 74.2,
+      "hit_mean": 93.5,
+      "delta_miss_minus_hit": -19.24,
+      "permutation_p": 0.00888
+    },
+    "gold_abstract_chars": {
+      "miss_mean": 1216.4,
+      "hit_mean": 1288.7,
+      "delta_miss_minus_hit": -72.32,
+      "permutation_p": 0.45525
+    },
+    "gold_sections": {
+      "miss_mean": 2.9,
+      "hit_mean": 3.4,
+      "delta_miss_minus_hit": -0.43,
+      "permutation_p": 0.17647
+    }
+  },
+  "registered_prediction": "Missed golds are not longer than hit golds, so dilution is not the defect and no chunker in the sweep lifts the upper bound in chunker_pool_eval.py to 0.90. Registered before that script was run. Falsified if any arm's upper bound reaches 0.90 — in which case the full ~2 h build for that arm is owed.",
+  "per_query": [
+    {
+      "query_id": "9488747",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 79,
+      "gold_abstract_chars": 1115,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "25957366",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 106,
+      "gold_abstract_chars": 1380,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18534072",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 114,
+      "gold_abstract_chars": 1595,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19054501",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 88,
+      "gold_abstract_chars": 1292,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23539689",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 83,
+      "gold_abstract_chars": 720,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24315783",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 58,
+      "gold_abstract_chars": 895,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "22427593",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 121,
+      "gold_abstract_chars": 1306,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19459018",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 78,
+      "gold_abstract_chars": 864,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "25186850",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 117,
+      "gold_abstract_chars": 1394,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19482903",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 126,
+      "gold_abstract_chars": 1460,
+      "gold_sections": 6
+    },
+    {
+      "query_id": "11970923",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 60,
+      "gold_abstract_chars": 809,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "22023714",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 76,
+      "gold_abstract_chars": 1473,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "12407608",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 85,
+      "gold_abstract_chars": 1449,
+      "gold_sections": 6
+    },
+    {
+      "query_id": "22532370",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 123,
+      "gold_abstract_chars": 857,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23735520",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 118,
+      "gold_abstract_chars": 1305,
+      "gold_sections": 7
+    },
+    {
+      "query_id": "10759659",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 42,
+      "gold_abstract_chars": 701,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "14745753",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 110,
+      "gold_abstract_chars": 929,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18378554",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 64,
+      "gold_abstract_chars": 965,
+      "gold_sections": 6
+    },
+    {
+      "query_id": "26399179",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 62,
+      "gold_abstract_chars": 545,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "23252468",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 78,
+      "gold_abstract_chars": 1644,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "26085176",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 78,
+      "gold_abstract_chars": 1315,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "12238307",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 93,
+      "gold_abstract_chars": 936,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "16414216",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 82,
+      "gold_abstract_chars": 968,
+      "gold_sections": 7
+    },
+    {
+      "query_id": "22117569",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 72,
+      "gold_abstract_chars": 1373,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "14631523",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 84,
+      "gold_abstract_chars": 1207,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "10490564",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 113,
+      "gold_abstract_chars": 1511,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "18403945",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 153,
+      "gold_abstract_chars": 1497,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24614789",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 94,
+      "gold_abstract_chars": 779,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "24191126",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 114,
+      "gold_abstract_chars": 1049,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18537964",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 99,
+      "gold_abstract_chars": 1415,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "26104852",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 117,
+      "gold_abstract_chars": 1132,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "9142039",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 109,
+      "gold_abstract_chars": 1695,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "12632437",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 67,
+      "gold_abstract_chars": 1961,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "15052394",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 88,
+      "gold_abstract_chars": 1515,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23264436",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 148,
+      "gold_abstract_chars": 1096,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "12913347",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 103,
+      "gold_abstract_chars": 1737,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "25280365",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 120,
+      "gold_abstract_chars": 1354,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "10927144",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 125,
+      "gold_abstract_chars": 1469,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "17224424",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 118,
+      "gold_abstract_chars": 909,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "25571931",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 95,
+      "gold_abstract_chars": 1429,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "10375486",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 81,
+      "gold_abstract_chars": 1051,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "24374414",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 58,
+      "gold_abstract_chars": 1735,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "20736887",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 112,
+      "gold_abstract_chars": 1878,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "15369037",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 101,
+      "gold_abstract_chars": 1315,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18603989",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 66,
+      "gold_abstract_chars": 1437,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "25699562",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 117,
+      "gold_abstract_chars": 903,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "17682349",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 143,
+      "gold_abstract_chars": 1077,
+      "gold_sections": 6
+    },
+    {
+      "query_id": "18251357",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 73,
+      "gold_abstract_chars": 893,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "15962678",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 134,
+      "gold_abstract_chars": 1181,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "25079920",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 90,
+      "gold_abstract_chars": 1723,
+      "gold_sections": 6
+    },
+    {
+      "query_id": "14968373",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 67,
+      "gold_abstract_chars": 961,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "12790890",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 57,
+      "gold_abstract_chars": 1268,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "17578985",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 90,
+      "gold_abstract_chars": 1162,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "9569972",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 113,
+      "gold_abstract_chars": 892,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18319270",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 92,
+      "gold_abstract_chars": 1315,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19406119",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 80,
+      "gold_abstract_chars": 1285,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24340838",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 57,
+      "gold_abstract_chars": 1329,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "27832831",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 119,
+      "gold_abstract_chars": 1654,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "22540518",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 101,
+      "gold_abstract_chars": 1325,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23422012",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 47,
+      "gold_abstract_chars": 1282,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "11500608",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 92,
+      "gold_abstract_chars": 1129,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "14627582",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 49,
+      "gold_abstract_chars": 1604,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "26471488",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 104,
+      "gold_abstract_chars": 1714,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "25735444",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 108,
+      "gold_abstract_chars": 1336,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "9722752",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 124,
+      "gold_abstract_chars": 1323,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "9920954",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 77,
+      "gold_abstract_chars": 1976,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "25891436",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 97,
+      "gold_abstract_chars": 995,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24450673",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 124,
+      "gold_abstract_chars": 1639,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "21228436",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 109,
+      "gold_abstract_chars": 1151,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24783217",
+      "gold_rank": 1,
+      "missed": false,
+      "question_chars": 100,
+      "gold_abstract_chars": 1077,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18235194",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 87,
+      "gold_abstract_chars": 690,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "23791827",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 124,
+      "gold_abstract_chars": 1492,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23321509",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 86,
+      "gold_abstract_chars": 1733,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19520213",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 94,
+      "gold_abstract_chars": 1011,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "24977765",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 72,
+      "gold_abstract_chars": 1794,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "20488985",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 118,
+      "gold_abstract_chars": 1277,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19100463",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 153,
+      "gold_abstract_chars": 1325,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "21074975",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 109,
+      "gold_abstract_chars": 1202,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "20401819",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 61,
+      "gold_abstract_chars": 944,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "18616781",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 58,
+      "gold_abstract_chars": 1958,
+      "gold_sections": 4
+    },
+    {
+      "query_id": "19430778",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 112,
+      "gold_abstract_chars": 1395,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "22970993",
+      "gold_rank": 2,
+      "missed": false,
+      "question_chars": 60,
+      "gold_abstract_chars": 1618,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "27896825",
+      "gold_rank": 3,
+      "missed": false,
+      "question_chars": 73,
+      "gold_abstract_chars": 1573,
+      "gold_sections": 5
+    },
+    {
+      "query_id": "10757151",
+      "gold_rank": 3,
+      "missed": false,
+      "question_chars": 72,
+      "gold_abstract_chars": 1433,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23999452",
+      "gold_rank": 4,
+      "missed": false,
+      "question_chars": 62,
+      "gold_abstract_chars": 1582,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "17429333",
+      "gold_rank": 4,
+      "missed": false,
+      "question_chars": 54,
+      "gold_abstract_chars": 1144,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "14599616",
+      "gold_rank": 6,
+      "missed": true,
+      "question_chars": 58,
+      "gold_abstract_chars": 918,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "28359277",
+      "gold_rank": 6,
+      "missed": true,
+      "question_chars": 73,
+      "gold_abstract_chars": 1259,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23337545",
+      "gold_rank": 6,
+      "missed": true,
+      "question_chars": 83,
+      "gold_abstract_chars": 881,
+      "gold_sections": 2
+    },
+    {
+      "query_id": "17890090",
+      "gold_rank": 7,
+      "missed": true,
+      "question_chars": 102,
+      "gold_abstract_chars": 774,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23076787",
+      "gold_rank": 8,
+      "missed": true,
+      "question_chars": 77,
+      "gold_abstract_chars": 864,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "9854965",
+      "gold_rank": 8,
+      "missed": true,
+      "question_chars": 77,
+      "gold_abstract_chars": 850,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "21850494",
+      "gold_rank": 8,
+      "missed": true,
+      "question_chars": 61,
+      "gold_abstract_chars": 1430,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "24599411",
+      "gold_rank": 8,
+      "missed": true,
+      "question_chars": 59,
+      "gold_abstract_chars": 1208,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "11977907",
+      "gold_rank": 11,
+      "missed": true,
+      "question_chars": 104,
+      "gold_abstract_chars": 1552,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "19351635",
+      "gold_rank": 13,
+      "missed": true,
+      "question_chars": 47,
+      "gold_abstract_chars": 1699,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "12607666",
+      "gold_rank": 24,
+      "missed": true,
+      "question_chars": 70,
+      "gold_abstract_chars": 1241,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "25982163",
+      "gold_rank": null,
+      "missed": true,
+      "question_chars": 69,
+      "gold_abstract_chars": 1841,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "23375036",
+      "gold_rank": null,
+      "missed": true,
+      "question_chars": 105,
+      "gold_abstract_chars": 696,
+      "gold_sections": 3
+    },
+    {
+      "query_id": "26516021",
+      "gold_rank": null,
+      "missed": true,
+      "question_chars": 54,
+      "gold_abstract_chars": 1816,
+      "gold_sections": 3
+    }
+  ]
+}
