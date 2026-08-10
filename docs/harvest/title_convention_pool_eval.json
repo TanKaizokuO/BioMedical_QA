@@ -1,0 +1,807 @@
+{
+  "script": "scripts/title_convention_pool_eval.py",
+  "adr": "ADR-0014 §3",
+  "finished_at": "2026-08-10T04:58:53.815017+00:00",
+  "config": {
+    "index_dir": "data/index/empty",
+    "records": "docs/harvest/table1_rows_1_3.records.jsonl",
+    "run_id": "table1_dense_only",
+    "dense_encoder": "NCBI/MedCPT-Article-Encoder",
+    "query_encoder": "NCBI/MedCPT-Query-Encoder",
+    "index_fingerprint_empty": "57ab89e445f8",
+    "index_fingerprint_single": "9a284786bca7"
+  },
+  "summary": {
+    "n_queries": 100,
+    "n_gold_in_pool": 91,
+    "convention_delta": {
+      "max_abs_component": 0.064941,
+      "mean_cosine": 0.979711
+    },
+    "empty": {
+      "hit_at_1": {
+        "hits": 32,
+        "point": 0.32,
+        "wilson_lower": 0.2367,
+        "wilson_upper": 0.4166
+      },
+      "hit_at_5": {
+        "hits": 59,
+        "point": 0.59,
+        "wilson_lower": 0.492,
+        "wilson_upper": 0.6813
+      },
+      "hit_at_10": {
+        "hits": 70,
+        "point": 0.7,
+        "wilson_lower": 0.6042,
+        "wilson_upper": 0.7811
+      },
+      "hit_at_20": {
+        "hits": 74,
+        "point": 0.74,
+        "wilson_lower": 0.6463,
+        "wilson_upper": 0.816
+      },
+      "hit_at_50": {
+        "hits": 81,
+        "point": 0.81,
+        "wilson_lower": 0.7222,
+        "wilson_upper": 0.8749
+      },
+      "hit_at_100": {
+        "hits": 91,
+        "point": 0.91,
+        "wilson_lower": 0.8377,
+        "wilson_upper": 0.9519
+      }
+    },
+    "single": {
+      "hit_at_1": {
+        "hits": 35,
+        "point": 0.35,
+        "wilson_lower": 0.2636,
+        "wilson_upper": 0.4475
+      },
+      "hit_at_5": {
+        "hits": 53,
+        "point": 0.53,
+        "wilson_lower": 0.4329,
+        "wilson_upper": 0.6249
+      },
+      "hit_at_10": {
+        "hits": 64,
+        "point": 0.64,
+        "wilson_lower": 0.5424,
+        "wilson_upper": 0.7273
+      },
+      "hit_at_20": {
+        "hits": 69,
+        "point": 0.69,
+        "wilson_lower": 0.5937,
+        "wilson_upper": 0.7722
+      },
+      "hit_at_50": {
+        "hits": 79,
+        "point": 0.79,
+        "wilson_lower": 0.7002,
+        "wilson_upper": 0.8583
+      },
+      "hit_at_100": {
+        "hits": 91,
+        "point": 0.91,
+        "wilson_lower": 0.8377,
+        "wilson_upper": 0.9519
+      }
+    },
+    "paired_gold_rank": {
+      "single_better": 19,
+      "single_worse": 39,
+      "unchanged": 33,
+      "sign_test_p": 0.011928,
+      "mean_rank_delta": 3.6813
+    }
+  },
+  "per_query": [
+    {
+      "query_id": "9488747",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "25957366",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 6,
+      "gold_rank_single": 10
+    },
+    {
+      "query_id": "18534072",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 4
+    },
+    {
+      "query_id": "14599616",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 5,
+      "gold_rank_single": 14
+    },
+    {
+      "query_id": "19054501",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "23539689",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 7,
+      "gold_rank_single": 8
+    },
+    {
+      "query_id": "18235194",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "24315783",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "22427593",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "23076787",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 93,
+      "gold_rank_single": 99
+    },
+    {
+      "query_id": "23999452",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 12,
+      "gold_rank_single": 7
+    },
+    {
+      "query_id": "19459018",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 8,
+      "gold_rank_single": 13
+    },
+    {
+      "query_id": "25186850",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "28359277",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "23791827",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 4,
+      "gold_rank_single": 5
+    },
+    {
+      "query_id": "19482903",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "11970923",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "22023714",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "23321509",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 5,
+      "gold_rank_single": 8
+    },
+    {
+      "query_id": "9854965",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "12407608",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 16,
+      "gold_rank_single": 8
+    },
+    {
+      "query_id": "22532370",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "21850494",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "23735520",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "10759659",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 3
+    },
+    {
+      "query_id": "14745753",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "19520213",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "18378554",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "26399179",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "23252468",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 28,
+      "gold_rank_single": 38
+    },
+    {
+      "query_id": "26085176",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "12238307",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 10
+    },
+    {
+      "query_id": "16414216",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "24977765",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "27896825",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 15,
+      "gold_rank_single": 28
+    },
+    {
+      "query_id": "22117569",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "14631523",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "25982163",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "23337545",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "10490564",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 6,
+      "gold_rank_single": 4
+    },
+    {
+      "query_id": "23375036",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "18403945",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 3
+    },
+    {
+      "query_id": "24614789",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "24191126",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "20488985",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 10,
+      "gold_rank_single": 7
+    },
+    {
+      "query_id": "19100463",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 45,
+      "gold_rank_single": 100
+    },
+    {
+      "query_id": "21074975",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 3
+    },
+    {
+      "query_id": "10757151",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 67,
+      "gold_rank_single": 59
+    },
+    {
+      "query_id": "18537964",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "26104852",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "9142039",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 63,
+      "gold_rank_single": 81
+    },
+    {
+      "query_id": "12632437",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 79,
+      "gold_rank_single": 100
+    },
+    {
+      "query_id": "15052394",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 80,
+      "gold_rank_single": 50
+    },
+    {
+      "query_id": "23264436",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "12913347",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 5,
+      "gold_rank_single": 29
+    },
+    {
+      "query_id": "25280365",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 52,
+      "gold_rank_single": 62
+    },
+    {
+      "query_id": "20401819",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 6,
+      "gold_rank_single": 21
+    },
+    {
+      "query_id": "10927144",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "12607666",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 8,
+      "gold_rank_single": 12
+    },
+    {
+      "query_id": "17224424",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "25571931",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 58,
+      "gold_rank_single": 36
+    },
+    {
+      "query_id": "18616781",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "10375486",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 9,
+      "gold_rank_single": 8
+    },
+    {
+      "query_id": "24374414",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 33,
+      "gold_rank_single": 79
+    },
+    {
+      "query_id": "20736887",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 3
+    },
+    {
+      "query_id": "15369037",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "18603989",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "25699562",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "17682349",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "18251357",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "15962678",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 50,
+      "gold_rank_single": 36
+    },
+    {
+      "query_id": "17429333",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 6,
+      "gold_rank_single": 23
+    },
+    {
+      "query_id": "24599411",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 45,
+      "gold_rank_single": 68
+    },
+    {
+      "query_id": "25079920",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "14968373",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 14
+    },
+    {
+      "query_id": "12790890",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 4
+    },
+    {
+      "query_id": "17578985",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "9569972",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "18319270",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "19406119",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "26516021",
+      "pool_depth": 100,
+      "gold_in_pool": false,
+      "gold_rank_empty": null,
+      "gold_rank_single": null
+    },
+    {
+      "query_id": "24340838",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 26,
+      "gold_rank_single": 67
+    },
+    {
+      "query_id": "27832831",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 9
+    },
+    {
+      "query_id": "22540518",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "17890090",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 10,
+      "gold_rank_single": 19
+    },
+    {
+      "query_id": "23422012",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 2
+    },
+    {
+      "query_id": "11500608",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "14627582",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 13,
+      "gold_rank_single": 10
+    },
+    {
+      "query_id": "19430778",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 4
+    },
+    {
+      "query_id": "19351635",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 63,
+      "gold_rank_single": 92
+    },
+    {
+      "query_id": "26471488",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 94,
+      "gold_rank_single": 92
+    },
+    {
+      "query_id": "22970993",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 9,
+      "gold_rank_single": 7
+    },
+    {
+      "query_id": "25735444",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 89,
+      "gold_rank_single": 95
+    },
+    {
+      "query_id": "9722752",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 3,
+      "gold_rank_single": 3
+    },
+    {
+      "query_id": "9920954",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "25891436",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 1
+    },
+    {
+      "query_id": "24450673",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 5,
+      "gold_rank_single": 30
+    },
+    {
+      "query_id": "21228436",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 2,
+      "gold_rank_single": 4
+    },
+    {
+      "query_id": "11977907",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 25,
+      "gold_rank_single": 34
+    },
+    {
+      "query_id": "24783217",
+      "pool_depth": 100,
+      "gold_in_pool": true,
+      "gold_rank_empty": 1,
+      "gold_rank_single": 2
+    }
+  ]
+}

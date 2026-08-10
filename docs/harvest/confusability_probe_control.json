@@ -1,0 +1,2212 @@
+{
+  "script": "scripts/confusability_probe.py --random-control",
+  "adr": "ADR-0012 §2",
+  "finished_at": "2026-08-10T04:56:00.300520+00:00",
+  "config": {
+    "index_dir": "data/index/empty",
+    "split": "dev",
+    "seed": 12345,
+    "paired_against": "docs/harvest/confusability_probe.json",
+    "minicheck_model": "lytang/MiniCheck-Flan-T5-Large",
+    "n_index_passages": 2162838
+  },
+  "summary": {
+    "n_questions_paired": 100,
+    "retrieved": {
+      "n": 427,
+      "mean": 0.4245,
+      "median": 0.3802,
+      "p90": 0.7376,
+      "max": 0.8312,
+      "min": 0.1345,
+      "frac_at_or_above": {
+        "0.3": 0.6206,
+        "0.4": 0.4707,
+        "0.5": 0.3396,
+        "0.6": 0.2482,
+        "0.7": 0.1452,
+        "0.8": 0.0187
+      }
+    },
+    "random_control": {
+      "n": 427,
+      "mean": 0.375,
+      "median": 0.3613,
+      "p90": 0.547,
+      "max": 0.8261,
+      "min": 0.1302,
+      "frac_at_or_above": {
+        "0.3": 0.6768,
+        "0.4": 0.3911,
+        "0.5": 0.1593,
+        "0.6": 0.0585,
+        "0.7": 0.0211,
+        "0.8": 0.0023
+      }
+    },
+    "paired_q_mean_delta": {
+      "mean": 0.0503,
+      "median": 0.0241,
+      "retrieved_higher": 63,
+      "control_higher": 37,
+      "ties": 0,
+      "sign_test_p": 0.012033
+    }
+  },
+  "per_question": [
+    {
+      "pubid": "9488747",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0999_780:0",
+        "pubmed23n0039_8703:0",
+        "pubmed23n0785_12548:0",
+        "pubmed23n0911_18135:0"
+      ],
+      "passage_max_scores": [
+        0.2611,
+        0.1302,
+        0.1633,
+        0.2074
+      ],
+      "q_mean": 0.1905,
+      "q_max": 0.2611,
+      "retrieved_q_mean": 0.2018,
+      "retrieved_q_max": 0.2544
+    },
+    {
+      "pubid": "25957366",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0574_3180:0",
+        "pubmed23n0733_18876:0",
+        "pubmed23n1032_18674:0",
+        "pubmed23n0511_21236:1"
+      ],
+      "passage_max_scores": [
+        0.3667,
+        0.3758,
+        0.2319,
+        0.256
+      ],
+      "q_mean": 0.3076,
+      "q_max": 0.3758,
+      "retrieved_q_mean": 0.2351,
+      "retrieved_q_max": 0.2804
+    },
+    {
+      "pubid": "18534072",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0920_2566:0",
+        "pubmed23n0377_15186:0",
+        "pubmed23n1027_112:0",
+        "pubmed23n0716_18181:0"
+      ],
+      "passage_max_scores": [
+        0.3787,
+        0.2506,
+        0.2954,
+        0.6937
+      ],
+      "q_mean": 0.4046,
+      "q_max": 0.6937,
+      "retrieved_q_mean": 0.1893,
+      "retrieved_q_max": 0.2175
+    },
+    {
+      "pubid": "14599616",
+      "n_drawn": 5,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0536_643:0",
+        "pubmed23n0560_18210:0",
+        "pubmed23n0887_21568:0",
+        "pubmed23n0303_4705:0",
+        "pubmed23n0991_6226:0"
+      ],
+      "passage_max_scores": [
+        0.3576,
+        0.3947,
+        0.3673,
+        0.2682,
+        0.5049
+      ],
+      "q_mean": 0.3785,
+      "q_max": 0.5049,
+      "retrieved_q_mean": 0.2645,
+      "retrieved_q_max": 0.4514
+    },
+    {
+      "pubid": "19054501",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n1146_24869:0",
+        "pubmed23n0521_3291:0",
+        "pubmed23n0477_11092:0",
+        "pubmed23n0602_5989:0"
+      ],
+      "passage_max_scores": [
+        0.4086,
+        0.2617,
+        0.2398,
+        0.329
+      ],
+      "q_mean": 0.3098,
+      "q_max": 0.4086,
+      "retrieved_q_mean": 0.7104,
+      "retrieved_q_max": 0.7369
+    },
+    {
+      "pubid": "23539689",
+      "n_drawn": 4,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0275_12561:0",
+        "pubmed23n0567_1538:0",
+        "pubmed23n0863_12682:0",
+        "pubmed23n0828_6960:0"
+      ],
+      "passage_max_scores": [
+        0.227,
+        0.2467,
+        0.1845,
+        0.2544
+      ],
+      "q_mean": 0.2282,
+      "q_max": 0.2544,
+      "retrieved_q_mean": 0.2413,
+      "retrieved_q_max": 0.4524
+    },
+    {
+      "pubid": "18235194",
+      "n_drawn": 5,
+      "n_gold_sentences": 4,
+      "drawn_passage_ids": [
+        "pubmed23n0070_4728:0",
+        "pubmed23n1071_10061:0",
+        "pubmed23n0859_20482:0",
+        "pubmed23n0077_15544:0",
+        "pubmed23n1158_7996:0"
+      ],
+      "passage_max_scores": [
+        0.2029,
+        0.2193,
+        0.2788,
+        0.1502,
+        0.3488
+      ],
+      "q_mean": 0.24,
+      "q_max": 0.3488,
+      "retrieved_q_mean": 0.2662,
+      "retrieved_q_max": 0.5605
+    },
+    {
+      "pubid": "24315783",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0997_525:0",
+        "pubmed23n0012_10247:0",
+        "pubmed23n0025_5904:0",
+        "pubmed23n0515_22304:0"
+      ],
+      "passage_max_scores": [
+        0.1946,
+        0.2751,
+        0.3732,
+        0.1566
+      ],
+      "q_mean": 0.2499,
+      "q_max": 0.3732,
+      "retrieved_q_mean": 0.4704,
+      "retrieved_q_max": 0.6497
+    },
+    {
+      "pubid": "22427593",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0545_12789:0",
+        "pubmed23n0763_15090:0",
+        "pubmed23n0319_19904:0",
+        "pubmed23n0995_9927:0"
+      ],
+      "passage_max_scores": [
+        0.4011,
+        0.3374,
+        0.3077,
+        0.4385
+      ],
+      "q_mean": 0.3712,
+      "q_max": 0.4385,
+      "retrieved_q_mean": 0.3414,
+      "retrieved_q_max": 0.4852
+    },
+    {
+      "pubid": "23076787",
+      "n_drawn": 5,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0338_4607:0",
+        "pubmed23n0550_18845:0",
+        "pubmed23n0924_5902:0",
+        "pubmed23n0659_18721:0",
+        "pubmed23n0842_13009:0"
+      ],
+      "passage_max_scores": [
+        0.6154,
+        0.255,
+        0.3056,
+        0.2705,
+        0.2186
+      ],
+      "q_mean": 0.333,
+      "q_max": 0.6154,
+      "retrieved_q_mean": 0.1754,
+      "retrieved_q_max": 0.1902
+    },
+    {
+      "pubid": "23999452",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0109_10469:1",
+        "pubmed23n0659_3617:0",
+        "pubmed23n0368_10968:0",
+        "pubmed23n1139_535:0"
+      ],
+      "passage_max_scores": [
+        0.3496,
+        0.3247,
+        0.3695,
+        0.2766
+      ],
+      "q_mean": 0.3301,
+      "q_max": 0.3695,
+      "retrieved_q_mean": 0.6507,
+      "retrieved_q_max": 0.7787
+    },
+    {
+      "pubid": "19459018",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0625_10008:0",
+        "pubmed23n0558_20053:0",
+        "pubmed23n0710_11013:0",
+        "pubmed23n1028_7974:0"
+      ],
+      "passage_max_scores": [
+        0.2578,
+        0.3051,
+        0.3581,
+        0.3247
+      ],
+      "q_mean": 0.3114,
+      "q_max": 0.3581,
+      "retrieved_q_mean": 0.3902,
+      "retrieved_q_max": 0.5145
+    },
+    {
+      "pubid": "25186850",
+      "n_drawn": 5,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0390_7069:0",
+        "pubmed23n0113_6071:0",
+        "pubmed23n0516_13012:0",
+        "pubmed23n0790_16921:0",
+        "pubmed23n0036_4637:0"
+      ],
+      "passage_max_scores": [
+        0.2156,
+        0.7225,
+        0.3207,
+        0.3719,
+        0.2106
+      ],
+      "q_mean": 0.3683,
+      "q_max": 0.7225,
+      "retrieved_q_mean": 0.3541,
+      "retrieved_q_max": 0.5889
+    },
+    {
+      "pubid": "28359277",
+      "n_drawn": 5,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0481_14622:1",
+        "pubmed23n0650_9372:0",
+        "pubmed23n0878_12457:0",
+        "pubmed23n0864_6304:0",
+        "pubmed23n0500_18671:0"
+      ],
+      "passage_max_scores": [
+        0.2514,
+        0.3519,
+        0.4851,
+        0.3767,
+        0.4704
+      ],
+      "q_mean": 0.3871,
+      "q_max": 0.4851,
+      "retrieved_q_mean": 0.5881,
+      "retrieved_q_max": 0.8007
+    },
+    {
+      "pubid": "23791827",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0943_23103:0",
+        "pubmed23n0831_11303:0",
+        "pubmed23n0046_16033:0",
+        "pubmed23n0135_14750:0"
+      ],
+      "passage_max_scores": [
+        0.4788,
+        0.2839,
+        0.551,
+        0.1932
+      ],
+      "q_mean": 0.3767,
+      "q_max": 0.551,
+      "retrieved_q_mean": 0.676,
+      "retrieved_q_max": 0.7944
+    },
+    {
+      "pubid": "19482903",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0233_8107:0",
+        "pubmed23n1048_3257:0",
+        "pubmed23n0277_2755:0",
+        "pubmed23n0947_15253:0"
+      ],
+      "passage_max_scores": [
+        0.521,
+        0.6624,
+        0.7761,
+        0.5161
+      ],
+      "q_mean": 0.6189,
+      "q_max": 0.7761,
+      "retrieved_q_mean": 0.6996,
+      "retrieved_q_max": 0.8039
+    },
+    {
+      "pubid": "11970923",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0546_16887:0",
+        "pubmed23n0044_9044:0",
+        "pubmed23n0910_15145:0",
+        "pubmed23n0623_11084:0"
+      ],
+      "passage_max_scores": [
+        0.5433,
+        0.3202,
+        0.4072,
+        0.8261
+      ],
+      "q_mean": 0.5242,
+      "q_max": 0.8261,
+      "retrieved_q_mean": 0.2463,
+      "retrieved_q_max": 0.3259
+    },
+    {
+      "pubid": "22023714",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n1161_4467:0",
+        "pubmed23n0371_19452:0",
+        "pubmed23n1108_14573:0",
+        "pubmed23n0235_12246:0"
+      ],
+      "passage_max_scores": [
+        0.7102,
+        0.2182,
+        0.2042,
+        0.5011
+      ],
+      "q_mean": 0.4084,
+      "q_max": 0.7102,
+      "retrieved_q_mean": 0.679,
+      "retrieved_q_max": 0.7657
+    },
+    {
+      "pubid": "23321509",
+      "n_drawn": 5,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0048_17610:0",
+        "pubmed23n1126_19063:0",
+        "pubmed23n0835_1168:0",
+        "pubmed23n1006_5478:0",
+        "pubmed23n0594_12065:0"
+      ],
+      "passage_max_scores": [
+        0.3123,
+        0.2671,
+        0.4727,
+        0.2467,
+        0.3817
+      ],
+      "q_mean": 0.3361,
+      "q_max": 0.4727,
+      "retrieved_q_mean": 0.4841,
+      "retrieved_q_max": 0.5441
+    },
+    {
+      "pubid": "9854965",
+      "n_drawn": 5,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0904_13545:0",
+        "pubmed23n0367_14488:0",
+        "pubmed23n0480_10225:0",
+        "pubmed23n0280_3194:0",
+        "pubmed23n1131_25436:0"
+      ],
+      "passage_max_scores": [
+        0.4473,
+        0.3334,
+        0.2572,
+        0.3391,
+        0.297
+      ],
+      "q_mean": 0.3348,
+      "q_max": 0.4473,
+      "retrieved_q_mean": 0.3389,
+      "retrieved_q_max": 0.4025
+    },
+    {
+      "pubid": "12407608",
+      "n_drawn": 5,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0518_1043:0",
+        "pubmed23n0852_17782:0",
+        "pubmed23n0653_5414:0",
+        "pubmed23n0597_15505:0",
+        "pubmed23n0515_10156:0"
+      ],
+      "passage_max_scores": [
+        0.2203,
+        0.321,
+        0.2968,
+        0.4388,
+        0.226
+      ],
+      "q_mean": 0.3006,
+      "q_max": 0.4388,
+      "retrieved_q_mean": 0.5195,
+      "retrieved_q_max": 0.7132
+    },
+    {
+      "pubid": "22532370",
+      "n_drawn": 4,
+      "n_gold_sentences": 4,
+      "drawn_passage_ids": [
+        "pubmed23n0513_22043:0",
+        "pubmed23n0766_17643:0",
+        "pubmed23n0481_8254:0",
+        "pubmed23n0301_17155:0"
+      ],
+      "passage_max_scores": [
+        0.4998,
+        0.5362,
+        0.4858,
+        0.4991
+      ],
+      "q_mean": 0.5052,
+      "q_max": 0.5362,
+      "retrieved_q_mean": 0.5045,
+      "retrieved_q_max": 0.7007
+    },
+    {
+      "pubid": "21850494",
+      "n_drawn": 5,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0012_4275:0",
+        "pubmed23n0424_11333:0",
+        "pubmed23n0011_10417:0",
+        "pubmed23n1133_22389:1",
+        "pubmed23n0557_157:0"
+      ],
+      "passage_max_scores": [
+        0.3073,
+        0.3581,
+        0.2031,
+        0.3556,
+        0.2115
+      ],
+      "q_mean": 0.2871,
+      "q_max": 0.3581,
+      "retrieved_q_mean": 0.5053,
+      "retrieved_q_max": 0.681
+    },
+    {
+      "pubid": "23735520",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0312_9273:0",
+        "pubmed23n0722_14953:0",
+        "pubmed23n1148_25714:0",
+        "pubmed23n0980_24028:0"
+      ],
+      "passage_max_scores": [
+        0.7405,
+        0.7326,
+        0.634,
+        0.5335
+      ],
+      "q_mean": 0.6602,
+      "q_max": 0.7405,
+      "retrieved_q_mean": 0.635,
+      "retrieved_q_max": 0.7831
+    },
+    {
+      "pubid": "10759659",
+      "n_drawn": 4,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0250_18886:0",
+        "pubmed23n1074_20296:0",
+        "pubmed23n0999_5257:0",
+        "pubmed23n0551_7545:1"
+      ],
+      "passage_max_scores": [
+        0.4473,
+        0.4706,
+        0.4445,
+        0.5921
+      ],
+      "q_mean": 0.4886,
+      "q_max": 0.5921,
+      "retrieved_q_mean": 0.5404,
+      "retrieved_q_max": 0.5998
+    },
+    {
+      "pubid": "14745753",
+      "n_drawn": 4,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0683_9376:0",
+        "pubmed23n0556_219:0",
+        "pubmed23n0078_14440:0",
+        "pubmed23n0919_18364:0"
+      ],
+      "passage_max_scores": [
+        0.4084,
+        0.4274,
+        0.4025,
+        0.3261
+      ],
+      "q_mean": 0.3911,
+      "q_max": 0.4274,
+      "retrieved_q_mean": 0.5043,
+      "retrieved_q_max": 0.7559
+    },
+    {
+      "pubid": "19520213",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0843_14588:0",
+        "pubmed23n0539_5899:0",
+        "pubmed23n0960_8860:0",
+        "pubmed23n0543_4319:0"
+      ],
+      "passage_max_scores": [
+        0.5747,
+        0.4183,
+        0.1687,
+        0.5537
+      ],
+      "q_mean": 0.4288,
+      "q_max": 0.5747,
+      "retrieved_q_mean": 0.2775,
+      "retrieved_q_max": 0.3307
+    },
+    {
+      "pubid": "18378554",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0543_10372:0",
+        "pubmed23n0694_4768:0",
+        "pubmed23n0993_4873:0",
+        "pubmed23n1162_7134:0"
+      ],
+      "passage_max_scores": [
+        0.3578,
+        0.3525,
+        0.7583,
+        0.3913
+      ],
+      "q_mean": 0.465,
+      "q_max": 0.7583,
+      "retrieved_q_mean": 0.6843,
+      "retrieved_q_max": 0.802
+    },
+    {
+      "pubid": "26399179",
+      "n_drawn": 4,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n1000_15057:0",
+        "pubmed23n0833_16521:0",
+        "pubmed23n0369_3366:0",
+        "pubmed23n0253_22792:0"
+      ],
+      "passage_max_scores": [
+        0.3689,
+        0.4044,
+        0.6352,
+        0.2407
+      ],
+      "q_mean": 0.4123,
+      "q_max": 0.6352,
+      "retrieved_q_mean": 0.178,
+      "retrieved_q_max": 0.2198
+    },
+    {
+      "pubid": "23252468",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n1074_4302:0",
+        "pubmed23n0579_9957:0",
+        "pubmed23n0595_1166:0",
+        "pubmed23n0400_19187:0"
+      ],
+      "passage_max_scores": [
+        0.7488,
+        0.3759,
+        0.288,
+        0.4772
+      ],
+      "q_mean": 0.4725,
+      "q_max": 0.7488,
+      "retrieved_q_mean": 0.7437,
+      "retrieved_q_max": 0.7688
+    },
+    {
+      "pubid": "26085176",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0660_22668:0",
+        "pubmed23n0843_6108:0",
+        "pubmed23n0774_1367:0",
+        "pubmed23n0379_19305:0"
+      ],
+      "passage_max_scores": [
+        0.3344,
+        0.4006,
+        0.4243,
+        0.4523
+      ],
+      "q_mean": 0.4029,
+      "q_max": 0.4523,
+      "retrieved_q_mean": 0.5343,
+      "retrieved_q_max": 0.7672
+    },
+    {
+      "pubid": "12238307",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n1157_16974:1",
+        "pubmed23n0227_3575:0",
+        "pubmed23n0714_15122:0",
+        "pubmed23n1016_12746:0"
+      ],
+      "passage_max_scores": [
+        0.2108,
+        0.1675,
+        0.2394,
+        0.3505
+      ],
+      "q_mean": 0.242,
+      "q_max": 0.3505,
+      "retrieved_q_mean": 0.6277,
+      "retrieved_q_max": 0.8022
+    },
+    {
+      "pubid": "16414216",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0120_12497:0",
+        "pubmed23n0903_22956:0",
+        "pubmed23n0344_1643:0",
+        "pubmed23n0254_11519:0"
+      ],
+      "passage_max_scores": [
+        0.3689,
+        0.3901,
+        0.4623,
+        0.2589
+      ],
+      "q_mean": 0.37,
+      "q_max": 0.4623,
+      "retrieved_q_mean": 0.6715,
+      "retrieved_q_max": 0.7576
+    },
+    {
+      "pubid": "24977765",
+      "n_drawn": 4,
+      "n_gold_sentences": 15,
+      "drawn_passage_ids": [
+        "pubmed23n0499_5879:0",
+        "pubmed23n0916_17624:0",
+        "pubmed23n0096_10696:0",
+        "pubmed23n0742_7598:0"
+      ],
+      "passage_max_scores": [
+        0.2405,
+        0.3228,
+        0.3389,
+        0.5547
+      ],
+      "q_mean": 0.3642,
+      "q_max": 0.5547,
+      "retrieved_q_mean": 0.7288,
+      "retrieved_q_max": 0.7738
+    },
+    {
+      "pubid": "27896825",
+      "n_drawn": 5,
+      "n_gold_sentences": 14,
+      "drawn_passage_ids": [
+        "pubmed23n1046_9340:0",
+        "pubmed23n0912_5412:0",
+        "pubmed23n0973_10458:0",
+        "pubmed23n0801_13080:0",
+        "pubmed23n1054_24847:0"
+      ],
+      "passage_max_scores": [
+        0.4324,
+        0.7568,
+        0.5003,
+        0.2308,
+        0.4408
+      ],
+      "q_mean": 0.4722,
+      "q_max": 0.7568,
+      "retrieved_q_mean": 0.595,
+      "retrieved_q_max": 0.7082
+    },
+    {
+      "pubid": "22117569",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0722_18088:0",
+        "pubmed23n0809_21192:0",
+        "pubmed23n1127_23953:0",
+        "pubmed23n1107_25047:0"
+      ],
+      "passage_max_scores": [
+        0.4451,
+        0.4989,
+        0.5527,
+        0.2615
+      ],
+      "q_mean": 0.4395,
+      "q_max": 0.5527,
+      "retrieved_q_mean": 0.3749,
+      "retrieved_q_max": 0.48
+    },
+    {
+      "pubid": "14631523",
+      "n_drawn": 5,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0171_12:0",
+        "pubmed23n0724_5871:0",
+        "pubmed23n1048_22942:0",
+        "pubmed23n0083_783:0",
+        "pubmed23n0631_17096:0"
+      ],
+      "passage_max_scores": [
+        0.2008,
+        0.187,
+        0.2495,
+        0.2166,
+        0.2717
+      ],
+      "q_mean": 0.2251,
+      "q_max": 0.2717,
+      "retrieved_q_mean": 0.2171,
+      "retrieved_q_max": 0.2756
+    },
+    {
+      "pubid": "25982163",
+      "n_drawn": 5,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0870_198:0",
+        "pubmed23n0402_20468:0",
+        "pubmed23n0007_770:0",
+        "pubmed23n0286_16811:0",
+        "pubmed23n0085_16391:0"
+      ],
+      "passage_max_scores": [
+        0.3459,
+        0.4886,
+        0.2836,
+        0.3182,
+        0.6505
+      ],
+      "q_mean": 0.4174,
+      "q_max": 0.6505,
+      "retrieved_q_mean": 0.349,
+      "retrieved_q_max": 0.4273
+    },
+    {
+      "pubid": "23337545",
+      "n_drawn": 5,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0350_21735:0",
+        "pubmed23n0562_24364:0",
+        "pubmed23n0964_6888:0",
+        "pubmed23n1124_15918:0",
+        "pubmed23n0551_3023:0"
+      ],
+      "passage_max_scores": [
+        0.2568,
+        0.4247,
+        0.3613,
+        0.5159,
+        0.3775
+      ],
+      "q_mean": 0.3872,
+      "q_max": 0.5159,
+      "retrieved_q_mean": 0.2608,
+      "retrieved_q_max": 0.4716
+    },
+    {
+      "pubid": "10490564",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0738_2921:0",
+        "pubmed23n0877_11028:0",
+        "pubmed23n0608_7297:0",
+        "pubmed23n0788_14367:0"
+      ],
+      "passage_max_scores": [
+        0.471,
+        0.4164,
+        0.4225,
+        0.4126
+      ],
+      "q_mean": 0.4306,
+      "q_max": 0.471,
+      "retrieved_q_mean": 0.3661,
+      "retrieved_q_max": 0.4287
+    },
+    {
+      "pubid": "23375036",
+      "n_drawn": 5,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0815_24856:1",
+        "pubmed23n0947_23130:0",
+        "pubmed23n0270_10672:0",
+        "pubmed23n0789_19966:0",
+        "pubmed23n0911_17872:0"
+      ],
+      "passage_max_scores": [
+        0.1728,
+        0.3608,
+        0.142,
+        0.3419,
+        0.2394
+      ],
+      "q_mean": 0.2514,
+      "q_max": 0.3608,
+      "retrieved_q_mean": 0.4873,
+      "retrieved_q_max": 0.8003
+    },
+    {
+      "pubid": "18403945",
+      "n_drawn": 4,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0110_4418:0",
+        "pubmed23n1003_12883:0",
+        "pubmed23n0566_13875:0",
+        "pubmed23n0509_14297:0"
+      ],
+      "passage_max_scores": [
+        0.3302,
+        0.4737,
+        0.2396,
+        0.3648
+      ],
+      "q_mean": 0.352,
+      "q_max": 0.4737,
+      "retrieved_q_mean": 0.4814,
+      "retrieved_q_max": 0.7065
+    },
+    {
+      "pubid": "24614789",
+      "n_drawn": 5,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0284_3117:0",
+        "pubmed23n0417_5842:0",
+        "pubmed23n0800_4369:0",
+        "pubmed23n0659_712:0",
+        "pubmed23n0847_20355:0"
+      ],
+      "passage_max_scores": [
+        0.3014,
+        0.4333,
+        0.4134,
+        0.4495,
+        0.3939
+      ],
+      "q_mean": 0.3983,
+      "q_max": 0.4495,
+      "retrieved_q_mean": 0.2095,
+      "retrieved_q_max": 0.3293
+    },
+    {
+      "pubid": "24191126",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1012_2528:0",
+        "pubmed23n0593_3879:0",
+        "pubmed23n0048_19379:0",
+        "pubmed23n0480_20856:0"
+      ],
+      "passage_max_scores": [
+        0.4844,
+        0.2632,
+        0.2158,
+        0.3986
+      ],
+      "q_mean": 0.3405,
+      "q_max": 0.4844,
+      "retrieved_q_mean": 0.2667,
+      "retrieved_q_max": 0.314
+    },
+    {
+      "pubid": "20488985",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0356_1801:0",
+        "pubmed23n1163_14385:0",
+        "pubmed23n0087_16835:0",
+        "pubmed23n0862_13818:1"
+      ],
+      "passage_max_scores": [
+        0.2853,
+        0.3297,
+        0.2673,
+        0.3098
+      ],
+      "q_mean": 0.298,
+      "q_max": 0.3297,
+      "retrieved_q_mean": 0.2006,
+      "retrieved_q_max": 0.2127
+    },
+    {
+      "pubid": "19100463",
+      "n_drawn": 5,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0955_19984:0",
+        "pubmed23n0823_9693:0",
+        "pubmed23n0111_5049:0",
+        "pubmed23n0679_20420:0",
+        "pubmed23n0320_1853:0"
+      ],
+      "passage_max_scores": [
+        0.578,
+        0.4201,
+        0.5647,
+        0.3672,
+        0.3096
+      ],
+      "q_mean": 0.4479,
+      "q_max": 0.578,
+      "retrieved_q_mean": 0.4229,
+      "retrieved_q_max": 0.7003
+    },
+    {
+      "pubid": "21074975",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1114_25044:1",
+        "pubmed23n0478_4483:0",
+        "pubmed23n0603_6589:0",
+        "pubmed23n0713_2030:0"
+      ],
+      "passage_max_scores": [
+        0.2694,
+        0.346,
+        0.2805,
+        0.4148
+      ],
+      "q_mean": 0.3277,
+      "q_max": 0.4148,
+      "retrieved_q_mean": 0.256,
+      "retrieved_q_max": 0.2732
+    },
+    {
+      "pubid": "10757151",
+      "n_drawn": 5,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0894_22846:0",
+        "pubmed23n0505_8681:0",
+        "pubmed23n0759_2482:0",
+        "pubmed23n0103_3222:0",
+        "pubmed23n0304_4495:0"
+      ],
+      "passage_max_scores": [
+        0.3825,
+        0.3313,
+        0.4253,
+        0.3499,
+        0.3293
+      ],
+      "q_mean": 0.3637,
+      "q_max": 0.4253,
+      "retrieved_q_mean": 0.3964,
+      "retrieved_q_max": 0.4761
+    },
+    {
+      "pubid": "18537964",
+      "n_drawn": 5,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0308_12846:0",
+        "pubmed23n0605_7750:0",
+        "pubmed23n1147_9497:0",
+        "pubmed23n0987_21397:0",
+        "pubmed23n0051_20419:0"
+      ],
+      "passage_max_scores": [
+        0.2743,
+        0.2775,
+        0.3228,
+        0.5889,
+        0.3902
+      ],
+      "q_mean": 0.3707,
+      "q_max": 0.5889,
+      "retrieved_q_mean": 0.3665,
+      "retrieved_q_max": 0.4121
+    },
+    {
+      "pubid": "26104852",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0490_10315:0",
+        "pubmed23n0834_8979:0",
+        "pubmed23n0515_17914:0",
+        "pubmed23n1069_1280:0"
+      ],
+      "passage_max_scores": [
+        0.1618,
+        0.2098,
+        0.5196,
+        0.1693
+      ],
+      "q_mean": 0.2651,
+      "q_max": 0.5196,
+      "retrieved_q_mean": 0.3518,
+      "retrieved_q_max": 0.6467
+    },
+    {
+      "pubid": "9142039",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0995_12430:0",
+        "pubmed23n1038_17948:0",
+        "pubmed23n0072_11729:0",
+        "pubmed23n0917_15494:0"
+      ],
+      "passage_max_scores": [
+        0.2857,
+        0.3502,
+        0.3195,
+        0.256
+      ],
+      "q_mean": 0.3028,
+      "q_max": 0.3502,
+      "retrieved_q_mean": 0.4257,
+      "retrieved_q_max": 0.7337
+    },
+    {
+      "pubid": "12632437",
+      "n_drawn": 5,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0078_17935:0",
+        "pubmed23n0948_4052:0",
+        "pubmed23n0885_8866:0",
+        "pubmed23n0055_19645:0",
+        "pubmed23n0823_4589:0"
+      ],
+      "passage_max_scores": [
+        0.6052,
+        0.5451,
+        0.601,
+        0.4935,
+        0.6302
+      ],
+      "q_mean": 0.575,
+      "q_max": 0.6302,
+      "retrieved_q_mean": 0.5914,
+      "retrieved_q_max": 0.6221
+    },
+    {
+      "pubid": "15052394",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1090_24323:0",
+        "pubmed23n1035_6652:1",
+        "pubmed23n0125_16708:0",
+        "pubmed23n0822_19914:0"
+      ],
+      "passage_max_scores": [
+        0.4899,
+        0.346,
+        0.287,
+        0.4502
+      ],
+      "q_mean": 0.3933,
+      "q_max": 0.4899,
+      "retrieved_q_mean": 0.5089,
+      "retrieved_q_max": 0.6575
+    },
+    {
+      "pubid": "23264436",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0812_7108:0",
+        "pubmed23n0951_2024:0",
+        "pubmed23n0785_4556:0",
+        "pubmed23n0380_468:0"
+      ],
+      "passage_max_scores": [
+        0.2118,
+        0.2315,
+        0.2566,
+        0.2409
+      ],
+      "q_mean": 0.2352,
+      "q_max": 0.2566,
+      "retrieved_q_mean": 0.3203,
+      "retrieved_q_max": 0.4468
+    },
+    {
+      "pubid": "12913347",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0932_16540:0",
+        "pubmed23n0220_231:0",
+        "pubmed23n0348_10806:0",
+        "pubmed23n1117_12519:0"
+      ],
+      "passage_max_scores": [
+        0.3596,
+        0.3722,
+        0.2873,
+        0.413
+      ],
+      "q_mean": 0.358,
+      "q_max": 0.413,
+      "retrieved_q_mean": 0.2873,
+      "retrieved_q_max": 0.4319
+    },
+    {
+      "pubid": "25280365",
+      "n_drawn": 4,
+      "n_gold_sentences": 12,
+      "drawn_passage_ids": [
+        "pubmed23n0366_5279:0",
+        "pubmed23n0313_12163:0",
+        "pubmed23n0535_14485:0",
+        "pubmed23n0091_17697:0"
+      ],
+      "passage_max_scores": [
+        0.3577,
+        0.2865,
+        0.2158,
+        0.411
+      ],
+      "q_mean": 0.3177,
+      "q_max": 0.411,
+      "retrieved_q_mean": 0.337,
+      "retrieved_q_max": 0.6114
+    },
+    {
+      "pubid": "20401819",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0204_1932:0",
+        "pubmed23n0804_9955:1",
+        "pubmed23n0625_15459:0",
+        "pubmed23n0313_14350:0"
+      ],
+      "passage_max_scores": [
+        0.356,
+        0.2556,
+        0.3648,
+        0.3581
+      ],
+      "q_mean": 0.3336,
+      "q_max": 0.3648,
+      "retrieved_q_mean": 0.1974,
+      "retrieved_q_max": 0.2101
+    },
+    {
+      "pubid": "10927144",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1074_1781:0",
+        "pubmed23n1139_2015:0",
+        "pubmed23n1088_25772:0",
+        "pubmed23n0226_3557:0"
+      ],
+      "passage_max_scores": [
+        0.4447,
+        0.4473,
+        0.4207,
+        0.4222
+      ],
+      "q_mean": 0.4337,
+      "q_max": 0.4473,
+      "retrieved_q_mean": 0.3493,
+      "retrieved_q_max": 0.4549
+    },
+    {
+      "pubid": "12607666",
+      "n_drawn": 5,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n1010_12944:0",
+        "pubmed23n0632_10650:0",
+        "pubmed23n0636_10337:0",
+        "pubmed23n0841_21607:0",
+        "pubmed23n0512_17197:0"
+      ],
+      "passage_max_scores": [
+        0.6105,
+        0.2947,
+        0.4546,
+        0.3023,
+        0.2338
+      ],
+      "q_mean": 0.3792,
+      "q_max": 0.6105,
+      "retrieved_q_mean": 0.5168,
+      "retrieved_q_max": 0.6576
+    },
+    {
+      "pubid": "17224424",
+      "n_drawn": 4,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0938_18946:0",
+        "pubmed23n0680_10721:1",
+        "pubmed23n1093_3938:0",
+        "pubmed23n0548_11068:0"
+      ],
+      "passage_max_scores": [
+        0.2755,
+        0.2089,
+        0.2987,
+        0.197
+      ],
+      "q_mean": 0.2451,
+      "q_max": 0.2987,
+      "retrieved_q_mean": 0.3383,
+      "retrieved_q_max": 0.7391
+    },
+    {
+      "pubid": "25571931",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0608_3092:0",
+        "pubmed23n0620_17928:0",
+        "pubmed23n0507_7987:0",
+        "pubmed23n1065_15263:0"
+      ],
+      "passage_max_scores": [
+        0.4855,
+        0.3321,
+        0.2658,
+        0.3913
+      ],
+      "q_mean": 0.3687,
+      "q_max": 0.4855,
+      "retrieved_q_mean": 0.4629,
+      "retrieved_q_max": 0.658
+    },
+    {
+      "pubid": "18616781",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0050_5796:0",
+        "pubmed23n0579_3343:0",
+        "pubmed23n0265_12720:0",
+        "pubmed23n0258_6765:0"
+      ],
+      "passage_max_scores": [
+        0.5828,
+        0.5997,
+        0.4973,
+        0.2122
+      ],
+      "q_mean": 0.473,
+      "q_max": 0.5997,
+      "retrieved_q_mean": 0.4206,
+      "retrieved_q_max": 0.5757
+    },
+    {
+      "pubid": "10375486",
+      "n_drawn": 5,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0373_12310:0",
+        "pubmed23n0309_12635:0",
+        "pubmed23n0724_11632:0",
+        "pubmed23n0665_14733:0",
+        "pubmed23n0620_4191:0"
+      ],
+      "passage_max_scores": [
+        0.2184,
+        0.2191,
+        0.1731,
+        0.2371,
+        0.3322
+      ],
+      "q_mean": 0.236,
+      "q_max": 0.3322,
+      "retrieved_q_mean": 0.2759,
+      "retrieved_q_max": 0.4431
+    },
+    {
+      "pubid": "24374414",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0747_7455:0",
+        "pubmed23n0642_12247:0",
+        "pubmed23n1136_13336:0",
+        "pubmed23n0914_19350:0"
+      ],
+      "passage_max_scores": [
+        0.5397,
+        0.4091,
+        0.4584,
+        0.4387
+      ],
+      "q_mean": 0.4615,
+      "q_max": 0.5397,
+      "retrieved_q_mean": 0.409,
+      "retrieved_q_max": 0.455
+    },
+    {
+      "pubid": "20736887",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n1050_22727:0",
+        "pubmed23n0976_10530:1",
+        "pubmed23n0694_13887:0",
+        "pubmed23n1057_10482:0"
+      ],
+      "passage_max_scores": [
+        0.2008,
+        0.5495,
+        0.5427,
+        0.5071
+      ],
+      "q_mean": 0.45,
+      "q_max": 0.5495,
+      "retrieved_q_mean": 0.3129,
+      "retrieved_q_max": 0.4202
+    },
+    {
+      "pubid": "15369037",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1147_19955:0",
+        "pubmed23n0345_18507:0",
+        "pubmed23n0084_16046:0",
+        "pubmed23n1161_19541:0"
+      ],
+      "passage_max_scores": [
+        0.3452,
+        0.6018,
+        0.2306,
+        0.6265
+      ],
+      "q_mean": 0.451,
+      "q_max": 0.6265,
+      "retrieved_q_mean": 0.5057,
+      "retrieved_q_max": 0.7375
+    },
+    {
+      "pubid": "18603989",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0910_25146:0",
+        "pubmed23n0673_4523:0",
+        "pubmed23n0969_11797:0",
+        "pubmed23n1129_2162:0"
+      ],
+      "passage_max_scores": [
+        0.3209,
+        0.4572,
+        0.4678,
+        0.4508
+      ],
+      "q_mean": 0.4242,
+      "q_max": 0.4678,
+      "retrieved_q_mean": 0.2936,
+      "retrieved_q_max": 0.429
+    },
+    {
+      "pubid": "25699562",
+      "n_drawn": 4,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0285_6970:0",
+        "pubmed23n1007_10082:0",
+        "pubmed23n1082_27152:0",
+        "pubmed23n0350_19965:0"
+      ],
+      "passage_max_scores": [
+        0.2803,
+        0.4199,
+        0.212,
+        0.2946
+      ],
+      "q_mean": 0.3017,
+      "q_max": 0.4199,
+      "retrieved_q_mean": 0.6091,
+      "retrieved_q_max": 0.6863
+    },
+    {
+      "pubid": "17682349",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0838_16632:0",
+        "pubmed23n0694_18074:0",
+        "pubmed23n1046_14665:0",
+        "pubmed23n0795_1561:0"
+      ],
+      "passage_max_scores": [
+        0.4943,
+        0.5096,
+        0.5098,
+        0.5901
+      ],
+      "q_mean": 0.526,
+      "q_max": 0.5901,
+      "retrieved_q_mean": 0.6882,
+      "retrieved_q_max": 0.749
+    },
+    {
+      "pubid": "18251357",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n1012_18037:0",
+        "pubmed23n0378_7467:0",
+        "pubmed23n0530_2077:0",
+        "pubmed23n0628_13005:0"
+      ],
+      "passage_max_scores": [
+        0.5331,
+        0.482,
+        0.4808,
+        0.2659
+      ],
+      "q_mean": 0.4405,
+      "q_max": 0.5331,
+      "retrieved_q_mean": 0.4877,
+      "retrieved_q_max": 0.7227
+    },
+    {
+      "pubid": "15962678",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0941_16916:0",
+        "pubmed23n0718_21793:0",
+        "pubmed23n0539_7885:0",
+        "pubmed23n0021_1707:0"
+      ],
+      "passage_max_scores": [
+        0.4218,
+        0.4282,
+        0.6778,
+        0.2913
+      ],
+      "q_mean": 0.4548,
+      "q_max": 0.6778,
+      "retrieved_q_mean": 0.4575,
+      "retrieved_q_max": 0.7999
+    },
+    {
+      "pubid": "17429333",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0744_21060:0",
+        "pubmed23n0070_15870:0",
+        "pubmed23n1106_4462:0",
+        "pubmed23n0846_20754:0"
+      ],
+      "passage_max_scores": [
+        0.4427,
+        0.3751,
+        0.4733,
+        0.5769
+      ],
+      "q_mean": 0.467,
+      "q_max": 0.5769,
+      "retrieved_q_mean": 0.3572,
+      "retrieved_q_max": 0.5693
+    },
+    {
+      "pubid": "24599411",
+      "n_drawn": 5,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0594_13180:0",
+        "pubmed23n0792_7379:0",
+        "pubmed23n0080_12288:0",
+        "pubmed23n0965_15546:0",
+        "pubmed23n0909_8133:0"
+      ],
+      "passage_max_scores": [
+        0.3492,
+        0.2929,
+        0.2146,
+        0.2481,
+        0.3995
+      ],
+      "q_mean": 0.3009,
+      "q_max": 0.3995,
+      "retrieved_q_mean": 0.4901,
+      "retrieved_q_max": 0.5903
+    },
+    {
+      "pubid": "25079920",
+      "n_drawn": 4,
+      "n_gold_sentences": 12,
+      "drawn_passage_ids": [
+        "pubmed23n0623_12066:0",
+        "pubmed23n0696_23576:0",
+        "pubmed23n0652_20703:1",
+        "pubmed23n0305_5285:0"
+      ],
+      "passage_max_scores": [
+        0.4039,
+        0.4723,
+        0.2317,
+        0.3951
+      ],
+      "q_mean": 0.3757,
+      "q_max": 0.4723,
+      "retrieved_q_mean": 0.6347,
+      "retrieved_q_max": 0.6849
+    },
+    {
+      "pubid": "14968373",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0599_2246:0",
+        "pubmed23n0698_12723:0",
+        "pubmed23n0022_2139:0",
+        "pubmed23n0054_18184:0"
+      ],
+      "passage_max_scores": [
+        0.4461,
+        0.482,
+        0.3864,
+        0.5395
+      ],
+      "q_mean": 0.4635,
+      "q_max": 0.5395,
+      "retrieved_q_mean": 0.4886,
+      "retrieved_q_max": 0.6748
+    },
+    {
+      "pubid": "12790890",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0489_11922:0",
+        "pubmed23n0397_9089:0",
+        "pubmed23n0839_19540:0",
+        "pubmed23n0619_10103:0"
+      ],
+      "passage_max_scores": [
+        0.4285,
+        0.5342,
+        0.3641,
+        0.3911
+      ],
+      "q_mean": 0.4295,
+      "q_max": 0.5342,
+      "retrieved_q_mean": 0.4385,
+      "retrieved_q_max": 0.67
+    },
+    {
+      "pubid": "17578985",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0387_10440:0",
+        "pubmed23n0800_4060:0",
+        "pubmed23n1157_11517:1",
+        "pubmed23n0762_6087:0"
+      ],
+      "passage_max_scores": [
+        0.4341,
+        0.223,
+        0.3327,
+        0.3752
+      ],
+      "q_mean": 0.3413,
+      "q_max": 0.4341,
+      "retrieved_q_mean": 0.3428,
+      "retrieved_q_max": 0.5885
+    },
+    {
+      "pubid": "9569972",
+      "n_drawn": 4,
+      "n_gold_sentences": 5,
+      "drawn_passage_ids": [
+        "pubmed23n0082_7381:0",
+        "pubmed23n0613_10542:0",
+        "pubmed23n1019_18173:1",
+        "pubmed23n0957_20098:0"
+      ],
+      "passage_max_scores": [
+        0.3063,
+        0.3159,
+        0.3007,
+        0.218
+      ],
+      "q_mean": 0.2852,
+      "q_max": 0.3159,
+      "retrieved_q_mean": 0.2952,
+      "retrieved_q_max": 0.5551
+    },
+    {
+      "pubid": "18319270",
+      "n_drawn": 4,
+      "n_gold_sentences": 9,
+      "drawn_passage_ids": [
+        "pubmed23n0972_25181:0",
+        "pubmed23n1039_16908:0",
+        "pubmed23n0751_12778:0",
+        "pubmed23n1143_17732:0"
+      ],
+      "passage_max_scores": [
+        0.2936,
+        0.3156,
+        0.4809,
+        0.3799
+      ],
+      "q_mean": 0.3675,
+      "q_max": 0.4809,
+      "retrieved_q_mean": 0.2455,
+      "retrieved_q_max": 0.2747
+    },
+    {
+      "pubid": "19406119",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0756_2380:0",
+        "pubmed23n0265_9111:0",
+        "pubmed23n1102_19035:0",
+        "pubmed23n1111_11947:0"
+      ],
+      "passage_max_scores": [
+        0.4205,
+        0.3727,
+        0.6726,
+        0.3726
+      ],
+      "q_mean": 0.4596,
+      "q_max": 0.6726,
+      "retrieved_q_mean": 0.3074,
+      "retrieved_q_max": 0.5301
+    },
+    {
+      "pubid": "26516021",
+      "n_drawn": 5,
+      "n_gold_sentences": 15,
+      "drawn_passage_ids": [
+        "pubmed23n0505_21322:0",
+        "pubmed23n1008_5349:0",
+        "pubmed23n0131_3830:0",
+        "pubmed23n0317_11135:0",
+        "pubmed23n0367_7750:0"
+      ],
+      "passage_max_scores": [
+        0.2196,
+        0.4355,
+        0.2343,
+        0.2976,
+        0.2218
+      ],
+      "q_mean": 0.2817,
+      "q_max": 0.4355,
+      "retrieved_q_mean": 0.3078,
+      "retrieved_q_max": 0.3857
+    },
+    {
+      "pubid": "24340838",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0726_12882:0",
+        "pubmed23n0814_23676:0",
+        "pubmed23n0992_7150:0",
+        "pubmed23n0956_4143:0"
+      ],
+      "passage_max_scores": [
+        0.5247,
+        0.5919,
+        0.5215,
+        0.5859
+      ],
+      "q_mean": 0.556,
+      "q_max": 0.5919,
+      "retrieved_q_mean": 0.5774,
+      "retrieved_q_max": 0.7306
+    },
+    {
+      "pubid": "27832831",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n1101_24321:0",
+        "pubmed23n0306_1261:0",
+        "pubmed23n0951_14421:1",
+        "pubmed23n0371_4390:0"
+      ],
+      "passage_max_scores": [
+        0.44,
+        0.5652,
+        0.3125,
+        0.4273
+      ],
+      "q_mean": 0.4363,
+      "q_max": 0.5652,
+      "retrieved_q_mean": 0.2441,
+      "retrieved_q_max": 0.3053
+    },
+    {
+      "pubid": "22540518",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n1023_11952:0",
+        "pubmed23n0651_20208:0",
+        "pubmed23n0027_12487:0",
+        "pubmed23n1071_10561:0"
+      ],
+      "passage_max_scores": [
+        0.3434,
+        0.2913,
+        0.2709,
+        0.361
+      ],
+      "q_mean": 0.3166,
+      "q_max": 0.361,
+      "retrieved_q_mean": 0.3838,
+      "retrieved_q_max": 0.7377
+    },
+    {
+      "pubid": "17890090",
+      "n_drawn": 5,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0498_684:0",
+        "pubmed23n0049_21275:0",
+        "pubmed23n0889_17438:0",
+        "pubmed23n0508_19218:1",
+        "pubmed23n0733_535:0"
+      ],
+      "passage_max_scores": [
+        0.3716,
+        0.5178,
+        0.3183,
+        0.4131,
+        0.1884
+      ],
+      "q_mean": 0.3618,
+      "q_max": 0.5178,
+      "retrieved_q_mean": 0.2438,
+      "retrieved_q_max": 0.2843
+    },
+    {
+      "pubid": "23422012",
+      "n_drawn": 4,
+      "n_gold_sentences": 12,
+      "drawn_passage_ids": [
+        "pubmed23n0420_8388:0",
+        "pubmed23n0946_3978:0",
+        "pubmed23n0509_8008:0",
+        "pubmed23n0810_2006:0"
+      ],
+      "passage_max_scores": [
+        0.3684,
+        0.3722,
+        0.3467,
+        0.4094
+      ],
+      "q_mean": 0.3742,
+      "q_max": 0.4094,
+      "retrieved_q_mean": 0.575,
+      "retrieved_q_max": 0.8109
+    },
+    {
+      "pubid": "11500608",
+      "n_drawn": 4,
+      "n_gold_sentences": 6,
+      "drawn_passage_ids": [
+        "pubmed23n0829_2723:0",
+        "pubmed23n0817_15091:0",
+        "pubmed23n1021_19431:0",
+        "pubmed23n0106_6835:0"
+      ],
+      "passage_max_scores": [
+        0.22,
+        0.2781,
+        0.2952,
+        0.2897
+      ],
+      "q_mean": 0.2707,
+      "q_max": 0.2952,
+      "retrieved_q_mean": 0.534,
+      "retrieved_q_max": 0.8312
+    },
+    {
+      "pubid": "14627582",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0886_12590:0",
+        "pubmed23n0687_6464:0",
+        "pubmed23n1069_15647:0",
+        "pubmed23n0077_9035:0"
+      ],
+      "passage_max_scores": [
+        0.373,
+        0.4515,
+        0.4384,
+        0.2413
+      ],
+      "q_mean": 0.376,
+      "q_max": 0.4515,
+      "retrieved_q_mean": 0.53,
+      "retrieved_q_max": 0.6606
+    },
+    {
+      "pubid": "19430778",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0873_8572:0",
+        "pubmed23n0955_21197:0",
+        "pubmed23n1136_19712:0",
+        "pubmed23n0405_14257:0"
+      ],
+      "passage_max_scores": [
+        0.4702,
+        0.3769,
+        0.439,
+        0.4571
+      ],
+      "q_mean": 0.4358,
+      "q_max": 0.4702,
+      "retrieved_q_mean": 0.3637,
+      "retrieved_q_max": 0.4354
+    },
+    {
+      "pubid": "19351635",
+      "n_drawn": 5,
+      "n_gold_sentences": 15,
+      "drawn_passage_ids": [
+        "pubmed23n0921_21486:0",
+        "pubmed23n0785_14141:1",
+        "pubmed23n0395_4855:0",
+        "pubmed23n1138_13632:0",
+        "pubmed23n1058_20392:0"
+      ],
+      "passage_max_scores": [
+        0.385,
+        0.3236,
+        0.3717,
+        0.4616,
+        0.3349
+      ],
+      "q_mean": 0.3754,
+      "q_max": 0.4616,
+      "retrieved_q_mean": 0.5708,
+      "retrieved_q_max": 0.7322
+    },
+    {
+      "pubid": "26471488",
+      "n_drawn": 5,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0043_4078:0",
+        "pubmed23n1084_6579:0",
+        "pubmed23n0910_8341:0",
+        "pubmed23n0653_11237:0",
+        "pubmed23n0986_17037:0"
+      ],
+      "passage_max_scores": [
+        0.5193,
+        0.2783,
+        0.4916,
+        0.3512,
+        0.6663
+      ],
+      "q_mean": 0.4613,
+      "q_max": 0.6663,
+      "retrieved_q_mean": 0.477,
+      "retrieved_q_max": 0.6947
+    },
+    {
+      "pubid": "22970993",
+      "n_drawn": 4,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n1093_14049:0",
+        "pubmed23n0642_17442:0",
+        "pubmed23n1154_4742:0",
+        "pubmed23n0860_20318:0"
+      ],
+      "passage_max_scores": [
+        0.6586,
+        0.5475,
+        0.4202,
+        0.5466
+      ],
+      "q_mean": 0.5432,
+      "q_max": 0.6586,
+      "retrieved_q_mean": 0.6627,
+      "retrieved_q_max": 0.7635
+    },
+    {
+      "pubid": "25735444",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n1126_10455:1",
+        "pubmed23n0779_19203:0",
+        "pubmed23n0649_9926:0",
+        "pubmed23n0996_24309:0"
+      ],
+      "passage_max_scores": [
+        0.2574,
+        0.4486,
+        0.3426,
+        0.3171
+      ],
+      "q_mean": 0.3414,
+      "q_max": 0.4486,
+      "retrieved_q_mean": 0.188,
+      "retrieved_q_max": 0.2003
+    },
+    {
+      "pubid": "9722752",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n0823_23741:0",
+        "pubmed23n0315_16731:0",
+        "pubmed23n0480_22701:0",
+        "pubmed23n0558_14566:0"
+      ],
+      "passage_max_scores": [
+        0.2022,
+        0.2692,
+        0.2479,
+        0.3755
+      ],
+      "q_mean": 0.2737,
+      "q_max": 0.3755,
+      "retrieved_q_mean": 0.2553,
+      "retrieved_q_max": 0.2957
+    },
+    {
+      "pubid": "9920954",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0127_6227:0",
+        "pubmed23n0374_19783:0",
+        "pubmed23n0945_17611:1",
+        "pubmed23n0379_9453:0"
+      ],
+      "passage_max_scores": [
+        0.4322,
+        0.3057,
+        0.3366,
+        0.3749
+      ],
+      "q_mean": 0.3623,
+      "q_max": 0.4322,
+      "retrieved_q_mean": 0.3853,
+      "retrieved_q_max": 0.4711
+    },
+    {
+      "pubid": "25891436",
+      "n_drawn": 4,
+      "n_gold_sentences": 7,
+      "drawn_passage_ids": [
+        "pubmed23n0915_11800:0",
+        "pubmed23n0245_3988:0",
+        "pubmed23n0592_5756:0",
+        "pubmed23n0622_23038:0"
+      ],
+      "passage_max_scores": [
+        0.1967,
+        0.1326,
+        0.2686,
+        0.1566
+      ],
+      "q_mean": 0.1886,
+      "q_max": 0.2686,
+      "retrieved_q_mean": 0.4045,
+      "retrieved_q_max": 0.7098
+    },
+    {
+      "pubid": "24450673",
+      "n_drawn": 4,
+      "n_gold_sentences": 13,
+      "drawn_passage_ids": [
+        "pubmed23n0004_2918:0",
+        "pubmed23n0311_20660:0",
+        "pubmed23n0855_9777:0",
+        "pubmed23n0716_5870:0"
+      ],
+      "passage_max_scores": [
+        0.2745,
+        0.5279,
+        0.3729,
+        0.3017
+      ],
+      "q_mean": 0.3693,
+      "q_max": 0.5279,
+      "retrieved_q_mean": 0.4441,
+      "retrieved_q_max": 0.5512
+    },
+    {
+      "pubid": "21228436",
+      "n_drawn": 4,
+      "n_gold_sentences": 8,
+      "drawn_passage_ids": [
+        "pubmed23n0694_7797:0",
+        "pubmed23n0745_23486:0",
+        "pubmed23n0807_9963:0",
+        "pubmed23n0872_24992:0"
+      ],
+      "passage_max_scores": [
+        0.2228,
+        0.1859,
+        0.4984,
+        0.212
+      ],
+      "q_mean": 0.2798,
+      "q_max": 0.4984,
+      "retrieved_q_mean": 0.4601,
+      "retrieved_q_max": 0.7598
+    },
+    {
+      "pubid": "11977907",
+      "n_drawn": 5,
+      "n_gold_sentences": 11,
+      "drawn_passage_ids": [
+        "pubmed23n0815_10150:0",
+        "pubmed23n0955_53:1",
+        "pubmed23n0065_6959:0",
+        "pubmed23n0370_21492:0",
+        "pubmed23n1036_4589:0"
+      ],
+      "passage_max_scores": [
+        0.4505,
+        0.4066,
+        0.4071,
+        0.3967,
+        0.45
+      ],
+      "q_mean": 0.4222,
+      "q_max": 0.4505,
+      "retrieved_q_mean": 0.4312,
+      "retrieved_q_max": 0.6219
+    },
+    {
+      "pubid": "24783217",
+      "n_drawn": 4,
+      "n_gold_sentences": 10,
+      "drawn_passage_ids": [
+        "pubmed23n1039_21230:0",
+        "pubmed23n0816_9262:0",
+        "pubmed23n0665_13063:0",
+        "pubmed23n0705_16303:0"
+      ],
+      "passage_max_scores": [
+        0.3375,
+        0.2243,
+        0.4603,
+        0.3544
+      ],
+      "q_mean": 0.3441,
+      "q_max": 0.4603,
+      "retrieved_q_mean": 0.7445,
+      "retrieved_q_max": 0.7775
+    }
+  ]
+}
