@@ -10,6 +10,7 @@ Module map — each names the table it feeds (`research_roadmap.md` §1):
     backends.py   vLLM | Anthropic                                 → Table 4
     decompose.py  decontextualized atomic claims                   → Table 2 (granularity rows)
     verify.py     MiniCheck (+ AlignScore) + Opus 5 judge          → Table 3
+    annotate.py   blinded task build + the offline labelling form  → G4 (Krippendorff's α)
     schema.py     THE FROZEN OUTPUT SCHEMA
     scoring/      pure functions over the schema                   → Tables 1–5
     harness.py    seed loop, cost log, run manifest, config diff

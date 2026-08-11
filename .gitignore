@@ -140,3 +140,9 @@ docs/*
 
 # ---- Teaching workspace (/teach skill — local study materials, not tracked) ----
 teach/
+
+# ---- Annotation build products (regenerated from a records file + the seed) ----
+# The forms are ~1 MB of embedded task JSON each and `keyfile.jsonl` de-blinds them, so neither
+# belongs in git. What is irreplaceable is what comes *back*: an annotator's exported labels go
+# to docs/harvest/annotation/, which the `!docs/harvest/**/*.jsonl` rule above already tracks.
+annotation/

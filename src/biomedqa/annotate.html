@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claim attribution annotation</title>
+<style>
+  :root { --line: #d8d8d8; --ink: #1a1a1a; --dim: #666; --hl: #ffe9a8; --ok: #2f7a34; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.55 -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); }
+  header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--line);
+           padding: 10px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header b { font-size: 15px; }
+  header .grow { flex: 1; }
+  .meta { color: var(--dim); font-size: 13px; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px 20px 120px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .question { background: #f6f7f9; border: 1px solid var(--line); border-radius: 6px;
+              padding: 14px 16px; margin-bottom: 22px; }
+  .claim { border: 1px solid var(--line); border-radius: 6px; padding: 16px; margin-bottom: 18px; }
+  .claim.done { border-color: var(--ok); }
+  .claimtext { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
+  .passage { background: #fafafa; border-left: 3px solid var(--line); padding: 10px 12px;
+             margin: 8px 0; color: var(--dim); font-size: 15px; white-space: pre-wrap; }
+  .passage mark { background: var(--hl); color: var(--ink); }
+  .opts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .opts label { border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px;
+                cursor: pointer; font-size: 14px; user-select: none; }
+  .opts input { margin-right: 6px; }
+  .opts label:has(input:checked) { background: #eef3ff; border-color: #4a76d8; font-weight: 600; }
+  .sub { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em;
+         margin-top: 14px; }
+  textarea { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 4px;
+             padding: 6px 8px; font: inherit; font-size: 14px; margin-top: 8px; }
+  button { font: inherit; padding: 8px 16px; border: 1px solid var(--line); border-radius: 5px;
+           background: #fff; cursor: pointer; }
+  button.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  nav { display: flex; gap: 10px; align-items: center; margin-top: 24px; }
+  details { margin-bottom: 20px; font-size: 15px; }
+  summary { cursor: pointer; font-weight: 600; }
+  table { border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+  td, th { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
+</style>
+</head>
+<body>
+<header>
+  <b id="who"></b>
+  <span class="meta" id="progress"></span>
+  <span class="grow"></span>
+  <span class="meta" id="saved"></span>
+  <button id="download">Download my labels (JSONL)</button>
+</header>
+
+<main>
+  <details>
+    <summary>Guidelines — read once, then refer back</summary>
+    <p><b>Judge attribution, not truth.</b> Label each claim by <em>what the highlighted span
+    says</em>. A claim can be false but supported (the passage says it), or true but unsupported
+    (correct medicine, absent from the span). <b>Use no outside knowledge.</b></p>
+    <table>
+      <tr><th>SUPPORTED</th><td>The span asserts the claim.</td></tr>
+      <tr><th>PARTIAL</th><td>The span asserts part of the claim, or asserts it more weakly or
+        more narrowly than stated.</td></tr>
+      <tr><th>NOT_SUPPORTED</th><td>The span does not address the claim.</td></tr>
+      <tr><th>CONTRADICTED</th><td>The span asserts the <b>opposite</b> of the claim.</td></tr>
+    </table>
+    <p><b>All spans together</b> is a separate judgement: read every highlighted span for that
+    claim as one piece of evidence and label the claim against the whole. Two citations can be
+    jointly necessary — a dose from one span and an outcome from another is correctly cited with
+    both.</p>
+    <p><b>Well-formed claim</b> asks only whether the sentence is a self-contained statement you
+    could check at all — no dangling "it"/"this study", not a fragment, not a question. It is not
+    about support. Answer the support questions either way.</p>
+    <p>Work in the order given and finish each question before moving on. Your progress is saved
+    in this browser; download the JSONL at the end of every session and send it in.</p>
+  </details>
+
+  <div id="view"></div>
+
+  <nav>
+    <button id="prev">&larr; Previous</button>
+    <button id="complete" class="primary"></button>
+    <span class="meta" id="hint"></span>
+  </nav>
+</main>
+
+<script id="tasks" type="application/json">__TASKS_JSON__</script>
+<script>
+"use strict";
+const DATA = JSON.parse(document.getElementById("tasks").textContent);
+const LABELS = ["SUPPORTED", "PARTIAL", "NOT_SUPPORTED", "CONTRADICTED"];
+const KEY = "biomedqa:" + DATA.annotator_id + ":" + DATA.order_hash;
+const QS = DATA.questions;
+
+// state.answers[unit_id] = {validity: bool, spans: {i: LABEL}, union: LABEL, notes: str}
+// state.questions[uid]   = {started_at, completed_at, active_s}
+const state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* fall through to a fresh state */ }
+  return { answers: {}, questions: {} };
+}
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(state));
+  document.getElementById("saved").textContent = "saved " + new Date().toLocaleTimeString();
+}
+
+function qstate(uid) {
+  if (!state.questions[uid]) state.questions[uid] = { started_at: null, completed_at: null, active_s: 0 };
+  return state.questions[uid];
+}
+function answer(unit) {
+  if (!state.answers[unit]) state.answers[unit] = { validity: null, spans: {}, union: null, notes: "" };
+  return state.answers[unit];
+}
+function claimDone(claim) {
+  const a = answer(claim.unit_id);
+  return a.validity !== null && a.union !== null &&
+         claim.spans.every(s => a.spans[s.citation_index]);
+}
+const questionDone = q => q.claims.every(claimDone);
+
+// The first question not yet marked complete. Nothing beyond it may be opened: the shared order
+// is only a valid random subsample if every annotator stops at a prefix of it (ADR-0016 §2).
+function frontier() {
+  let i = 0;
+  while (i < QS.length && qstate(QS[i].question_uid).completed_at) i++;
+  return Math.min(i, QS.length - 1);
+}
+
+let at = frontier();
+let shownAt = null;
+
+function radios(name, chosen, onPick) {
+  const box = document.createElement("div");
+  box.className = "opts";
+  for (const value of LABELS) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = name;
+    input.value = value;
+    input.checked = chosen === value;
+    input.addEventListener("change", () => { onPick(value); });
+    label.append(input, document.createTextNode(value));
+    box.append(label);
+  }
+  return box;
+}
+
+function yesNo(name, chosen, onPick) {
+  const box = document.createElement("div");
+  box.className = "opts";
+  for (const [text, value] of [["Well-formed", true], ["Not well-formed", false]]) {
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = name;
+    input.checked = chosen === value;
+    input.addEventListener("change", () => { onPick(value); });
+    label.append(input, document.createTextNode(text));
+    box.append(label);
+  }
+  return box;
+}
+
+function passage(span) {
+  const el = document.createElement("div");
+  el.className = "passage";
+  const t = span.passage_text;
+  const a = Math.max(0, Math.min(span.char_start, t.length));
+  const b = Math.max(a, Math.min(span.char_end, t.length));
+  const mark = document.createElement("mark");
+  mark.textContent = t.slice(a, b);
+  el.append(document.createTextNode(t.slice(0, a)), mark, document.createTextNode(t.slice(b)));
+  return el;
+}
+
+function render() {
+  const q = QS[at];
+  const st = qstate(q.question_uid);
+  if (!st.started_at) { st.started_at = new Date().toISOString(); save(); }
+  shownAt = Date.now();
+
+  document.getElementById("who").textContent = "Annotator " + DATA.annotator_id;
+  document.getElementById("progress").textContent =
+    "Question " + (at + 1) + " of " + QS.length + " \u00b7 " +
+    QS.filter(x => qstate(x.question_uid).completed_at).length + " complete";
+
+  const view = document.getElementById("view");
+  view.replaceChildren();
+
+  const head = document.createElement("div");
+  head.className = "question";
+  const h = document.createElement("h1");
+  h.textContent = q.question;
+  const sub = document.createElement("div");
+  sub.className = "meta";
+  sub.textContent = q.claims.length + " claim(s) to label for this question";
+  head.append(h, sub);
+  view.append(head);
+
+  q.claims.forEach((claim, ci) => {
+    const a = answer(claim.unit_id);
+    const card = document.createElement("div");
+    card.className = "claim" + (claimDone(claim) ? " done" : "");
+
+    const text = document.createElement("div");
+    text.className = "claimtext";
+    text.textContent = "Claim " + (ci + 1) + ". " + claim.text;
+    card.append(text);
+
+    const vLabel = document.createElement("div");
+    vLabel.className = "sub";
+    vLabel.textContent = "Is this a well-formed, self-contained claim?";
+    card.append(vLabel, yesNo(claim.unit_id + ":v", a.validity, v => {
+      a.validity = v; save(); render();
+    }));
+
+    claim.spans.forEach(span => {
+      const s = document.createElement("div");
+      s.className = "sub";
+      s.textContent = "Cited span " + (span.citation_index + 1) + " of " + claim.spans.length;
+      card.append(s, passage(span));
+      card.append(radios(claim.unit_id + ":s" + span.citation_index,
+                         a.spans[span.citation_index] || null, v => {
+        a.spans[span.citation_index] = v;
+        if (claim.spans.length === 1 && !a.union) a.union = v;  // one span: the union is that span
+        save(); render();
+      }));
+    });
+
+    const u = document.createElement("div");
+    u.className = "sub";
+    u.textContent = "All cited spans together, as one piece of evidence";
+    card.append(u, radios(claim.unit_id + ":u", a.union, v => { a.union = v; save(); render(); }));
+
+    const notes = document.createElement("textarea");
+    notes.placeholder = "Notes (optional)";
+    notes.value = a.notes || "";
+    notes.addEventListener("input", () => { a.notes = notes.value; save(); });
+    card.append(notes);
+
+    view.append(card);
+  });
+
+  const done = questionDone(q);
+  const complete = document.getElementById("complete");
+  complete.textContent = st.completed_at ? "Next question \u2192" : "Mark question complete \u2192";
+  complete.disabled = (!done && !st.completed_at) || (at >= QS.length - 1 && !!st.completed_at);
+  document.getElementById("prev").disabled = at === 0;
+  document.getElementById("hint").textContent = done
+    ? (st.completed_at ? "Completed " + new Date(st.completed_at).toLocaleString() : "")
+    : "Answer every question on every claim to continue.";
+  window.scrollTo(0, 0);
+}
+
+function leaving() {
+  if (shownAt === null) return;
+  const st = qstate(QS[at].question_uid);
+  st.active_s = +(st.active_s + (Date.now() - shownAt) / 1000).toFixed(1);
+  shownAt = null;
+}
+
+document.getElementById("complete").addEventListener("click", () => {
+  const st = qstate(QS[at].question_uid);
+  leaving();
+  if (!st.completed_at) st.completed_at = new Date().toISOString();
+  if (at < QS.length - 1) at++;
+  save(); render();
+});
+document.getElementById("prev").addEventListener("click", () => {
+  leaving();
+  if (at > 0) at--;
+  save(); render();
+});
+window.addEventListener("beforeunload", () => { leaving(); save(); });
+
+document.getElementById("download").addEventListener("click", () => {
+  leaving();
+  save();
+  shownAt = Date.now();
+  const rows = [];
+  for (const q of QS) {
+    const st = state.questions[q.question_uid];
+    if (!st || !st.started_at) continue;
+    rows.push(JSON.stringify({
+      type: "question", annotator_id: DATA.annotator_id, question_uid: q.question_uid,
+      order_index: q.order_index, order_hash: DATA.order_hash, started_at: st.started_at,
+      completed_at: st.completed_at, active_s: st.active_s
+    }));
+    for (const claim of q.claims) {
+      const a = state.answers[claim.unit_id];
+      if (!a) continue;
+      const emit = (citation_index, support_label) => {
+        if (!support_label || a.validity === null) return;
+        rows.push(JSON.stringify({
+          type: "label", annotator_id: DATA.annotator_id, unit_id: claim.unit_id,
+          question_uid: q.question_uid, citation_index, support_label,
+          claim_validity: a.validity, notes: a.notes || null
+        }));
+      };
+      emit(null, a.union);  // the per-claim union judgement; citation recall is scored on this
+      for (const span of claim.spans) emit(span.citation_index, a.spans[span.citation_index]);
+    }
+  }
+  const blob = new Blob([rows.join("\n") + "\n"], { type: "application/x-ndjson" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "labels_" + DATA.annotator_id + ".jsonl";
+  link.click();
+  URL.revokeObjectURL(link.href);
+});
+
+render();
+</script>
+</body>
+</html>
