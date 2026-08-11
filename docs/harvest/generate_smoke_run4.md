@@ -21,21 +21,36 @@ corruption that iterations 2–3 chased is gone, and the positional CITE grammar
 `post_hoc` on `10757151` is the existence proof: 10 citations, 0 errors, spans in two different
 passages. The 8B model can copy verbatim at this context depth; it does not do so reliably.
 
-## The two residual failure classes
+## What the misses actually are
 
-**1. Quote mutation (7 of 8 failing lines).** The model emits a semantically correct, near-verbatim
-sentence that is not an exact substring of the passage. Checked against the committed dev contexts:
-the source sentences exist verbatim (e.g. `There was no association between utilisation rates for
-CEA a…` is present in `10375486:0`), so the divergence is in the generated string, past the 60-char
-truncation in the parser's error message. Not retrieval, not `locate_quote`, not corpus formatting —
-a whitespace scan over all 1,000 dev passages found 481 `[a-z][A-Z0-9]` hits and every sampled one is
-legitimate scientific text (`mL`, `2peak`, `p5`).
+`scripts/quote_misses.py` re-reads the CITE lines out of `raw_generation`, diffs each rejected
+quote against the passage it names, and buckets the mutation. Over the nine records, 19 misses:
 
-**2. Chunk-suffix drop (1 record, 6 lines).** `joint` on `10757151` cites `pubmed23n0553_19170`,
-which the parser rejects as absent from the context. The passage is present — at **rank 1**, as
-`pubmed23n0553_19170:0`, the only chunk of that document in the block. The model dropped `:0`. This
-is not a hallucinated identifier and not a grounding failure; it is the exact defect iteration 3
-addressed, which took in `post_hoc` and did not take in `joint`.
+| bucket        | n | joint | post_hoc | what it is |
+|---------------|---|-------|----------|------------|
+| `unknown_id`  | 6 | 6     | 0        | `:N` chunk suffix dropped from the passage id |
+| `spliced`     | 5 | 1     | 4        | two real spans joined across deleted material |
+| `reworded`    | 3 | 1     | 2        | word order, `RV` → `right ventricular`, `Fifteen` → `15` |
+| `overrun`     | 2 | 0     | 2        | correct prefix, ended early with an added full stop |
+| `case`        | 2 | 0     | 2        | first character only |
+| `fabricated`  | 1 | 0     | 1        | quote absent from the passage entirely |
+
+**Not a corpus problem.** The source sentences exist verbatim; a whitespace scan over all 1,000 dev
+passages found 481 `[a-z][A-Z0-9]` hits and every sampled one is legitimate scientific text (`mL`,
+`2peak`, `p5`). The divergence is in the generated string.
+
+**`spliced` and `fabricated` are the finding.** Six of 19 misses assert something the passage does
+not, in the syntax of a direct quotation. On `10375486:0` the passage reads *"…for CEA and district
+stroke mortality (r=-0.06, 95% CI -0.41 to 0.30) or admission rates for stroke (r=0.17…)"*; the
+model repeatedly emits *"…for CEA and admission rates for stroke (r=0.17, 95% CI -0.2 to 0.49)"* —
+a grammatical sentence, a plausible statistic, and a sentence the source never contains. The
+`fabricated` line quotes SPRINT-shaped adverse-event numbers at a passage about hypotension
+correlates. A fuzzy matcher scores both as near hits.
+
+**`unknown_id` is not a hallucination.** All six quotes are *exact* spans of
+`pubmed23n0553_19170:0`, which sits at **rank 1** in `10757151`'s context and is the only chunk of
+that document there. The model dropped `:0`. That record is otherwise clean: with suffix resolution
+it would parse, and `joint` would read 1/3 rather than 0/3.
 
 ## Decisions
 
@@ -43,16 +58,17 @@ addressed, which took in `post_hoc` and did not take in `joint`.
 (`effort_is_matched()` true). Another edit costs a cycle on *both* systems to keep the ledger
 matched, and the number is reported in the paper. A generic "copy verbatim, keep the `:N` suffix"
 restatement re-spends attention already spent in iterations 2 and 3 on an instruction the model
-follows sometimes and ignores otherwise. Both residual classes are the generator's format
-compliance, which is what G0 measures. Buying a better G0 score with prompt cycles is the thing the
-equal-effort ledger exists to make visible.
+follows sometimes and ignores otherwise. Every bucket above is generator format compliance, which
+is what G0 measures. Buying a better G0 score with prompt cycles is the thing the equal-effort
+ledger exists to make visible.
 
-**The parser stays strict, on both classes.** Two normalizations were available and both were
+**The parser stays strict, on every class.** Two normalizations were available and both were
 refused:
 
 - *Fuzzy quote matching.* Refused previously and again here. `locate_quote` writes `char_start`/
-  `char_end` that every downstream verifier reads as ground truth; a fuzzy hit fabricates a span for
-  text the passage does not contain.
+  `char_end` that every downstream verifier reads as ground truth. The `spliced` and `fabricated`
+  buckets are exactly the inputs a fuzzy matcher would accept, and they are the six lines where the
+  model asserted something the passage does not say.
 - *Resolving a bare document id to its unique chunk in the context.* This one fabricates no span —
   the quote would still have to match verbatim inside the resolved passage — and it would take
   `joint`/`10757151` from six errors to zero. Refused anyway: it rescues our system in the one
