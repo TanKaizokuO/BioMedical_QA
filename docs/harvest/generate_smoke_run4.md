@@ -76,6 +76,41 @@ refused:
   indistinguishable from tuning. If a reviewer asks why joint's format compliance is lower, the
   answer is a number, not a parser accommodation.
 
+## Citations per claim, in the retrieval regime (ADR-0013 KW2, provisional)
+
+ADR-0013 §2 sizes the overlap subset on **1.01 citations/claim**, measured on G0 answers whose
+passages were sections of a single abstract, and its Known weakness 2 requires a re-measure on the
+first end-to-end records — these — before the W5 UI work. Real retrieval gives ten chunks from ten
+documents.
+
+| | joint | post_hoc |
+|---|---|---|
+| parsed citations/claim | 1.50 | 1.13 |
+| emitted CITE lines/claim | 2.30 | 1.87 |
+| distinct cited passages, 2 claims/question | 1.46 (4,000 resamples, 6 question-blocks) | |
+
+Both bracket 1.01 from above. Parsed is the floor and emitted the ceiling: format compliance is what
+separates them, and every W5 fix moves emitted lines into the parsed count — so the annotation load
+rises as the generator gets *better*.
+
+ADR-0013 §2's table re-run at `6,261 s ÷ (30 + distinct×200÷120 + 2×(60·c + 10))` — the model
+reproduces the ADR's 1.01 row (19.4 vs its ~19) and runs optimistic at its tail (14.2 vs its 12,
+because distinct-passages-read also scales with `c`):
+
+| citations/claim | questions | claims |
+|---|---|---|
+| 1.01 (ADR-0013 baseline) | 19.4 | 39 |
+| 1.13 (post_hoc, parsed)  | 18.9 | 38 |
+| 1.50 (joint, parsed)     | 16.7 | 33 |
+| 1.87 (post_hoc, emitted) | 14.9 | 30 |
+| 2.30 (joint, emitted)    | 13.3 | 27 |
+
+**Provisional: n = 3 questions, 25 claims.** It cannot settle the number and does not amend
+ADR-0013. What it does is move the plausible range off the baseline row and toward the tail —
+13–19 clusters rather than 19 — which is the range G4 reports as measured, and the reason the
+3 h ask is a ceiling that absorbs the overrun instead of being revised upward. **Re-run on the first
+≥50-question batch, before the W5 annotation-UI work.**
+
 ## What this does not license
 
 The run cannot support "Llama 3.1 8B cannot do G0 citation copying" — one clean citation-bearing
