@@ -1,0 +1,209 @@
+{
+  "script": "scripts/generate_smoke.py",
+  "purpose": "W4 live-path smoke test; not a gate run and not a sample",
+  "run_id": "w4_generate_smoke",
+  "fake_completer": false,
+  "finished_at": "2026-08-10T17:27:26.384986+00:00",
+  "config": {
+    "model": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+    "base_url": "http://localhost:8000",
+    "n_questions": 3,
+    "seed": 0,
+    "depth": 10,
+    "max_tokens": 1536,
+    "temperature": 0.0,
+    "max_citations": 3
+  },
+  "stage_count_check": {
+    "expected": {
+      "joint": [
+        1
+      ],
+      "post_hoc": [
+        2
+      ],
+      "vanilla": [
+        1
+      ]
+    },
+    "passed": true
+  },
+  "per_system": {
+    "joint": {
+      "n": 3,
+      "clean_parses": 0,
+      "records_with_violations": 0,
+      "stages_seen": [
+        1
+      ],
+      "mean_claims": 3.33,
+      "total_citations": 15,
+      "median_latency_s": 8.57
+    },
+    "post_hoc": {
+      "n": 3,
+      "clean_parses": 1,
+      "records_with_violations": 0,
+      "stages_seen": [
+        2
+      ],
+      "mean_claims": 5.0,
+      "total_citations": 17,
+      "median_latency_s": 12.95
+    },
+    "vanilla": {
+      "n": 3,
+      "clean_parses": 3,
+      "records_with_violations": 0,
+      "stages_seen": [
+        1
+      ],
+      "mean_claims": 5.0,
+      "total_citations": 0,
+      "median_latency_s": 3.05
+    }
+  },
+  "rows": [
+    {
+      "query_id": "10375486",
+      "system": "joint",
+      "stages": 1,
+      "claims": 4,
+      "citations": 4,
+      "decision": "no",
+      "errors": [
+        "line 6: quote not found verbatim in 10375486:0 ('There was no association between utilisation rates for CEA a')"
+      ],
+      "violations": [],
+      "latency_s": 3.8233124340040376,
+      "prompt_tokens": 2522,
+      "completion_tokens": 261
+    },
+    {
+      "query_id": "10375486",
+      "system": "post_hoc",
+      "stages": 2,
+      "claims": 6,
+      "citations": 3,
+      "decision": "no",
+      "errors": [
+        "line 4: quote not found verbatim in 10375486:0 ('Variation in utilisation rates was considerable (14-fold dif')",
+        "line 8: quote not found verbatim in 10375486:0 ('There was no association between utilisation rates for CEA a')",
+        "line 11: quote not found verbatim in 10375486:0 ('There was no association between utilisation rates for CEA a')",
+        "line 20: quote not found verbatim in 10375486:0 ('There was no association between utilisation rates for CEA a')",
+        "line 21: quote not found verbatim in 10375486:0 ('There was no association between utilisation rates for CEA a')"
+      ],
+      "violations": [],
+      "latency_s": 9.055208835001395,
+      "prompt_tokens": 4991,
+      "completion_tokens": 660
+    },
+    {
+      "query_id": "10375486",
+      "system": "vanilla",
+      "stages": 1,
+      "claims": 6,
+      "citations": 0,
+      "decision": "no",
+      "errors": [],
+      "violations": [],
+      "latency_s": 2.3756072590040276,
+      "prompt_tokens": 2268,
+      "completion_tokens": 174
+    },
+    {
+      "query_id": "10490564",
+      "system": "joint",
+      "stages": 1,
+      "claims": 3,
+      "citations": 8,
+      "decision": "yes",
+      "errors": [
+        "line 6: quote not found verbatim in 10490564:0 ('14 patients experienced 40 ST events, of which a quarter wer')"
+      ],
+      "violations": [],
+      "latency_s": 8.56599632200232,
+      "prompt_tokens": 3691,
+      "completion_tokens": 609
+    },
+    {
+      "query_id": "10490564",
+      "system": "post_hoc",
+      "stages": 2,
+      "claims": 4,
+      "citations": 4,
+      "decision": "yes",
+      "errors": [
+        "line 4: quote not found verbatim in 10490564:0 ('14 HII events occurred in eight patients, with 13 of the 14 ')",
+        "line 6: quote not found verbatim in pubmed23n0083_13628:0 ('15 of the 20 patients who demonstrated a marked hypotensive ')",
+        "line 13: quote not found verbatim in 10490564:0 ('patients with HII events were more frequently taking multipl')",
+        "line 14: quote not found verbatim in pubmed23n0914_25730:0 ('The overall rate of serious adverse events was not different')",
+        "line 17: quote not found verbatim in pubmed23n0083_13628:0 ('15 of the 20 patients who demonstrated a marked hypotensive ')",
+        "line 18: quote not found verbatim in pubmed23n0083_13628:0 ('20 of the 28 patients with documented RV involvement develop')"
+      ],
+      "violations": [],
+      "latency_s": 12.947493346997362,
+      "prompt_tokens": 7499,
+      "completion_tokens": 917
+    },
+    {
+      "query_id": "10490564",
+      "system": "vanilla",
+      "stages": 1,
+      "claims": 4,
+      "citations": 0,
+      "decision": "yes",
+      "errors": [],
+      "violations": [],
+      "latency_s": 4.809330686002795,
+      "prompt_tokens": 3437,
+      "completion_tokens": 344
+    },
+    {
+      "query_id": "10757151",
+      "system": "joint",
+      "stages": 1,
+      "claims": 3,
+      "citations": 3,
+      "decision": "no",
+      "errors": [
+        "line 4: cites 'pubmed23n0553_19170', which is not in the context",
+        "line 5: cites 'pubmed23n0553_19170', which is not in the context",
+        "line 9: cites 'pubmed23n0553_19170', which is not in the context",
+        "line 10: cites 'pubmed23n0553_19170', which is not in the context",
+        "line 14: cites 'pubmed23n0553_19170', which is not in the context",
+        "line 15: cites 'pubmed23n0553_19170', which is not in the context"
+      ],
+      "violations": [],
+      "latency_s": 8.602880304999417,
+      "prompt_tokens": 2593,
+      "completion_tokens": 621
+    },
+    {
+      "query_id": "10757151",
+      "system": "post_hoc",
+      "stages": 2,
+      "claims": 5,
+      "citations": 10,
+      "decision": "no",
+      "errors": [],
+      "violations": [],
+      "latency_s": 15.977173427003436,
+      "prompt_tokens": 5180,
+      "completion_tokens": 1155
+    },
+    {
+      "query_id": "10757151",
+      "system": "vanilla",
+      "stages": 1,
+      "claims": 5,
+      "citations": 0,
+      "decision": "no",
+      "errors": [],
+      "violations": [],
+      "latency_s": 3.0457472630005213,
+      "prompt_tokens": 2339,
+      "completion_tokens": 221
+    }
+  ]
+}
