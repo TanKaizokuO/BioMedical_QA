@@ -5,8 +5,8 @@
 
 ## Context
 
-ADR-0016 put three annotators — a1 Shreyansh, a2 Aditya, a3 Kush — on the full ~250-claim gold set
-for W6–W8, and §4 forbade a shared server on the grounds that one rater must not see another's
+ADR-0016 put three annotators — a1 Person_1, a2 Person_2, a3 Person_3 — on the full ~250-claim gold
+set for W6–W8, and §4 forbade a shared server on the grounds that one rater must not see another's
 judgements before α is computed. The form built for it is one self-contained HTML file per rater:
 `localStorage` in, JSONL out, no network.
 
