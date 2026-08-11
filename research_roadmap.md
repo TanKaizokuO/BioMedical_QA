@@ -383,7 +383,7 @@ precision must discriminate) wants hard ones.
 |---|---|---|---|
 | **dev** | 100 PubMedQA `pqa_labeled` questions | All development, prompt iteration, threshold tuning | Aug 7 |
 | **test** | ~400–500 `pqa_labeled` questions, disjoint from dev | **Every number in the paper.** Run late, run once per system per seed. | Aug 7 |
-| **gold-attribution** | **~4 claims × ~62 questions** ≈ 250 claims (ADR-0011), drawn from the **500 questions in neither dev nor test** — `data.gold_pool()`, derived from `splits.json`, never a second frozen file. **Not from `test`:** C4 asks whether the cheap verifier agrees with a human, and if it were measured on the questions the paper reports, the agreement and the result would stop being independent evidence. The 500 are idle, so this costs nothing. Overlap subset **sized to a 3 h annotator budget at 2 claims/question** — ~19 questions / 38 claims at the measured citation rate (ADR-0013) — triple-labeled | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
+| **gold-attribution** | **~4 claims × ~62 questions** ≈ 250 claims (ADR-0011), drawn from the **500 questions in neither dev nor test** — `data.gold_pool()`, derived from `splits.json`, never a second frozen file. **Not from `test`:** C4 asks whether the cheap verifier agrees with a human, and if it were measured on the questions the paper reports, the agreement and the result would stop being independent evidence. The 500 are idle, so this costs nothing. **Triple-labeled in full** — all three annotators label all ~250 claims, no overlap subset (ADR-0016) | C4 (verifier vs. human), attribution ground truth, α | Sep 27 (§4 Phase 4) |
 | ~~transfer~~ | ~~BioASQ-Y/N~~ | **Cut with C8** (§1) | — |
 
 Record split membership by question ID in a checked-in JSON with a hash in every run manifest. **If G0
@@ -537,14 +537,21 @@ supported because they are *true*, which biases exactly the number C4 depends on
 
 | Role | Claims | Time |
 |---|---|---|
-| Primary (you) | all 250–400 | **~8–14 h** (ADR-0013 §4; the old 4 h lower bound was unreachable) |
-| Annotator 2 | overlap, sized to the budget | **3 h total** — ~1 h pilot + ~2 h main pass |
-| Annotator 3 | overlap, sized to the budget | **3 h total** — ~1 h pilot + ~2 h main pass |
+| Primary (you) = Annotator 1 | **all ~250** | **~8–14 h** (ADR-0013 §4; the old 4 h lower bound was unreachable) |
+| Annotator 2 | **the same ~250** | **~10–16 h** — no expertise discount (ADR-0016 §1) |
+| Annotator 3 | **the same ~250** | **~10–16 h** |
 
-**The annotator ask is a ceiling, not an estimate (ADR-0013 §1).** Time is the fixed quantity and the
-subset is sized to it; it is never revised upward. Both annotators have accepted, so ADR-0011 §1's
-prohibition on upward revision is now live. The ~1 h pilot sitting was **never inside** ADR-0006's
-~3 h — it is an uncosted session (W6 below), not a mis-estimate.
+**All three label the full set (ADR-0016).** There is no overlap subset, because the overlap *is*
+the set: ≈750 annotator-level claim evaluations, α computed over the whole gold set rather than
+estimated from a sample of it. ADR-0013's 3 h ceiling was sized to a two-volunteer constraint that
+no longer holds — all three have agreed to the full pass. The cost is 30–49 annotator-hours in
+Sep 7–27 and it is stated, not mitigated.
+
+**The floor of this design is the ceiling of the old one.** All three work one shared seeded
+question order, so the triple-labeled common prefix is always a complete unbiased subsample; if
+capacity falls back to ~3 h each it shrinks to roughly the ~19 questions ADR-0013 bought
+deliberately. Nothing is staked on the expanded commitment being met in full. The ~1 h pilot sitting
+remains a separate uncosted session (W6 below).
 
 - **Drawn from `data.gold_pool()`** — the 500 questions in neither dev nor test (§3). Never from
   `test`: C4 and the headline numbers must not share questions, or the agreement stops being
@@ -552,45 +559,59 @@ prohibition on upward revision is now live. The ~1 h pilot sitting was **never i
 - **Sampling: ~4 claims per question across ~62 questions** (ADR-0011), **not** every claim of ~27
   questions. At 9.2 claims/query a 250-claim budget otherwise covers only ~27 questions, and claims
   within a question are correlated — they share the question, passages, answer and topic. The
-  250-claim budget is unchanged; question diversity rises ~2.3×. The overlap subset is sampled the
-  same way, which is what makes a clustered bootstrap (§8 rule 10) mean anything.
-- **The overlap subset is 2 claims per question, and questions are the protected dimension**
-  (ADR-0013 §2) — **not** ADR-0011's 4×19. Per-question cost is *sublinear* in claims (2 claims cite
-  1.52 distinct passages, 4 cite 2.03, measured on the G0 answers) while per-claim cost is linear, so
-  spreading thin buys clusters at no extra cost. A 2 h main pass yields **~19 questions / 38 claims**
-  at the measured 1.01 citations/claim, **12 / 24** in the pessimistic 2.0 tail. G4 reports the
-  cluster count it actually bought. The **primary keeps 4 claims/question** — its budget is claims,
-  not time, so the asymmetry is deliberate.
-- **The work is stoppable at any point with no loss** (ADR-0013 §3). **Annotators 2 and 3 work the
-  same randomized question order, question by question**, so any common prefix is a complete unbiased
-  subsample. This is a **W5 requirement on `data.py` and the annotation UI**, not a courtesy.
-- **The annotation unit is the (claim, cited span) pair** — but citations/claim is **1.01 measured**
-  (92 claims, G0), not the 2–3 originally assumed, so 38 overlap claims ≈ 38 pair judgements, and the
-  union judgement is degenerate for single-citation claims. **Re-measure on the W4 end-to-end records**
-  — G0's passages were sections of one abstract, which is not the retrieval regime (ADR-0013 KW2).
+  250-claim budget is unchanged; question diversity rises ~2.3×. All three annotators label this
+  same set, which is what makes a clustered bootstrap (§8 rule 10) mean anything.
+- **There is no overlap subset** (ADR-0016). Every annotator labels all ~250 claims, so α is computed
+  over the gold set rather than estimated from a sample of it: ~62 clusters instead of ~19, and an
+  interval about $\sqrt{62/19} \approx 1.8\times$ narrower. Tripling raters adds precision, not
+  units — 250 claims are still ~62 clusters, and the bootstrap still resamples questions.
+- **The work is stoppable at any point with no loss** (ADR-0013 §3, generalised by ADR-0016 §2).
+  **All three annotators work one shared seeded question order, question by question**, so the
+  triple-labeled common prefix is always a complete unbiased subsample. This is a **W5 requirement
+  on `data.py` and the annotation UI**, not a courtesy, and the UI must record per-question
+  completion so a partial pass is separable from a half-finished question.
+- **Blinding is load-bearing now that the author is one of three raters on identical units**
+  (ADR-0016 §4). The UI presents claims stripped of system, model and run identity in a seeded
+  shuffle that interleaves systems; the mapping to `(system, run_id, query_id)` lives outside the
+  annotation file and is joined at scoring. No annotator sees another's judgements, or any aggregate
+  over them, before finishing.
+- **Disagreements are never adjudicated before α.** Raw per-annotator judgements are preserved
+  (`HumanLabel.annotator_id`); choosing a single gold label per claim — majority, or the primary's —
+  is a scoring-time decision made *after* α, with the no-majority rate reported either way.
+- **The annotation unit is the (claim, cited span) pair.** Citations/claim was **1.01** on G0 (92
+  claims, sections of one abstract); re-measured on the W4 end-to-end records in the real retrieval
+  regime it is **1.13–1.50 parsed, 1.87–2.30 emitted** (`docs/harvest/generate_smoke_run4.md`,
+  n = 3 questions, provisional). Re-run on the first ≥50-question batch before the W5 UI work. The
+  union judgement is degenerate for single-citation claims.
 - **Guidelines must say what to do with a sampled abstention claim** — at ~4 claims/question one can
   be drawn (ADR-0010).
 - Labels are **4-way** (`SUPPORTED`/`PARTIAL`/`NOT_SUPPORTED`/`CONTRADICTED`) plus `claim_validity`.
   See [`CONTEXT.md`](CONTEXT.md). **Never collapse at write time** — an annotator cannot be re-run.
-- Report **Krippendorff's α with a bootstrap CI** (on a few dozen units it is not a point estimate), the
-  **no-majority discard rate**, the **human ceiling**, and the **decomposition-error rate** from
-  `claim_validity`.
+- Report **Krippendorff's α with a clustered bootstrap CI** (on a few dozen clusters it is not a
+  point estimate), the **no-majority rate**, the **human ceiling**, the **decomposition-error rate**
+  from `claim_validity`, and **per-annotator label distributions** — which full-set coverage makes
+  informative for the first time. Report α for the first and second halves of the shared order
+  separately: one order across all three annotators means fatigue drift is *correlated*, and
+  correlated drift inflates α (ADR-0016 KW2).
 - **Guidelines are written in W5 and carry all the load.** Concentrate effort on the
   **`SUPPORTED` vs `PARTIAL` boundary** — that is where the pilot fails if it fails. Include a
   worked example of jointly-necessary citations (dose in one span, outcome in another).
 - Annotation UI: a static HTML form writing JSONL is sufficient — the `teach/assets` machinery is a
   fine starting point. Do not build a tool.
 
-> **Gate G4 (by Sep 27): ≥250 claims labeled, and the *point* estimate α ≥ 0.6 on the overlap
-> subset — computed on the binary collapse** (SUPPORTED+PARTIAL vs NOT_SUPPORTED+CONTRADICTED), the
-> quantity C4 consumes. The 4-way ordinal α is reported as a secondary number.
-> **The clustered bootstrap CI is always reported, with its cluster count stated** (whatever the
-> time budget bought — ADR-0013 §2, no longer fixed at ~19), and is
-> never used to soften the point.
-> *If α < 0.6:* the guidelines are ambiguous, not the annotators. Revise guidelines, re-annotate the
-> overlap. Report the final α whatever it is — a low α honestly reported with the ceiling stated is
+> **Gate G4 (by Sep 27): ≥250 claims labeled, and the *point* estimate α ≥ 0.6 computed on the
+> binary collapse** (SUPPORTED+PARTIAL vs NOT_SUPPORTED+CONTRADICTED), the quantity C4 consumes,
+> **over the triple-labeled common prefix** — the full gold set when all three finish, which is the
+> target (ADR-0016 §3). The 4-way ordinal α is reported as a secondary number.
+> **The clustered bootstrap CI is always reported, with its cluster count stated** (whatever was
+> actually labeled — ~62 if the full pass lands, and never assumed), and is never used to soften the
+> point.
+> *If α < 0.6:* the guidelines are ambiguous, not the annotators. Revise guidelines, re-annotate.
+> Report the final α whatever it is — a low α honestly reported with the ceiling stated is
 > publishable; a hidden one is not. **This is the sole re-pilot trigger** (ADR-0011 dropped a second,
 > CI-based one); it lands in **W9**.
+> *Tripwire:* if the triple-labeled common prefix is under ~19 questions on **Sep 20**, the schedule
+> is behind where the superseded overlap design would have been and G4 is at risk.
 
 > **Why G4 gates on the point while G1 gates on point *and* Wilson lower bound.** Stated here so the
 > asymmetry reads as a reason rather than a convenience. G1's gate is a **proportion over 100
@@ -649,9 +670,9 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 | **W3** | Aug 17–23 | Cross-encoder rerank; gate measurement + Wilson CIs | Decomposition prompt drafting on dev · **start logging prompt-iteration budget** · **re-confirm the probe post-rerank** | **G1** · Table 1 complete |
 | **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip · **granularity-parity loop, blind — hard stop at 10 iterations or Aug 30** | Vanilla RAG + post-hoc baselines, **equal-effort protocol** · **clustered-vs-unclustered CI dry-run** | First end-to-end record · **parity frozen** |
 | **W5** | Aug 31 – Sep 6 | Decontextualization; granularity knob; citation P/R scorers (strict + lenient) · **first citation-F1 ever computed (≈ Aug 31)** | Verifier wiring; **cost instrumentation**; **guidelines pass 1 from Aug 31, worked examples Sep 3–6** · ~~MedNLI source~~ | **G2** · **decomposer freeze Sep 3** |
-| **W6** | Sep 7–13 | MiniCheck + Opus 5 judge, identical APIs; AlignScore row | **Annotation pilot (10 claims, 3 annotators, ~1 h each)** — tests the *guidelines* · **primary's own pass starts here, not W7** (ADR-0013 §4) | Gold set launched |
-| **W7** | Sep 14–20 | Threshold sweep, AUROC, ECE; **overhead measurement (clean, GPU idle, ≥5 runs)** | Annotation in progress — primary's ~8–14 h is the long pole | **G3** · Table 4 draft |
-| **W8** | Sep 21–27 | **Code freeze + tag. Decide the frozen-run backend.** Test runs begin, seed 1 | Annotation completes | **G4** |
+| **W6** | Sep 7–13 | MiniCheck + Opus 5 judge, identical APIs; AlignScore row | **Annotation pilot (10 claims, 3 annotators, ~1 h each)** — tests the *guidelines* · **all three main passes start here** (ADR-0013 §4, ADR-0016) | Gold set launched |
+| **W7** | Sep 14–20 | Threshold sweep, AUROC, ECE; **overhead measurement (clean, GPU idle, ≥5 runs)** | Annotation in progress — **3 × 10–16 h is now the long pole** · **Sep 20 tripwire: common prefix ≥ ~19 questions** | **G3** · Table 4 draft |
+| **W8** | Sep 21–27 | **Code freeze + tag. Decide the frozen-run backend.** Test runs begin, seed 1 | Annotation completes; α over the triple-labeled prefix | **G4** |
 | **W9** | Sep 28 – Oct 4 | Seeds 2–3, all systems; ablations; **swap check** | ⚠ **Triple-booked:** stratified robustness check (ADR-0009, *likely* to trigger) · a G4 re-pilot if α < 0.6 · *and* its original role absorbing Phase 3–5 slippage | Raw results |
 | **W10** | Oct 5–11 | Significance tests, CIs; stratified error analysis (Table 5) | **Write Method + Setup** | **G5** · Tables 1–5 final |
 | **W11** | Oct 12–18 | Figures 1–3 | **Write Results + Analysis** | Results section |
@@ -691,7 +712,7 @@ restructuring if discovered late.
 |---|---|---|---|
 | R1 | **Corpus / index build** — the 2M encode or `bm25s` index doesn't land | W2 encode exceeds ~4 h, or index build fails at 2M | **Encode half discharged at G0 (2026-08-04): measured 1.6 h for 2M, 343.6 abstracts/s.** The 1M fallback is not needed. *The `bm25s` half is still live* — no 2M index build has been attempted, so index failure remains the open leg of R1. **New in W2: PMID dedup must precede the encode** (ADR-0012) — a gold abstract present twice under two `passage_id`s makes `gold_rank`/hit@5 miscount silently, and the encode would have to be redone. **Never** fall back to the 1,000 gold contexts (ADR-0003) |
 | R2 | Retrieval gate stalls | G1 missed Aug 23 | Escalation ladder in Phase 1; ultimately relax to hit@10 and reframe as conditional attribution — **never** by tuning τ |
-| R3 | **Gold annotation slips** (highest-probability October surprise) | Not launched by Sep 13 | Cut gold set to 150 claims; **fall back to ADR-0006's protocol**: LLM-assisted pre-label (**not Opus 5** — it would contaminate the gold against the judge) + full human adjudication + blind self-agreement re-annotation ≥2 weeks apart → **intra-annotator** α. Report reduced *n* and wider CIs |
+| R3 | **Gold annotation slips** (highest-probability October surprise; **more likely under ADR-0016** — 30–49 annotator-hours in Sep 7–27) | Not launched by Sep 13, or common prefix < ~19 questions on Sep 20 | The shared seeded order (ADR-0016 §2) means a short pass degrades to the superseded overlap design, not to nothing — **that is the first-line response, and it is automatic**. Only if the set is never launched: cut to 150 claims and fall back to ADR-0006's protocol — LLM-assisted pre-label (**not Opus 5** — it would contaminate the gold against the judge) + full human adjudication + blind self-agreement re-annotation ≥2 weeks apart → **intra-annotator** α. Report reduced *n* and wider CIs |
 | **R3b** | **Annotators never materialize** | Ask not accepted by ~Aug 20 | Same fallback as R3. **The ask goes out in W0 precisely to make this detectable in August, not September** |
 | R4 | Verifier too heavy → the cost modifier dies | Cost ratio < 10× at G3 | The headline is already attribution quality (ADR-0002), so this costs the subtitle, not the paper. Decide **by Sep 20** |
 | R5 | Joint ≈ post-hoc (null on C2) | G2 margin inside the CI | Check baseline fairness first (§4 Phase 2 — but note the equal-effort protocol makes an *artifactual* gap less likely, not more). If genuine, reposition around **C3 + C9** and publish C2 as a negative finding. **The response is decided before Aug 31, not on the day:** ADR-0009's blind parity loop means the first citation-F1 lands ≈ Aug 31 and G2 is Sep 6 — a **six-day window** with no earlier warning, since the burn-slice unblinding was declined. Clustering (§8 rule 10) also **widens** G2's margin, at an unchanged threshold |
@@ -746,9 +767,11 @@ restructuring if discovered late.
 things that cannot be compressed later.**
 
 1. ~~**⏰ Send the annotator ask**~~ — **DONE 2026-08-04; both accepted.** Two literate
-   **non-experts**, **3 h each total** (~1 h pilot + ~2 h main pass, ADR-0013 §1), early September.
-   Not a biomedical qualification. The ask is a **ceiling** and is never revised upward; the overlap
-   subset is sized to it. Remaining: send the two-sitting schedule and the stop-anytime guarantee.
+   **non-experts**, early September; not a biomedical qualification. **Superseded 2026-08-11
+   (ADR-0016):** all three now label the full ~250-claim set, ~10–16 h each, on their own agreement.
+   ADR-0013 §1's 3 h ceiling was sized to the previous commitment and no longer binds. Remaining:
+   send the shared-order schedule and the stop-anytime guarantee — which is what makes a short pass
+   degrade to the old overlap design rather than to nothing.
 2. ~~**Start the MedNLI / PhysioNet application**~~ — **DROPPED 2026-08-04, deliberately.** The
    credentialing path (PhysioNet + CITI "Data or Specimens Only Research" + HDUA 1.5.0) is
    human-reviewed and slower than the schedule that remains, and the fine-tune it enables never fit

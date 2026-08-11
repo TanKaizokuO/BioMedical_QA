@@ -180,4 +180,6 @@ Citation precision/recall semantics are **unchanged** from ALCE and are reused v
 ## Related decisions
 
 Architectural decisions that produced or constrain these definitions live in [`docs/adr/`](docs/adr/).
-The most relevant are ADR-0005 (attribution unit) and ADR-0006 (annotation protocol).
+The most relevant are ADR-0005 (attribution unit), ADR-0006 (annotation protocol) and ADR-0016
+(all three annotators label the full gold set). Nothing on this page changes with ADR-0016 — it
+settles who labels how much, not what a label means.

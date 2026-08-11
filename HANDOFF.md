@@ -163,12 +163,16 @@ corpus that must not be encoded.** Ask for the traceback rather than working aro
   The measurement that killed the middle option: **a PubMedQA question is its article's title,
   verbatim** — 60 sampled gold PMIDs, title covers the question's content tokens at **median and mean
   1.00, 60/60 at ≥ 0.8**. ADR-0003 called retrieval here "a lexical gimme"; it is stronger than that.
-- **Citations/claim measures 1.01, not the 2–3 assumed** (89 of 92 G0 claims cite exactly one). But
-  **G0's passages were sections of one abstract**, which is not the retrieval regime. **ADR-0013 KW2:
-  re-measure on the W4 end-to-end records.** The single largest uncertainty left in the annotation plan.
+- **Citations/claim measures 1.01 on G0** (89 of 92 claims cite exactly one), but G0's passages were
+  sections of one abstract, which is not the retrieval regime. **Re-measured on the W4 end-to-end
+  records (ADR-0013 KW2, discharged 2026-08-11):** 1.13–1.50 parsed, 1.87–2.30 emitted, n = 3
+  questions — provisional, re-run on the first ≥50-question batch
+  (`docs/harvest/generate_smoke_run4.md`).
 - **Per-question annotation cost is sublinear in claims; per-claim cost is linear** (2 sampled claims
   cite 1.52 distinct passages, 4 cite 2.03; 4,000 resamples/question over the G0 answers). This is
-  *why* 2 claims/question beats ADR-0011's 4×19 at equal cost.
+  *why* ADR-0013 sized the overlap at 2 claims/question — **superseded by ADR-0016**, which drops the
+  overlap entirely: all three annotators label all ~250 claims at 4 claims/question, ~10–16 h each.
+  The model still governs the schedule risk.
 - **How the corpus failure was diagnosed, because the method transfers.** The write step raised
   `wrote 2,000,000 rows for 1,999,703 drawn PMIDs`, whose message named **two** possible causes. The
   guard's *direction* discriminated them without another 3 h run. Everything after came from the

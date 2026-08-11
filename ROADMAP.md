@@ -15,7 +15,7 @@
 | **G1** — Retrieval Gate | **Aug 23, 2026** | **RELAXED TO k=10 AND PASSED (2026-08-10, ADR-0015)** | **hit@10 0.94, Wilson lower 0.8752** on dev at `(abstract, τ untouched)`, index `57ab89e445f8`. **At k=5 it fails: 0.86, Wilson [0.7786, 0.9147]**, and that reading is reported beside the relaxed gate in the paper. The chunker rung was spent first: all 7 arms bounded inside Table 1's own row-4 pool, best *eligible* arm 0.89 UB, so no build can reach 0.90 and all 7 are refused. The one arm that cleared it (`section`, 0.94 UB) cuts gold on real section boundaries while every distractor stays a whole abstract — ADR-0014 §2's rejected signal — and is disqualified. Thresholds 0.90 / 0.85 unchanged; only k moved, once, on the record. |
 | **G2** — Joint Attribution Gate | **Sep 6, 2026** | **Unstarted** | On dev, joint attribution beats post-hoc citation on citation-F1 by margin > paired-bootstrap CI; ≥95% valid claim parse. |
 | **G3** — Cheap Verifier Gate | **Sep 20, 2026** | **Unstarted** | Verifier AUROC ≥ 0.75 for unsupported claim detection at ≥10× lower cost than Opus 5 judge baseline. |
-| **G4** — Human Gold Attribution Gate | **Sep 27, 2026** | **Unstarted** | ≥250 claims labeled; point estimate Krippendorff's α ≥ 0.6 on binary collapse across overlap set. |
+| **G4** — Human Gold Attribution Gate | **Sep 27, 2026** | **Unstarted** | ≥250 claims labeled; point estimate Krippendorff's α ≥ 0.6 on binary collapse over the triple-labeled set (ADR-0016). |
 | **G5** — Execution & Table Freeze | **Oct 11, 2026** | **Unstarted** | Every cell of Tables 1–5 populated from tracked run manifests with confidence intervals. |
 
 ---
@@ -85,14 +85,14 @@
 - [ ] Wire MiniCheck-Flan-T5-Large verifier and Opus 5 LLM judge baseline in `src/biomedqa/verify.py`.
 - [ ] Integrate AlignScore (~355M) as never-cut second row for Table 3.
 - [ ] Conduct human annotation pilot pass (10 claims, 3 annotators, ~1 h each).
-- [ ] Launch primary author annotation pass (~8–14 h total over W6–W7).
+- [ ] Launch all three full-set annotation passes — ~250 claims each, ~10–16 h per annotator, one shared seeded question order (ADR-0016).
 
 ### Week 7 (Sep 14 – Sep 20, 2026) — Verifier Evaluation & Gate G3
 - [ ] Perform verifier threshold sweep, AUROC, AUPRC, and ECE evaluation in `src/biomedqa/scoring/calibration.py`.
 - [ ] Instrument clean overhead benchmarking on A4000 (tokens, $, wall-clock s per query).
 - [ ] **Gate G3 Execution (Sep 20, 2026):** Achieve verifier AUROC ≥ 0.75 for unsupported claim detection at ≥10× lower cost than Opus judge.
 - [ ] Draft Table 4 (cost & latency Pareto comparison).
-- [ ] Complete human annotation main pass (2 h per annotator, ~19 questions / 38 claims overlap).
+- [ ] Annotation main pass in progress; **Sep 20 tripwire — triple-labeled common prefix ≥ ~19 questions**.
 
 ### Week 8 (Sep 21 – Sep 27, 2026) — Human Annotation Gate G4 & Code Freeze
 - [ ] Complete all human label collection (Sun Sep 20).
