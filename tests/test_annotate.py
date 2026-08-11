@@ -16,10 +16,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from biomedqa.annotate import (
     build_tasks,
+    collector_token,
     common_prefix,
     human_labels,
     question_order,
     render_form,
+    snapshot_summary,
     tasks_to_payload,
 )
 from biomedqa.schema import Citation, Claim, QueryRecord, RetrievedPassage, SupportLabel, System
@@ -180,3 +182,58 @@ def test_divergent_orders_are_an_error_not_a_smaller_prefix():
     a2 = [q(0, "a"), q(1, "c")]
     with pytest.raises(ValueError, match="shared order was violated"):
         common_prefix(a1, a2)
+
+
+# --------------------------------------------------------------- collector sidecar (Q6–Q9)
+
+
+def test_form_without_a_collector_url_stays_offline():
+    tasks, _ = build_tasks(corpus())
+    payload = tasks_to_payload(tasks, "a1", seed=1)
+    assert payload["collector"] is None
+    assert "http" not in render_form(tasks, "a1").split("<script id=\"tasks\"")[1].split("</script>")[0]
+
+
+def test_each_form_carries_only_its_own_token():
+    tasks, _ = build_tasks(corpus())
+    url = "http://a4000.local:8811"
+    tokens = {a: tasks_to_payload(tasks, a, seed=1, collector_url=url)["collector"]["token"]
+              for a in ("a1", "a2", "a3")}
+    assert len(set(tokens.values())) == 3          # a1 cannot read a2's state
+    for annotator, token in tokens.items():
+        assert token == collector_token(annotator, seed=1)
+        html = render_form(tasks, annotator, seed=1, collector_url=url)
+        assert token in html
+        assert not any(t in html for a, t in tokens.items() if a != annotator)
+
+
+def test_collector_url_trailing_slash_does_not_double_up():
+    tasks, _ = build_tasks(corpus())
+    payload = tasks_to_payload(tasks, "a1", seed=1, collector_url="http://box:8811/")
+    assert payload["collector"]["url"] == "http://box:8811"
+
+
+def test_snapshot_summary_counts_completion_and_projects_hours():
+    state = {
+        "questions": {
+            "u1": {"started_at": "t", "completed_at": "t", "active_s": 300.0},
+            "u2": {"started_at": "t", "completed_at": "t", "active_s": 420.0},
+            "u3": {"started_at": "t", "completed_at": None, "active_s": 60.0},
+        },
+        "answers": {
+            "x": {"validity": True, "union": "SUPPORTED", "spans": {}},
+            "y": {"validity": True, "union": None, "spans": {}},   # half-answered: not counted
+        },
+    }
+    s = snapshot_summary(state, total_questions=100)
+    assert (s["questions_started"], s["questions_complete"], s["claims_labeled"]) == (3, 2, 1)
+    assert s["active_s"] == 780.0
+    # 390 s per completed question over 100 questions ≈ 10.8 h — the pilot's projection.
+    assert s["projected_h"] == pytest.approx(10.83, abs=0.01)
+
+
+def test_snapshot_summary_of_an_untouched_pass_projects_nothing():
+    assert snapshot_summary({}, total_questions=250) == {
+        "questions_started": 0, "questions_complete": 0, "questions_total": 250,
+        "claims_labeled": 0, "active_s": 0.0, "projected_h": 0.0,
+    }

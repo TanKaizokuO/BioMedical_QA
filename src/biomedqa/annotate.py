@@ -11,11 +11,17 @@ things that ADR-0016 made load-bearing, and nothing else:
    spans. System, model and run identity live in a separate keyfile, joined at scoring time.
    The primary annotator is the author; without this, α measures the author's memory.
 
-Everything else is deliberately absent. There is no server, no database and no session state
-on disk: `render_form()` emits one self-contained HTML file per annotator that stores progress
-in `localStorage` and downloads JSONL. ADR-0016 says a static form suffices and that this is
-"not a licence to build a tool"; a dashboard would also need hosting, which would let one
-annotator see another's judgements before finishing, which §4 forbids.
+Everything else is deliberately absent. `render_form()` emits one self-contained HTML file per
+annotator that stores progress in `localStorage` and downloads JSONL; it needs no server to be
+usable. ADR-0016 says a static form suffices and that this is "not a licence to build a tool";
+a *dashboard* would let one annotator see another's judgements before finishing, which §4 forbids.
+
+What the form does have, when `collector_url` is passed, is a **write-mostly sidecar**: every save
+is also POSTed to a LAN collector (`scripts/annotation_collect.py`) so a cleared cache or a dead
+laptop is recoverable and the maintainer can count progress without asking. It is strictly
+additive — the form keeps `localStorage` as the primary store and keeps working when the collector
+is down. Each form carries only its own annotator's token, so no form can read another's state,
+and the keyfile never goes near the collector.
 
 Claims with no citations (every `VANILLA` claim, by definition) carry no attribution judgement
 and are not annotation units. They are dropped here, not silently labelled `NOT_SUPPORTED`.
@@ -179,12 +185,59 @@ def build_tasks(
     return tasks, keyfile
 
 
-def tasks_to_payload(tasks: Sequence[QuestionTask], annotator_id: str, *, seed: int) -> dict:
+def collector_token(annotator_id: str, *, seed: int = ANNOTATION_SEED) -> str:
+    """The one secret in an annotator's form: it authorises writes and reads for *that* id only.
+
+    Derived, not random, so `annotation_collect.py` and `annotation_status.py` can recompute it
+    from the seed instead of carrying a secrets file around. It is a LAN convenience, not a lock:
+    anyone who can read the collector's snapshot directory can read every annotator's labels.
+    """
+    return canonical_hash(["collector_token", seed, annotator_id])
+
+
+def snapshot_summary(state: dict, total_questions: int) -> dict:
+    """Progress counts for one saved state — the whole of what the maintainer gets to see.
+
+    Deliberately not a per-label view: the point of the collector is a burn-down, and reading
+    one annotator's judgements while another is still labelling is what ADR-0016 §4 forbids.
+    """
+    questions = state.get("questions") or {}
+    answers = state.get("answers") or {}
+    complete = sum(1 for q in questions.values() if q.get("completed_at"))
+    active_s = sum(float(q.get("active_s") or 0.0) for q in questions.values())
+    claims = sum(1 for a in answers.values() if a.get("validity") is not None and a.get("union"))
+    per_question = active_s / complete if complete else 0.0
+    return {
+        "questions_started": len(questions),
+        "questions_complete": complete,
+        "questions_total": total_questions,
+        "claims_labeled": claims,
+        "active_s": round(active_s, 1),
+        "projected_h": round(per_question * total_questions / 3600.0, 2),
+    }
+
+
+def tasks_to_payload(
+    tasks: Sequence[QuestionTask],
+    annotator_id: str,
+    *,
+    seed: int,
+    collector_url: str | None = None,
+) -> dict:
     """The JSON the form is built around. Contains no system, model or run identity."""
     return {
         "annotator_id": annotator_id,
         "seed": seed,
         "order_hash": canonical_hash([t.question_uid for t in tasks]),
+        # Only this annotator's token, so one form can never read another's state (§4).
+        "collector": (
+            None
+            if not collector_url
+            else {
+                "url": collector_url.rstrip("/"),
+                "token": collector_token(annotator_id, seed=seed),
+            }
+        ),
         "questions": [
             {
                 "question_uid": t.question_uid,
@@ -213,10 +266,19 @@ def tasks_to_payload(tasks: Sequence[QuestionTask], annotator_id: str, *, seed: 
 
 
 def render_form(
-    tasks: Sequence[QuestionTask], annotator_id: str, *, seed: int = ANNOTATION_SEED
+    tasks: Sequence[QuestionTask],
+    annotator_id: str,
+    *,
+    seed: int = ANNOTATION_SEED,
+    collector_url: str | None = None,
 ) -> str:
-    """One self-contained HTML file: open it, label, download JSONL. No server, no network."""
-    payload = tasks_to_payload(tasks, annotator_id, seed=seed)
+    """One self-contained HTML file: open it, label, download JSONL.
+
+    Usable with no network at all. With `collector_url`, saves are additionally mirrored to the
+    LAN collector and the form grows a Restore control; a failed mirror is reported in the header
+    and never blocks labelling.
+    """
+    payload = tasks_to_payload(tasks, annotator_id, seed=seed, collector_url=collector_url)
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     # `</script` inside a string literal would close the tag early; nothing else can escape it.
     blob = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")

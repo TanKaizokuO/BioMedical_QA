@@ -45,6 +45,11 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=_REPO / "annotation", help="output directory")
     ap.add_argument("--annotators", nargs="+", default=list(ANNOTATORS))
     ap.add_argument("--seed", type=int, default=ANNOTATION_SEED)
+    ap.add_argument(
+        "--collector-url",
+        default=None,
+        help="LAN backup collector, e.g. http://a4000.local:8811 (omit for a fully offline form)",
+    )
     ap.add_argument("--force", action="store_true", help="overwrite existing forms")
     args = ap.parse_args()
 
@@ -63,7 +68,7 @@ def main() -> int:
 
     order_hash = tasks_to_payload(tasks, "-", seed=args.seed)["order_hash"]
     for annotator, path in forms.items():
-        html = render_form(tasks, annotator, seed=args.seed)
+        html = render_form(tasks, annotator, seed=args.seed, collector_url=args.collector_url)
         if order_hash not in html:
             raise SystemExit(f"form for {annotator} does not carry the shared order hash")
         path.write_text(html, encoding="utf-8")
@@ -82,6 +87,7 @@ def main() -> int:
     for annotator, path in forms.items():
         print(f"  {annotator}  {path}")
     print(f"keyfile       {key_path}  — do not send this to annotators")
+    print(f"collector     {args.collector_url or '(none — forms are offline-only)'}")
     return 0
 
 

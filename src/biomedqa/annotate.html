@@ -40,6 +40,9 @@
   summary { cursor: pointer; font-weight: 600; }
   table { border-collapse: collapse; margin: 10px 0; font-size: 14px; }
   td, th { border: 1px solid var(--line); padding: 5px 9px; text-align: left; }
+  #restorepanel { max-width: 900px; margin: 0 auto; padding: 20px; }
+  .cand { display: block; width: 100%; text-align: left; margin: 8px 0; }
+  .cand .meta { display: block; }
 </style>
 </head>
 <body>
@@ -47,9 +50,21 @@
   <b id="who"></b>
   <span class="meta" id="progress"></span>
   <span class="grow"></span>
+  <span class="meta" id="sync"></span>
   <span class="meta" id="saved"></span>
+  <button id="restore" hidden>Restore&hellip;</button>
   <button id="download">Download my labels (JSONL)</button>
 </header>
+
+<section id="restorepanel" hidden>
+  <h1>Restore a saved pass</h1>
+  <p class="meta">Pick one copy. Nothing is merged: the copy you pick <b>replaces</b> what is in
+  this browser. Check the counts below before you choose.</p>
+  <div id="candidates"></div>
+  <p class="sub">Or from a file you exported</p>
+  <p><input type="file" id="restorefile" accept=".jsonl,.json"></p>
+  <nav><button id="restoreclose">Close</button></nav>
+</section>
 
 <main>
   <details>
@@ -72,7 +87,10 @@
     could check at all — no dangling "it"/"this study", not a fragment, not a question. It is not
     about support. Answer the support questions either way.</p>
     <p>Work in the order given and finish each question before moving on. Your progress is saved
-    in this browser; download the JSONL at the end of every session and send it in.</p>
+    in this browser, and — when the header says <em>backed up</em> — copied to the lab machine as
+    well. Download the JSONL at the end of every session and send it in: that file is your own
+    copy. Use one browser on one machine. If you must change machine, or the browser loses your
+    work, press <b>Restore&hellip;</b> and pick a copy; nothing is ever merged for you.</p>
   </details>
 
   <div id="view"></div>
@@ -91,6 +109,9 @@ const DATA = JSON.parse(document.getElementById("tasks").textContent);
 const LABELS = ["SUPPORTED", "PARTIAL", "NOT_SUPPORTED", "CONTRADICTED"];
 const KEY = "biomedqa:" + DATA.annotator_id + ":" + DATA.order_hash;
 const QS = DATA.questions;
+// Write-mostly sidecar (null when the form was built without --collector-url). The form never
+// reads it on load: localStorage stays the primary store, and restoring is always deliberate.
+const COLLECTOR = DATA.collector || null;
 
 // state.answers[unit_id] = {validity: bool, spans: {i: LABEL}, union: LABEL, notes: str}
 // state.questions[uid]   = {started_at, completed_at, active_s}
@@ -104,8 +125,10 @@ function load() {
   return { answers: {}, questions: {} };
 }
 function save() {
+  state.saved_at = new Date().toISOString();
   localStorage.setItem(KEY, JSON.stringify(state));
   document.getElementById("saved").textContent = "saved " + new Date().toLocaleTimeString();
+  mirror();
 }
 
 function qstate(uid) {
@@ -313,6 +336,161 @@ document.getElementById("download").addEventListener("click", () => {
   link.download = "labels_" + DATA.annotator_id + ".jsonl";
   link.click();
   URL.revokeObjectURL(link.href);
+});
+
+// ---------------------------------------------------------------- collector sidecar + restore
+
+function collectorUrl(path) {
+  return COLLECTOR.url + path + "?token=" + encodeURIComponent(COLLECTOR.token);
+}
+function snapshot() {
+  return {
+    annotator_id: DATA.annotator_id, order_hash: DATA.order_hash,
+    saved_at: state.saved_at || null, state: state
+  };
+}
+function setSync(text) { document.getElementById("sync").textContent = text; }
+
+// Coalesced: a save fires on every radio click, and one snapshot file per click would bury the
+// status view. A failed POST is reported and dropped — localStorage already holds the work.
+let mirrorTimer = null, mirrorDirty = false;
+function mirror() {
+  if (!COLLECTOR) return;
+  mirrorDirty = true;
+  if (mirrorTimer === null) mirrorTimer = setTimeout(flushMirror, 3000);
+}
+async function flushMirror() {
+  mirrorTimer = null;
+  if (!COLLECTOR || !mirrorDirty) return;
+  mirrorDirty = false;
+  try {
+    // text/plain keeps this a CORS-simple request, so a file:// form needs no preflight.
+    const res = await fetch(collectorUrl("/state/" + DATA.annotator_id), {
+      method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" },
+      body: JSON.stringify(snapshot())
+    });
+    setSync(res.ok ? "backed up " + new Date().toLocaleTimeString()
+                   : "backup refused (HTTP " + res.status + ")");
+  } catch (e) {
+    mirrorDirty = true;
+    setSync("no backup \u2014 working offline");
+  }
+}
+
+function summarize(st) {
+  const qs = (st && st.questions) || {};
+  const done = Object.values(qs).filter(q => q.completed_at).length;
+  const when = st && st.saved_at ? new Date(st.saved_at).toLocaleString() : "unknown";
+  return done + " of " + QS.length + " questions complete \u00b7 saved " + when;
+}
+
+// The annotators hold JSONL exports, not internal state, so a file restore has to read the
+// export back. Question rows carry the clock; label rows carry the judgements.
+function stateFromJsonl(text) {
+  const st = { answers: {}, questions: {}, saved_at: null };
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const row = JSON.parse(line);
+    if (row.order_hash && row.order_hash !== DATA.order_hash) {
+      throw new Error("this file was exported from a different question order");
+    }
+    if (row.type === "question") {
+      st.questions[row.question_uid] = {
+        started_at: row.started_at || null, completed_at: row.completed_at || null,
+        active_s: row.active_s || 0
+      };
+    } else if (row.type === "label") {
+      const a = st.answers[row.unit_id] ||
+        (st.answers[row.unit_id] = { validity: null, spans: {}, union: null, notes: "" });
+      a.validity = row.claim_validity;
+      a.notes = row.notes || "";
+      if (row.citation_index === null) a.union = row.support_label;
+      else a.spans[row.citation_index] = row.support_label;
+    }
+  }
+  return st;
+}
+
+function adopt(st) {
+  if (st.order_hash && st.order_hash !== DATA.order_hash) {
+    alert("That copy uses a different question order and cannot be restored into this form.");
+    return;
+  }
+  const inner = st.state || st;
+  state.answers = inner.answers || {};
+  state.questions = inner.questions || {};
+  state.saved_at = inner.saved_at || null;
+  leaving();
+  at = frontier();
+  shownAt = null;
+  save();
+  closeRestore();
+  render();
+}
+
+function closeRestore() {
+  document.getElementById("restorepanel").hidden = true;
+  document.querySelector("main").hidden = false;
+}
+
+function candidate(title, detail, onPick) {
+  const b = document.createElement("button");
+  b.className = "cand";
+  b.append(title);
+  const m = document.createElement("span");
+  m.className = "meta";
+  m.textContent = detail;
+  b.append(m);
+  if (onPick) b.addEventListener("click", onPick); else b.disabled = true;
+  return b;
+}
+
+async function openRestore() {
+  const box = document.getElementById("candidates");
+  box.replaceChildren();
+  box.append(candidate("Keep this browser's copy", summarize(state), closeRestore));
+  document.querySelector("main").hidden = true;
+  document.getElementById("restorepanel").hidden = false;
+  if (!COLLECTOR) return;  // browser copy and file import only
+  const pending = candidate("Copy on the collector", "checking\u2026", null);
+  box.append(pending);
+  try {
+    const res = await fetch(collectorUrl("/state/" + DATA.annotator_id + "/restore"));
+    if (res.status === 404) {
+      pending.replaceWith(candidate("Copy on the collector", "none stored yet", null));
+      return;
+    }
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const snap = await res.json();
+    pending.replaceWith(
+      candidate("Restore the collector's copy", summarize(snap.state), () => adopt(snap)));
+  } catch (e) {
+    pending.replaceWith(candidate("Copy on the collector", "unreachable: " + e.message, null));
+  }
+}
+
+document.getElementById("restore").hidden = false;
+document.getElementById("restore").addEventListener("click", openRestore);
+if (COLLECTOR) {
+  window.addEventListener("beforeunload", () => {
+    if (!mirrorDirty) return;
+    navigator.sendBeacon(collectorUrl("/state/" + DATA.annotator_id),
+      new Blob([JSON.stringify(snapshot())], { type: "text/plain;charset=UTF-8" }));
+  });
+}
+document.getElementById("restoreclose").addEventListener("click", closeRestore);
+document.getElementById("restorefile").addEventListener("change", async (ev) => {
+  const file = ev.target.files && ev.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const st = file.name.endsWith(".json") ? JSON.parse(text) : stateFromJsonl(text);
+    if (!confirm("Replace this browser's copy with " + file.name + "?\n\n" + summarize(st.state || st))) return;
+    adopt(st);
+  } catch (e) {
+    alert("Could not read that file: " + e.message);
+  }
+  ev.target.value = "";
 });
 
 render();
