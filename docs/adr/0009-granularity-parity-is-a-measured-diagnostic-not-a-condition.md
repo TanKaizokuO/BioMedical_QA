@@ -2,6 +2,10 @@
 
 **Status:** Accepted · **Date:** 2026-08-04 · **Decided in:** grilling session (G0 follow-up)
 **Refines** ADR-0002's equal-effort protocol · **Constrained by** ADR-0005 (the attribution unit)
+**Amended 2026-08-13** — §4's premise that post-hoc granularity is set by a separate `decompose.py`
+decomposer was wrong; the live baseline emits claims directly, so the loop's lever is
+`POST_HOC_ANSWER_TEMPLATE`. See *Amendment* under §4. The decision it supported — tune post-hoc only,
+blind, hard-10 — is unchanged. Made on the user's explicit instruction, in preference to a new ADR.
 
 ## Context
 
@@ -64,6 +68,10 @@ steering on F1; nothing but pre-commitment protects against steering on the tole
 
 ### 4. Only the post-hoc decomposer is tuned
 
+> **Amended 2026-08-13 — the lever is `POST_HOC_ANSWER_TEMPLATE`, not `decompose.py`.** See the
+> *Amendment* block below. "The post-hoc decomposer prompt" in this section names the post-hoc
+> answer template in the shipped code; the decision is unchanged.
+
 The parity loop may edit **the post-hoc decomposer prompt only**. The joint prompt is out of bounds
 for the loop's duration.
 
@@ -76,6 +84,28 @@ direction also makes §6's blinding meaningful: a blind loop free to touch both 
 With one direction fixed, the effort demonstrably went into the **baseline**, so charging it to
 neither system makes the reported baseline effort an *undercount* — the safe direction to be wrong
 in, and the one that strengthens the answer to objection 7.
+
+#### Amendment, 2026-08-13 — the tunable prompt is `POST_HOC_ANSWER_TEMPLATE`, not `decompose.py`
+
+**What was wrong: the premise about where post-hoc's granularity is set.** This section (and
+`research_roadmap.md` §8 rule 8) assumed the post-hoc baseline produces prose that a separate
+`decompose.py` splits into claims — so "the post-hoc decomposer prompt" read as the decomposer's
+prompt. The shipped baseline does not work that way. `POST_HOC_ANSWER_TEMPLATE` emits `CLAIM` lines
+**directly** (`prompts.py`; the cite stage only attaches quotes), and `CONTEXT.md`'s attribution-unit
+row confirms it — "the method generates claims directly; there is no separate sentence layer." There
+is no prose→decompose step on the C2 headline path. `decompose.py` is the **C7 / Table-2
+granularity-ablation** tool (sentence / atomic / decontextualized rows, due W5), off the C2 path.
+
+**What this does not change: the decision.** Tune the post-hoc arm only; the joint prompt stays out
+of bounds; hard-10 or Aug 30; blind throughout. The reasoning in this section holds verbatim once
+"the post-hoc decomposer prompt" is read as **`POST_HOC_ANSWER_TEMPLATE`**.
+
+**What it does change: which knob the loop may turn.** The lever is `POST_HOC_ANSWER_TEMPLATE`'s
+framing. It is **not** `_claim_rules()` — that grammar is shared by all three systems for fairness
+(a baseline whose claims are shaped differently is compared on the wrong axis), so editing it would
+move *joint* too and break "joint out of bounds." And it is **not** `decompose.py`: building a
+decomposer to run the loop would rebuild the abandoned prose→decompose architecture and count as
+method development, which §4 and §7's ledger exist to prevent.
 
 ### 5. Exactly 10 iterations, or Aug 30, whichever comes first
 

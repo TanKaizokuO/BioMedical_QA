@@ -448,7 +448,9 @@ while the reranker is still being tuned.
    ("joint: 14 revisions; post-hoc: 14 revisions"). **Log the iteration count from W3 onward** — it
    cannot be reconstructed later.
 8. **Granularity parity — a measured diagnostic, reported *separately from* the four conditions
-   (ADR-0009).** Joint emits claims natively; post-hoc goes through `decompose.py`. Coarser post-hoc
+   (ADR-0009).** Joint emits claims natively; post-hoc emits them directly too, via
+   `POST_HOC_ANSWER_TEMPLATE` (there is no prose→`decompose.py` step on the C2 path — see ADR-0009
+   §4's 2026-08-13 amendment; `decompose.py` is the C7/Table-2 ablation tool). Coarser post-hoc
    claims are systematically harder to entail, so C2's gap could appear **without joint grounding
    doing any work** — a bias pointing toward the hypothesis.
    - It is **not** a fifth condition. The four above hold *by construction*; parity is an **outcome**
@@ -456,7 +458,9 @@ while the reranker is still being tuned.
      near-miss into a disclosed failure of our own protocol.
    - Measured on **median words/claim** (± **15%**, dev only, pre-committed now and never revised
      afterwards); **claims/query is reported, not gated**.
-   - **Only the post-hoc decomposer is tuned.** The joint prompt is out of bounds for the loop.
+   - **Only the post-hoc arm is tuned — the lever is `POST_HOC_ANSWER_TEMPLATE`** (ADR-0009 §4
+     amendment), never the shared `_claim_rules()` and never `decompose.py`. The joint prompt is out
+     of bounds for the loop.
    - **Exactly 10 iterations, or Aug 30, whichever comes first** — hard, parity achieved or not.
    - **Fully blind: citation-F1 is not computed until the loop terminates.** First F1 ≈ **Aug 31**,
      six days before G2 — **R5's response is decided in advance, not improvised.**
