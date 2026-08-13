@@ -55,23 +55,29 @@ linked they would move together. **Keep median words/claim as the gated quantity
 stands, now for a measured reason rather than an assumed one. No ADR amendment is needed; §2's
 "re-examined against the first real measurement" is discharged by this file.
 
-## Measurement caveat: post-hoc is output-truncated on half the run
+## Measurement caveat: post-hoc's cite stage is output-truncated on 38% of the run
 
-`max_tokens=1536` binds. Records at the cap:
+`max_tokens=1536` is a **per-call** cap, and a post-hoc record's `completion_tokens` is the **sum of
+its two stages** — so that field cannot be compared against 1536. Per-stage output tokens, recovered
+from `parity_iter0.costs.jsonl` (four calls per query, in order joint / post_hoc answer / post_hoc
+cite / vanilla):
 
-| system | at cap | median completion tokens |
+| call | at cap | p50 output tokens |
 |---|---|---|
 | joint | 11/100 | 638 |
-| post_hoc | **49/100** | **1528** |
+| post_hoc **answer** | 6/100 | 246 |
+| post_hoc **cite** | **38/100** | 1274 |
 | vanilla | 7/100 | 256 |
 
-Truncated generations end mid-line — one post-hoc tail stops at `…the findings generally demonstrate
-that`. This censors the **tail** of each answer, so it depresses **claims/query** for the affected
-half and leaves at most one partial claim per record.
+**The cite stage is the one that matters here.** `generate.py:134` parses the post-hoc record from
+`parsed_from` — the *cite* stage's output, not the answer stage's — so it is cite-stage truncation
+that drops trailing claims off a post-hoc record. Truncated generations end mid-line; one tail stops
+at `…the findings generally demonstrate that`. This censors the **tail** of each answer, depressing
+**claims/query** and leaving at most one partial claim per affected record.
 
-**The gate reading survives it.** Restricting to non-truncated records only:
+**The gate reading survives it.** Restricting to records whose parsed-from call did not hit the cap:
 
-| | joint (n=89) | post_hoc (n=51) | gap |
+| | joint (n=89) | post_hoc (n=62) | gap |
 |---|---|---|---|
 | pooled median words/claim | 14 | 19 | +35.7% |
 
@@ -81,6 +87,10 @@ be read as a lower bound for post-hoc.
 
 Raising `max_tokens` is a shared run-config change applied to all three systems, not a post-hoc
 prompt edit, so it is outside §4's one-directional tuning restriction and costs no ledger cycle.
+
+**Ceiling.** The runbook serves with `--max-model-len 8192`. The largest observed cite-stage prompt
+is 5,601 tokens, so `--max-tokens 2560` is the most that fits every observed prompt without
+restarting vLLM on a different serving config.
 
 ## Where the loop stands
 
