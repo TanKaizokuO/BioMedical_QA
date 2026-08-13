@@ -4,36 +4,55 @@
 <meta charset="utf-8">
 <title>Claim attribution annotation</title>
 <style>
-  :root { --line: #d8d8d8; --ink: #1a1a1a; --dim: #666; --hl: #ffe9a8; --ok: #2f7a34; }
+  /* Every colour is a token so the dark scheme below is a palette swap, nothing else. */
+  :root {
+    color-scheme: light;
+    --bg: #ffffff; --panel: #f6f7f9; --soft: #fafafa;
+    --line: #d8d8d8; --ink: #1a1a1a; --dim: #666;
+    --hl: #ffe9a8; --ok: #2f7a34; --pick: #eef3ff; --pickline: #4a76d8;
+  }
+  /* Follows the operating system. The form is read for ten to sixteen hours; a white page is
+     not a neutral default at night, and a toggle would be one more piece of state to save. */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #15171b; --panel: #1e2127; --soft: #1b1e23;
+      --line: #3a3f47; --ink: #e4e6ea; --dim: #9aa2ad;
+      --hl: #6d5312; --ok: #5aa860; --pick: #22304d; --pickline: #6f95e6;
+    }
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 16px/1.55 -apple-system, Segoe UI, Roboto, sans-serif; color: var(--ink); }
-  header { position: sticky; top: 0; background: #fff; border-bottom: 1px solid var(--line);
+  body { margin: 0; font: 16px/1.55 -apple-system, Segoe UI, Roboto, sans-serif;
+         color: var(--ink); background: var(--bg); }
+  header { position: sticky; top: 0; background: var(--bg); border-bottom: 1px solid var(--line);
            padding: 10px 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
   header b { font-size: 15px; }
   header .grow { flex: 1; }
   .meta { color: var(--dim); font-size: 13px; }
   main { max-width: 900px; margin: 0 auto; padding: 20px 20px 120px; }
   h1 { font-size: 20px; margin: 0 0 4px; }
-  .question { background: #f6f7f9; border: 1px solid var(--line); border-radius: 6px;
+  .question { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
               padding: 14px 16px; margin-bottom: 22px; }
   .claim { border: 1px solid var(--line); border-radius: 6px; padding: 16px; margin-bottom: 18px; }
   .claim.done { border-color: var(--ok); }
   .claimtext { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
-  .passage { background: #fafafa; border-left: 3px solid var(--line); padding: 10px 12px;
+  .passage { background: var(--soft); border-left: 3px solid var(--line); padding: 10px 12px;
              margin: 8px 0; color: var(--dim); font-size: 15px; white-space: pre-wrap; }
   .passage mark { background: var(--hl); color: var(--ink); }
   .opts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 4px; }
   .opts label { border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px;
                 cursor: pointer; font-size: 14px; user-select: none; }
   .opts input { margin-right: 6px; }
-  .opts label:has(input:checked) { background: #eef3ff; border-color: #4a76d8; font-weight: 600; }
+  .opts label:has(input:checked) { background: var(--pick); border-color: var(--pickline);
+                                   font-weight: 600; }
   .sub { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em;
          margin-top: 14px; }
   textarea { width: 100%; min-height: 46px; border: 1px solid var(--line); border-radius: 4px;
-             padding: 6px 8px; font: inherit; font-size: 14px; margin-top: 8px; }
+             padding: 6px 8px; font: inherit; font-size: 14px; margin-top: 8px;
+             background: var(--soft); color: var(--ink); }
   button { font: inherit; padding: 8px 16px; border: 1px solid var(--line); border-radius: 5px;
-           background: #fff; cursor: pointer; }
-  button.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+           background: var(--bg); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
   button:disabled { opacity: .4; cursor: not-allowed; }
   nav { display: flex; gap: 10px; align-items: center; margin-top: 24px; }
   details { margin-bottom: 20px; font-size: 15px; }
@@ -208,7 +227,10 @@ function render() {
   const q = QS[at];
   const st = qstate(q.question_uid);
   if (!st.started_at) { st.started_at = new Date().toISOString(); save(); }
-  shownAt = Date.now();
+  // Fold in whatever the previous render accrued: every radio click re-renders, and a render
+  // that simply reset the clock would keep only the time after the annotator's last click.
+  accrue();
+  resume();
 
   document.getElementById("who").textContent = "Annotator " + DATA.annotator_id;
   document.getElementById("progress").textContent =
@@ -283,12 +305,35 @@ function render() {
   window.scrollTo(0, 0);
 }
 
-function leaving() {
+// The per-question clock. `accrue` folds elapsed time in and stops counting; `resume` starts it
+// again. Both are idempotent, so a render mid-question neither double-counts nor loses time.
+const IDLE_MS = 120000;   // a break longer than this is not reading time (ANNOTATOR_GUIDE §4)
+const IDLE_TICK_MS = 15000;
+let lastActivity = Date.now();
+
+function accrue() {
   if (shownAt === null) return;
   const st = qstate(QS[at].question_uid);
   st.active_s = +(st.active_s + (Date.now() - shownAt) / 1000).toFixed(1);
   shownAt = null;
 }
+function resume() {
+  if (shownAt === null && !document.hidden) { shownAt = Date.now(); lastActivity = Date.now(); }
+}
+// `leaving` is the navigation-time name for the same thing: stop the clock for this question.
+const leaving = accrue;
+
+for (const ev of ["pointerdown", "keydown", "wheel", "scroll"]) {
+  window.addEventListener(ev, () => { lastActivity = Date.now(); resume(); }, { passive: true });
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { accrue(); save(); } else { resume(); }
+});
+// Polled rather than one timer per event: scrolling would otherwise re-arm a timeout per frame.
+setInterval(() => {
+  if (shownAt === null) return;
+  if (Date.now() - lastActivity >= IDLE_MS) { accrue(); save(); }
+}, IDLE_TICK_MS);
 
 document.getElementById("complete").addEventListener("click", () => {
   const st = qstate(QS[at].question_uid);
@@ -354,12 +399,15 @@ function snapshot() {
 function setSync(text) { document.getElementById("sync").textContent = text; }
 
 // Coalesced: a save fires on every radio click, and one snapshot file per click would bury the
-// status view. A failed POST is reported and dropped — localStorage already holds the work.
-let mirrorTimer = null, mirrorDirty = false;
-function mirror() {
+// status view. A refusal (the collector answered, and said no) is reported and dropped —
+// localStorage already holds the work. An unreachable collector is retried with backoff, because
+// ANNOTATOR_GUIDE §4 promises the backup catches up on its own once the machine is reachable.
+const MIRROR_DELAY_MS = 3000, MIRROR_MAX_MS = 60000;
+let mirrorTimer = null, mirrorDirty = false, mirrorDelay = MIRROR_DELAY_MS;
+function mirror(delay) {
   if (!COLLECTOR) return;
   mirrorDirty = true;
-  if (mirrorTimer === null) mirrorTimer = setTimeout(flushMirror, 3000);
+  if (mirrorTimer === null) mirrorTimer = setTimeout(flushMirror, delay ?? MIRROR_DELAY_MS);
 }
 async function flushMirror() {
   mirrorTimer = null;
@@ -371,11 +419,13 @@ async function flushMirror() {
       method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" },
       body: JSON.stringify(snapshot())
     });
+    mirrorDelay = MIRROR_DELAY_MS;
     setSync(res.ok ? "backed up " + new Date().toLocaleTimeString()
                    : "backup refused (HTTP " + res.status + ")");
   } catch (e) {
-    mirrorDirty = true;
     setSync("no backup \u2014 working offline");
+    mirror(mirrorDelay);
+    mirrorDelay = Math.min(mirrorDelay * 2, MIRROR_MAX_MS);
   }
 }
 
@@ -474,10 +524,22 @@ async function openRestore() {
 document.getElementById("restore").hidden = false;
 document.getElementById("restore").addEventListener("click", openRestore);
 if (COLLECTOR) {
+  // One snapshot on open, so an unreachable collector shows up now rather than at the first
+  // click, and a pass restored from another machine is on the box before any new work.
+  setSync("backing up\u2026");
+  mirror(0);
   window.addEventListener("beforeunload", () => {
     if (!mirrorDirty) return;
     navigator.sendBeacon(collectorUrl("/state/" + DATA.annotator_id),
       new Blob([JSON.stringify(snapshot())], { type: "text/plain;charset=UTF-8" }));
+  });
+  // Back on the LAN: do not sit out the remaining backoff.
+  window.addEventListener("online", () => {
+    if (!mirrorDirty) return;
+    clearTimeout(mirrorTimer);
+    mirrorTimer = null;
+    mirrorDelay = MIRROR_DELAY_MS;
+    mirror(0);
   });
 }
 document.getElementById("restoreclose").addEventListener("click", closeRestore);
