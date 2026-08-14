@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 
+from ..prompts import parity_loop_is_open
 from ..schema import Citation, Claim, QueryRecord
 from .abstention import abstention_claims, answered_claims
 
@@ -135,7 +136,19 @@ def citation_f1(records: Iterable[QueryRecord], phi: Phi) -> dict:
     (`calibration.bootstrap_ci`, ADR-0011 §2), and a CI for a harmonic mean of two corpus-level
     ratios cannot be assembled from per-claim numbers — the caller passes this whole computation
     as the bootstrap statistic.
+
+    **Refuses to run while the ADR-0009 parity loop is open (§6).** "No citation-F1 on any split, in
+    any form, until the loop terminates" is the rule the whole blind rests on, and a rule enforced
+    only by remembering it is a rule that gets broken by a future session debugging something else.
+    The loop closed on `parity_iter1b` (2026-08-14, `prompts.PARITY_LOOP_CLOSED`), so this is a
+    guard, not a blocker — and reopening the loop turns it back into one, which is correct: the
+    unblinding cannot be undone by re-opening a ledger.
     """
+    if parity_loop_is_open():
+        raise RuntimeError(
+            "ADR-0009 §6: citation-F1 must not be computed on any split while the granularity-parity "
+            "loop is open. prompts.PARITY_LOOP_CLOSED is None."
+        )
     good = cited = 0
     recalled = 0.0
     answered = abstained = 0

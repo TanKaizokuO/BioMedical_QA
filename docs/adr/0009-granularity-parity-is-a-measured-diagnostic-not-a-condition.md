@@ -6,6 +6,9 @@
 decomposer was wrong; the live baseline emits claims directly, so the loop's lever is
 `POST_HOC_ANSWER_TEMPLATE`. See *Amendment* under §4. The decision it supported — tune post-hoc only,
 blind, hard-10 — is unchanged. Made on the user's explicit instruction, in preference to a new ADR.
+**Terminated 2026-08-14** — the loop closed at **1 of 10 iterations** on `parity_iter1b`, with the
+gate passing on every basis. §6's blind is lifted; the W9 stratified check survives it. See
+*Termination* at the end.
 
 ## Context
 
@@ -198,3 +201,76 @@ Recorded rather than resolved, because a future reader will find them anyway:
   window.
 - **Doing nothing.** The bias is real and points toward the hypothesis. Unnamed is the one outcome
   worse than named.
+
+## Termination, 2026-08-14 — closed at 1 of 10 iterations on `parity_iter1b`
+
+**Recorded in code as `prompts.PARITY_LOOP_CLOSED`, not only here**, because under §6 the freeze and
+the first citation-F1 computation are the same event, so something has to be able to *check* that the
+loop is closed before F1 runs. `scoring.citation.citation_f1` raises while it is `None`, and
+`tests/test_prompts.py` pins `POST_HOC_ANSWER_TEMPLATE`'s SHA-256 to the terminating run.
+
+### The verdict
+
+`parity_iter1b` — 100 dev questions × 3 systems, `--max-tokens 3584`, server `--max-model-len 14336`,
+otherwise identical to `parity_iter1`. **No prompt changed**, so it charges no iteration: a cap raised
+for all three arms at once is shared run config (the precedent `parity_iter0` → `parity_iter0b` was
+taken under).
+
+| basis | joint | post_hoc | gap | gate |
+|---|---|---|---|---|
+| all 100 records (gated) | 15 | 17 | **+13.3%** | PASS |
+| untruncated per arm (92 / 84) | 14 | 16 | +14.3% | PASS |
+| untruncated, same 78 queries both arms | 15 | 16 | +6.7% | PASS |
+
+The baseline of record (`parity_iter0b`) fails all three: +25.0% / +42.9% / +37.9%. Full argument,
+including the coverage and compound-marker checks that rule out "the model answered less":
+`docs/harvest/parity_iter1b.md`.
+
+### Why it stopped one iteration in rather than spending the other nine
+
+**Not because the budget or the calendar ran out — because the instrument did.** `parity_iter1` and
+`parity_iter1b` ran the **same post-hoc prompt** and read **+0.0%** and **+13.3%** on the same basis.
+The gated statistic is an integer median of 14–20 words, so its resolution is **one word (~6.7%)** and
+§3's ±15% is **two words wide**.
+
+Verdicts therefore carry a query-level bootstrap (`scoring.granularity.gap_bootstrap_ci`):
+
+| run | 95% interval, all records |
+|---|---|
+| `parity_iter0b` | [+18.8%, +40.0%] — outside ±15% throughout |
+| `parity_iter1b` | **[+0.0%, +14.3%] — inside ±15% throughout** |
+
+Non-overlapping, so iteration 1's edit closed a real gap. The residual is one grid step, and further
+iterations would be fitting run-to-run noise — which §3's pre-commitment cannot protect against,
+because it constrains the tolerance, not the number of times a noisy statistic is redrawn.
+
+**§3's tolerance was not revised, and is not.** What changed is that a verdict is quoted with its
+interval.
+
+### What survives termination
+
+- **§5's W9 stratified robustness check stays mandatory.** The residual favours C2 on every basis
+  (post-hoc's claims are still the coarser ones). A pre-registered asymmetric check is not retracted
+  because the iteration that closed the loop passed; that retraction is the post-hoc steering §3 and
+  §6 exist to prevent.
+- **§7's ledger line reads 1 cycle, charged to neither system.** `iteration_counts()` is unchanged at
+  joint 4 / post_hoc 4.
+- **The paper reports the diagnostic as measured**, per §1: four enforced conditions, one measured
+  quantity, disclosed as +13.3% [+0.0%, +14.3%] with the two other bases and the resolution caveat.
+- **`parity_budget_remains()` is still `True` and that is not permission.** Nine unspent iterations
+  are not a licence to tune post-hoc now that F1 is knowable; the template freeze is what enforces it.
+
+### Known weakness #2, closed by measurement
+
+§2 deferred "words/claim may be near-equivalent to claims/query under the ±10% length condition" to
+W4. It is not: across `parity_iter0b` → `parity_iter1`, post-hoc's median words/claim fell **20 → 16**
+while its median claims/query rose **8 → 10** — opposite directions, one prompt edit, same run pair.
+The two are separable in practice, so §2's choice to gate the first and report the second stands.
+
+### One defect found in the process, deferred as out of bounds
+
+Joint query `21074975` emits a single **731-word** "claim" from an `and …, and …` repetition loop
+whose length scales with the output cap (164 words at 2560). 3.1% of joint's claims exceed 40 words
+against post-hoc's 0.5%, and `_claim_rules()` splits on "and" yet did not split this. §4 puts
+`_claim_rules()` out of bounds and the fix is W5/W6 work, but it lands **before** the first citation-F1
+is read: that claim would be scored as one unit.

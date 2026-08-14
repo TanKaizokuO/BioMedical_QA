@@ -6,7 +6,7 @@ is worse than a missing one, because the next session will trust it.
 `main` · **working tree clean, `HEAD` == `origin/main`.** Everything this session is committed and
 pushed.
 
-Tests: `uv run --with pytest python -m pytest tests/ -q` → **301 passed**. `pyproject.toml`'s
+Tests: `uv run --with pytest python -m pytest tests/ -q` → **306 passed**. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
 
 ---
@@ -51,15 +51,20 @@ two dead ones.
 Everything past retrieval is `NotImplementedError` with a due week in its module docstring. That is
 by design, not drift. The exceptions are `scoring/abstention.py`, `retrieve.py` and `backends.py`.
 
-### ADR-0009 Granularity-Parity Loop — Iteration 1 + 1b re-measure complete (2026-08-14)
+### ADR-0009 Granularity-Parity Loop — CLOSED, and the blind is lifted (2026-08-14)
 
-**The gate now passes on every basis, and the recommendation is to terminate the loop.** Full
-argument in `docs/harvest/parity_iter1b.md`; iteration 1's in `docs/harvest/parity_iter1.md`.
+**The loop terminated at 1 of 10 iterations on `parity_iter1b`, and the first citation-F1 has been
+computed.** Read `docs/harvest/parity_iter1b.md` (the gate), ADR-0009's *Termination* section (the
+decision), and `docs/harvest/first_citation_f1.md` (the unblinding read) — in that order.
 
-- **Iterations used: 1 of 10** (`PARITY_ITERATIONS`), drop-dead Aug 30. **Blind intact — no
-  citation-F1 has been computed on any split.** `parity_iter1b` charges no iteration: it re-measures
-  the *same* prompt at a shared cap of 3584 (server `--max-model-len 14336`), which is run config,
-  not a prompt edit (`parity_iter0.md`'s precedent).
+- **The loop is closed in code, not just in prose:** `prompts.PARITY_LOOP_CLOSED` carries the run, the
+  verdict, the interval and the SHA-256 of `POST_HOC_ANSWER_TEMPLATE` as it stood; `parity_loop_is_open()`
+  is False; `scoring.citation.citation_f1` **raises** while the loop is open; `tests/test_prompts.py`
+  fails if the frozen template is edited. `parity_budget_remains()` is still True and **that is not
+  permission** — the freeze is what governs.
+- **Iterations used: 1 of 10**, five days inside the Aug 30 drop-dead. `parity_iter1b` charged none: it
+  re-measures the *same* prompt at a shared cap of 3584 (server `--max-model-len 14336`), which is run
+  config, not a prompt edit (`parity_iter0.md`'s precedent).
 - **`parity_iter1b` verdict, three bases:** all records **+13.3%** (joint 15 / post-hoc 17) ·
   untruncated per arm **+14.3%** (was +21.4% FAIL at 2560) · untruncated on the same 78 queries both
   arms **+6.7%**. All PASS. The baseline of record fails all three (+25.0% / +42.9% / +37.9%).
@@ -82,16 +87,42 @@ argument in `docs/harvest/parity_iter1b.md`; iteration 1's in `docs/harvest/pari
 - **Defect found and deliberately deferred to W5/W6 (out of bounds under §4):** joint query
   **21074975** yields a single 731-word "claim" from an `and …, and …` repetition loop whose length
   scales with the cap (164 words at 2560). 3.1% of joint claims exceed 40 words vs post-hoc's 0.5%;
-  `_claim_rules()` splits on "and" and did not split this. It will be scored as one unit the moment
-  the blind lifts.
-- **Code:** `src/biomedqa/scoring/granularity.py` (gate, per-stage token verification, and now
+  `_claim_rules()` splits on "and" and did not split this. **It now costs a measured number** — see
+  the first-F1 section below.
+- **Code:** `src/biomedqa/scoring/granularity.py` (gate, per-stage token verification,
   `gap_bootstrap_ci`/`GapInterval`) · `scripts/parity_report.py` (three bases + intervals) ·
-  `tests/test_scoring_granularity.py` (39 tests locking iter0/iter0b/iter1/iter1b).
-- **Next decision, user's to make:** terminate the loop and unblind citation-F1 (§6), which starts the
-  six-day window to G2 on Sep 6.
+  `scripts/first_citation_f1.py` (the unblinding read) · `tests/` at **306 passed**.
+
+### The first citation-F1 — R5 early warning, and it runs against C2 (2026-08-14)
+
+`docs/harvest/first_citation_f1.md` · artifact `parity_iter1b.citation_f1.json` · command:
+`uv run python scripts/first_citation_f1.py docs/harvest/parity_iter1b --n-boot 2000 --max-tokens 3584`
+
+| system | P | R | **F1** | 95% CI (question-clustered) |
+|---|---|---|---|---|
+| joint | 0.902 | 0.154 | **0.264** | [0.205, 0.331] |
+| post_hoc | 0.866 | 0.215 | **0.345** | [0.286, 0.403] |
+
+**joint − post_hoc = −0.081, 95% [−0.157, +0.005]**, paired on 100 questions. **C2's direction is not
+established and the point estimate favours the baseline.** §6's pre-armed R5 trigger is live — and
+because the loop closed early, the window to G2 is **23 days, not six**.
+
+- **φ is interim and not MiniCheck:** `cross-encoder/nli-deberta-v3-xsmall`, `argmax == entailment`,
+  4,904 pairs. `verify.py` still raises (W6). R7's predicted degradation is visible — recall 0.15–0.22
+  against precision 0.87–0.90 — so **the levels are not interpretable and none of this is a G2
+  number.** The contrast is what to read.
+- **The contrast is not the granularity residual.** Post-hoc leads in **every** claim-length band
+  (widest at 16–20 words: 0.189 vs 0.090), and joint entails **0 of 34** claims over 30 words. On the
+  78 untruncated questions it is 0.303 vs 0.376 — the gap survives dropping joint's runaway records.
+  Citations/claim are equal (1.48 vs 1.45) and post-hoc leaves *more* claims uncited (30.9% vs 26.7%),
+  both of which run against post-hoc.
+- **Leading alternative explanation, untested:** post-hoc quotes longer spans (median 23 words vs 19),
+  and a longer premise entails more easily under a sentence-pair NLI model. This is exactly what
+  MiniCheck is meant to fix, so it is the first thing to re-read at W6.
+- **The joint runaway-claim defect is now load-bearing**, not cosmetic (0/34 entailed above 30 words).
+  Fix the splitter and the non-terminating generation **before** the G2 read.
 
 Unresolved, and **not needing re-derivation**: **W9 is triple-booked** (`research_roadmap.md` §5 ⚠)
-· the blind parity loop leaves six days between the first citation-F1 (≈Aug 31) and G2 (Sep 6)
 · `SPLIT_SEED = 20260807` while the draw happened Aug 5 — **left alone deliberately**; the constant
 documents the deadline it was written against, and changing it would change the draw for nothing.
 

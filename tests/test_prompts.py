@@ -8,6 +8,8 @@ from biomedqa.prompts import (
     CONTEXT_DEPTH,
     PARITY_ITERATION_LIMIT,
     PARITY_ITERATIONS,
+    PARITY_LOOP_CLOSED,
+    POST_HOC_ANSWER_TEMPLATE,
     PROMPT_ITERATIONS,
     build_prompt,
     effort_is_matched,
@@ -15,7 +17,9 @@ from biomedqa.prompts import (
     locate_quote,
     parity_budget_remains,
     parity_iteration_count,
+    parity_loop_is_open,
     parse_response,
+    post_hoc_answer_template_digest,
     render_context,
 )
 from biomedqa.schema import MAX_CITATIONS, RetrievedPassage, System
@@ -318,3 +322,50 @@ def test_the_parity_loop_stops_at_a_hard_ten():
     assert PARITY_ITERATION_LIMIT == 10
     assert parity_iteration_count() <= PARITY_ITERATION_LIMIT
     assert parity_budget_remains() == (parity_iteration_count() < PARITY_ITERATION_LIMIT)
+
+
+
+def test_the_parity_loop_is_closed_on_the_run_it_says_it_is():
+    """ADR-0009 §5's termination and §6's unblinding are the same event, so the record of it has to
+    be checkable. The figures here are `docs/harvest/parity_iter1b.md`'s, recomputed from the
+    artifacts by `tests/test_scoring_granularity.py` — this test is the ledger side of it."""
+    closed = PARITY_LOOP_CLOSED
+    assert closed is not None and not parity_loop_is_open()
+    assert closed.run == "parity_iter1b"
+    assert closed.iterations_used == parity_iteration_count() == 1
+    assert (closed.joint_median_words_per_claim, closed.post_hoc_median_words_per_claim) == (15, 17)
+    assert closed.gap == pytest.approx(2 / 15, abs=0.0001)
+    assert closed.interval == pytest.approx((0.0, 1 / 7), abs=0.0001)
+    assert closed.gap <= 0.15, "the loop may not be closed on a basis the gate failed"
+
+
+def test_terminating_early_does_not_retract_the_w9_check():
+    """§5's asymmetric rule is pre-registered in the paper's methods section, so it is not
+    retractable because the iteration that closed the loop happened to pass. The residual is
+    positive on every basis — post-hoc's claims are still the coarser ones — and that is the branch
+    that makes the W9 stratified robustness check mandatory."""
+    assert PARITY_LOOP_CLOSED is not None
+    assert PARITY_LOOP_CLOSED.residual_favours_c2
+    assert PARITY_LOOP_CLOSED.gap > 0
+
+
+def test_the_post_hoc_template_is_frozen_at_the_terminating_run():
+    """The §8 freeze, mechanised. After termination the post-hoc prompt is the artifact the first
+    citation-F1 is computed from; editing it silently would make the reported gate verdict describe
+    a prompt that no longer exists — and because the blind has lifted, any such edit is tuning with
+    F1 known. If this fails, either revert the template or the loop is being reopened, which is a
+    methods-section decision and not a code change."""
+    assert PARITY_LOOP_CLOSED is not None
+    assert post_hoc_answer_template_digest() == PARITY_LOOP_CLOSED.post_hoc_answer_template_sha256
+    assert len(POST_HOC_ANSWER_TEMPLATE) > 0
+
+
+def test_the_budget_left_over_is_not_spendable():
+    """The loop closed at 1 of 10, so `parity_budget_remains()` is still True — it answers "is there
+    an iteration left", not "may one be spent". Spending one now would tune post-hoc's prompt with
+    citation-F1 known, which §6 forbids and which the freeze above is what actually prevents."""
+    assert parity_budget_remains()
+    assert parity_iteration_count() < PARITY_ITERATION_LIMIT
+    assert not parity_loop_is_open(), (
+        "budget remaining is not permission: termination is what governs, and it has happened"
+    )

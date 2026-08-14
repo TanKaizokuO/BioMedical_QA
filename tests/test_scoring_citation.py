@@ -113,3 +113,20 @@ def test_recall_is_zero_when_no_claim_is_entailed():
     result = citation_f1([_record([claim])], _phi_needs("absent-token"))
     assert result["recall"] == 0.0
     assert result["f1"] == 0.0
+
+
+
+def test_citation_f1_refuses_to_run_while_the_parity_loop_is_open(monkeypatch):
+    """ADR-0009 §6, mechanised: no citation-F1 on any split, in any form, while the blind
+    granularity-parity loop is open.
+
+    The loop closed on `parity_iter1b` (2026-08-14), so the guard is dormant in the shipped state —
+    which is exactly when a rule like this rots. The test forces the open state to prove the guard is
+    real, because the failure it prevents is silent: an F1 computed "just to check something" during
+    a future reopening would end the blind without anyone deciding to.
+    """
+    claim = _claim("dose", text="a")
+    monkeypatch.setattr("biomedqa.scoring.citation.parity_loop_is_open", lambda: True)
+
+    with pytest.raises(RuntimeError, match="ADR-0009 §6"):
+        citation_f1([_record([claim])], _phi_needs("dose"))

@@ -1,0 +1,168 @@
+{
+  "script": "scripts/first_citation_f1.py",
+  "purpose": "ADR-0009 \u00a76 unblinding read; interim \u03c6, smoke-run records, not the G2 gate",
+  "run": "parity_iter1b",
+  "phi": {
+    "model": "cross-encoder/nli-deberta-v3-xsmall",
+    "operating_point": "argmax == entailment",
+    "interim": true
+  },
+  "parity_termination": {
+    "date": "2026-08-14",
+    "run": "parity_iter1b",
+    "gap": 0.13333333333333333,
+    "interval": [
+      0.0,
+      0.14285714285714285
+    ]
+  },
+  "per_system": {
+    "joint": {
+      "precision": 0.9019792648444863,
+      "recall": 0.15438108484005564,
+      "f1": 0.2636383265455033,
+      "recall_all_claims": 0.15438108484005564,
+      "f1_all_claims": 0.2636383265455033,
+      "n_claims": 719,
+      "n_answered": 719,
+      "n_abstentions": 0,
+      "n_citations": 1061,
+      "n_relevant_citations": 957,
+      "f1_ci": {
+        "point": 0.2636383265455033,
+        "lower": 0.2047204084977291,
+        "upper": 0.33136311113573946,
+        "width": 0.12664270263801036,
+        "n_units": 100,
+        "n_clusters": 100,
+        "resampling_unit": "question",
+        "n_boot": 2000,
+        "confidence": 0.95,
+        "seed": 20260804
+      }
+    },
+    "post_hoc": {
+      "precision": 0.8655229662423907,
+      "recall": 0.21514907332796132,
+      "f1": 0.3446308543434763,
+      "recall_all_claims": 0.21497584541062803,
+      "f1_all_claims": 0.34440858126556473,
+      "n_claims": 1242,
+      "n_answered": 1241,
+      "n_abstentions": 1,
+      "n_citations": 1807,
+      "n_relevant_citations": 1564,
+      "f1_ci": {
+        "point": 0.3446308543434763,
+        "lower": 0.28609794730474764,
+        "upper": 0.40267622353430915,
+        "width": 0.11657827622956152,
+        "n_units": 100,
+        "n_clusters": 100,
+        "resampling_unit": "question",
+        "n_boot": 2000,
+        "confidence": 0.95,
+        "seed": 20260804
+      }
+    }
+  },
+  "paired_delta_f1": {
+    "point": -0.080992527797973,
+    "lower": -0.15680447944808243,
+    "upper": 0.005017229343524327,
+    "width": 0.16182170879160676,
+    "n_units": 100,
+    "n_clusters": 100,
+    "resampling_unit": "question",
+    "n_boot": 2000,
+    "confidence": 0.95,
+    "seed": 20260804
+  },
+  "recall_by_claim_length": [
+    {
+      "band": "0-10",
+      "joint": {
+        "n_claims": 101,
+        "recall": 0.31683168316831684
+      },
+      "post_hoc": {
+        "n_claims": 105,
+        "recall": 0.37142857142857144
+      }
+    },
+    {
+      "band": "11-15",
+      "joint": {
+        "n_claims": 266,
+        "recall": 0.16917293233082706
+      },
+      "post_hoc": {
+        "n_claims": 426,
+        "recall": 0.1784037558685446
+      }
+    },
+    {
+      "band": "16-20",
+      "joint": {
+        "n_claims": 255,
+        "recall": 0.09019607843137255
+      },
+      "post_hoc": {
+        "n_claims": 365,
+        "recall": 0.18904109589041096
+      }
+    },
+    {
+      "band": "21-30",
+      "joint": {
+        "n_claims": 63,
+        "recall": 0.1746031746031746
+      },
+      "post_hoc": {
+        "n_claims": 307,
+        "recall": 0.247557003257329
+      }
+    },
+    {
+      "band": "31+",
+      "joint": {
+        "n_claims": 34,
+        "recall": 0.0
+      },
+      "post_hoc": {
+        "n_claims": 38,
+        "recall": 0.18421052631578946
+      }
+    }
+  ],
+  "same_queries_untruncated": {
+    "n_queries": 78,
+    "dropped": 22,
+    "delta_f1": -0.07343451938687401,
+    "joint": {
+      "precision": 0.872168284789644,
+      "recall": 0.1830601092896175,
+      "f1": 0.3026059996648232,
+      "recall_all_claims": 0.1830601092896175,
+      "f1_all_claims": 0.3026059996648232,
+      "n_claims": 366,
+      "n_answered": 366,
+      "n_abstentions": 0,
+      "n_citations": 618,
+      "n_relevant_citations": 539
+    },
+    "post_hoc": {
+      "precision": 0.8551360842844601,
+      "recall": 0.24101198402130491,
+      "f1": 0.3760405190516972,
+      "recall_all_claims": 0.24069148936170212,
+      "f1_all_claims": 0.37565029879385087,
+      "n_claims": 752,
+      "n_answered": 751,
+      "n_abstentions": 1,
+      "n_citations": 1139,
+      "n_relevant_citations": 974
+    }
+  },
+  "n_phi_pairs": 4904
+}

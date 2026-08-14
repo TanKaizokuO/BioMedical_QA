@@ -48,6 +48,7 @@ does not produce.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 from .schema import Citation, Claim, Granularity, RetrievedPassage, System
@@ -202,6 +203,74 @@ PARITY_ITERATIONS: tuple[Iteration, ...] = (
 PARITY_ITERATION_LIMIT = 10
 
 
+@dataclass(frozen=True, slots=True)
+class ParityTermination:
+    """§5's stopping event, recorded as data because it is also §6's unblinding event.
+
+    Under ADR-0009 the parity freeze and the first citation-F1 computation are **the same event**, so
+    "the loop is closed" cannot be a note in a markdown file — something has to be able to *check*
+    it before F1 is computed. `scoring.citation.citation_f1` refuses to run while this is `None`.
+
+    `post_hoc_answer_template_sha256` is the freeze itself: the digest of the template as it stood on
+    the terminating run. Editing `POST_HOC_ANSWER_TEMPLATE` after termination breaks
+    `tests/test_prompts.py`, which is the only kind of freeze that survives a future session that has
+    forgotten this ADR.
+    """
+
+    date: str
+    #: Artifact prefix the verdict was taken on, under `docs/harvest/`.
+    run: str
+    iterations_used: int
+    #: The gated basis, and the two medians behind the gap.
+    basis: str
+    joint_median_words_per_claim: float
+    post_hoc_median_words_per_claim: float
+    gap: float
+    #: `gap_bootstrap_ci` on the gated basis: 4000 draws, queries resampled, seed 0.
+    interval: tuple[float, float]
+    #: §5's one-sided fallback. True keeps the W9 stratified robustness check mandatory.
+    residual_favours_c2: bool
+    post_hoc_answer_template_sha256: str
+    rationale: str
+
+
+#: **§5's termination and §6's unblinding, in one record.** `None` means the loop is still open and no
+#: citation-F1 may be computed on any split, in any form.
+#:
+#: Closed on iteration 1 of 10, five days inside the Aug 30 drop-dead, because the gate passed on
+#: **every** basis and the loop's own measurements showed the residual is below what the gate can
+#: resolve. Reopening this is a decision about the paper's methods section, not a code change: the
+#: unblinding has happened, so a further iteration would be tuning post-hoc's prompt with citation-F1
+#: known — the one thing §6 exists to prevent.
+PARITY_LOOP_CLOSED: ParityTermination | None = ParityTermination(
+    date="2026-08-14",
+    run="parity_iter1b",
+    iterations_used=1,
+    basis="all records",
+    joint_median_words_per_claim=15.0,
+    post_hoc_median_words_per_claim=17.0,
+    gap=2 / 15,
+    interval=(0.0, 1 / 7),
+    residual_favours_c2=True,
+    post_hoc_answer_template_sha256=(
+        "91bc7dddd62db4d6d37c26a91f05f938b22dafcca7a6e5aed4509c714f25ac1a"
+    ),
+    rationale="The gate passes on all three bases at a 3584 cap — all records +13.3% (joint 15 vs "
+    "post-hoc 17), untruncated per arm +14.3%, and untruncated on the same 78 queries in both arms "
+    "+6.7% — where the baseline of record (parity_iter0b) failed all three (+25.0% / +42.9% / "
+    "+37.9%). The loop stops one iteration in, not because the budget ran out, but because it has "
+    "run out of resolution: parity_iter1 and parity_iter1b ran the SAME post-hoc prompt at 2560 and "
+    "3584 and read +0.0% and +13.3% on the same basis, the gated statistic being an integer median "
+    "of 14-20 words where one word is ~6.7% and the tolerance is two words wide. The query-level "
+    "bootstrap separates the movement from the residual: [+18.8%, +40.0%] at the baseline against "
+    "[+0.0%, +14.3%] here, non-overlapping, so the edit did close a real gap — while the residual "
+    "is one grid step and a further iteration would be fitting run-to-run noise. The residual "
+    "favours C2 on every basis, so §5's W9 stratified robustness check stays mandatory; a passing "
+    "iteration does not retract a pre-registered check. Full argument: "
+    "docs/harvest/parity_iter1b.md.",
+)
+
+
 def iteration_counts() -> dict[str, int]:
     """Cycles spent per system — the number the paper reports.
 
@@ -218,6 +287,22 @@ def parity_iteration_count() -> int:
 def parity_budget_remains() -> bool:
     """Is there a §5 iteration left? The loop stops on `False` whether or not parity was reached."""
     return parity_iteration_count() < PARITY_ITERATION_LIMIT
+
+
+def parity_loop_is_open() -> bool:
+    """Is the ADR-0009 blind still on? While this is `True`, citation-F1 must not be computed on any
+    split, in any form (§6) — `scoring.citation.citation_f1` enforces exactly that."""
+    return PARITY_LOOP_CLOSED is None
+
+
+def post_hoc_answer_template_digest() -> str:
+    """SHA-256 of `POST_HOC_ANSWER_TEMPLATE`, the quantity the §8 freeze is checked against.
+
+    A digest rather than a copy of the text: a copy is a second source of truth that drifts, and the
+    only question ever asked of it is whether the template still matches the run the loop terminated
+    on.
+    """
+    return hashlib.sha256(POST_HOC_ANSWER_TEMPLATE.encode("utf-8")).hexdigest()
 
 
 def effort_is_matched() -> bool:
