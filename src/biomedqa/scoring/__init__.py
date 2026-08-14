@@ -11,4 +11,8 @@ ladder are all re-*scores*, not re-*runs* — which only holds while nothing ups
     strata.py        negation / numerics / scope error analysis     → Table 5
     agreement.py     Krippendorff's α, binary collapse and 4-way    → G4
     accuracy.py      PubMedQA yes/no/maybe (secondary, C6)
+
+One module here is not a table: `granularity.py` is ADR-0009's measured fairness diagnostic (joint
+vs post-hoc median words/claim, ±15%). It is listed apart because it gates a *prompt loop* rather
+than feeding a result, and because it must stay blind — it reads `Claim.text` and nothing else.
 """
