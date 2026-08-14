@@ -46,7 +46,7 @@ sys.path.insert(0, str(_REPO / "src"))
 
 from biomedqa.config import GenerationConfig  # noqa: E402
 from biomedqa.generate import generate_one, split_stages  # noqa: E402
-from biomedqa.prompts import CONTEXT_DEPTH  # noqa: E402
+from biomedqa.prompts import CONTEXT_DEPTH, MAX_CLAIM_WORDS  # noqa: E402
 from biomedqa.schema import (  # noqa: E402
     CostRecord,
     RetrievedPassage,
@@ -171,6 +171,17 @@ def main() -> int:
     ap.add_argument("--depth", type=int, default=CONTEXT_DEPTH)
     ap.add_argument("--max-tokens", type=int, default=GenerationConfig().max_tokens)
     ap.add_argument("--timeout", type=float, default=300.0)
+    ap.add_argument(
+        "--frequency-penalty",
+        type=float,
+        default=GenerationConfig().frequency_penalty,
+        help=(
+            "output-side repetition control, applied identically to all three systems. Sweep it to "
+            "choose a value: read `over_length_claims` (should fall) against `quote_not_found` "
+            "(must not rise) in the summary. Never repetition_penalty — vLLM applies that one over "
+            "prompt tokens too, which penalises the verbatim quotes citations are made of."
+        ),
+    )
     ap.add_argument("--out-prefix", type=Path, default=Path("docs/harvest/generate_smoke"))
     ap.add_argument("--fake", action="store_true", help="canned completer; no network, no GPU")
     args = ap.parse_args()
@@ -188,7 +199,11 @@ def main() -> int:
 
     contexts = load_contexts(args.contexts, args.n)
     config = GenerationConfig(
-        backend="vllm", model=args.model, max_tokens=args.max_tokens, temperature=0.0
+        backend="vllm",
+        model=args.model,
+        max_tokens=args.max_tokens,
+        temperature=0.0,
+        frequency_penalty=args.frequency_penalty,
     )
 
     records, costs, rows = [], [], []
@@ -228,6 +243,19 @@ def main() -> int:
                     "completion_tokens": rec.completion_tokens,
                 }
             )
+            # The two counters the --frequency-penalty sweep is read off. They move in opposite
+            # directions: the penalty is what stops a runaway claim, and too much of it pushes a
+            # verbatim quote off its exact wording, which `locate_quote` then refuses. A value is
+            # only acceptable if the first falls while the second does not rise.
+            rows[-1]["over_length_claims"] = sum(
+                1 for e in gen.errors if "max claim length" in e
+            )
+            rows[-1]["quote_not_found"] = sum(
+                1 for e in gen.errors if "not found verbatim" in e
+            )
+            rows[-1]["longest_claim_words"] = max(
+                (len(c.text.split()) for c in rec.claims), default=0
+            )
             print(
                 f"{rec.query_id:>9s} {system.value:8s} stages={stages} claims={len(rec.claims):2d} "
                 f"cites={n_cit:2d} decision={str(rec.final_decision):5s} "
@@ -248,6 +276,9 @@ def main() -> int:
             "stages_seen": sorted({r["stages"] for r in mine}),
             "mean_claims": round(statistics.fmean(r["claims"] for r in mine), 2),
             "total_citations": sum(r["citations"] for r in mine),
+            "over_length_claims": sum(r["over_length_claims"] for r in mine),
+            "quote_not_found": sum(r["quote_not_found"] for r in mine),
+            "longest_claim_words": max((r["longest_claim_words"] for r in mine), default=0),
             "median_latency_s": round(statistics.median(lat), 2) if lat else None,
         }
 
@@ -289,6 +320,8 @@ def main() -> int:
                     "depth": args.depth,
                     "max_tokens": args.max_tokens,
                     "temperature": 0.0,
+                    "frequency_penalty": args.frequency_penalty,
+                    "max_claim_words": MAX_CLAIM_WORDS,
                     "max_citations": config.max_citations,
                 },
                 "stage_count_check": {"expected": expected, "passed": stage_ok},

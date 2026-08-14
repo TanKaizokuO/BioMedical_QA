@@ -108,11 +108,17 @@ def _vllm_complete(
     """
     base_url = os.environ.get("VLLM_BASE_URL", _VLLM_BASE_URL_DEFAULT).rstrip("/")
 
+    # `frequency_penalty` and `stop` are OpenAI-standard top-level fields on vLLM's
+    # /v1/chat/completions (`ChatCompletionRequest`), so they need no extra_body. `repetition_penalty`
+    # is deliberately absent: vLLM applies it over prompt *and* output tokens, which would penalise
+    # the verbatim quotes citations are made of — see `GenerationConfig.frequency_penalty`.
     body = {
         "model": config.model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": config.max_tokens,
         "temperature": config.temperature,
+        "frequency_penalty": config.frequency_penalty,
+        "stop": list(config.stop),
         "seed": seed,
     }
 
@@ -163,9 +169,19 @@ def _anthropic_complete(
     model is in extended-thinking mode, and they are not meaningful for reproducibility
     anyway (ADR-0004 — only the local backend is seedable). Neither is passed here.
 
+    ``frequency_penalty`` has no Anthropic equivalent and is **refused** rather than dropped: a knob
+    silently ignored on one backend is a run whose manifest claims a decoding setting the tokens
+    never saw. ``stop`` does have an equivalent and is forwarded as ``stop_sequences``.
+
     ``seed`` is accepted in the signature for a uniform call-site interface but is
     silently ignored — Anthropic's API offers no seeding guarantee.
     """
+    if config.frequency_penalty:
+        raise ValueError(
+            "frequency_penalty has no Anthropic equivalent; it would be dropped silently while the "
+            f"manifest recorded {config.frequency_penalty}. Set it to 0.0 for backend='anthropic'."
+        )
+
     import anthropic  # local import — not all environments install the SDK
 
     client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
@@ -176,6 +192,7 @@ def _anthropic_complete(
         max_tokens=config.max_tokens,
         # temperature / top_p / top_k deliberately omitted — Anthropic returns 400 (ADR-0004)
         messages=[{"role": "user", "content": prompt}],
+        **({"stop_sequences": list(config.stop)} if config.stop else {}),
     )
     wall_s = time.perf_counter() - t0
 

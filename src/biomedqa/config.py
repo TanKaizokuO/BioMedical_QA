@@ -23,12 +23,16 @@ import json
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
+from .prompts import MAX_CLAIM_WORDS
+
 #: 1.1.0 adds ScoringConfig (ADR-0010). 1.2.0 adds RetrievalConfig.corpus_fingerprint, so that the
 #: drawn ID list reaches index_fingerprint() as ADR-0012 §1 requires. 1.3.0 adds
 #: RetrievalConfig.title_segment, which ADR-0014 §3 says is part of the index's identity and which
-#: index_fingerprint() did not previously see. SCHEMA_VERSION is unaffected by any of them — this
-#: versions the knobs, not the records.
-CONFIG_VERSION = "1.3.0"
+#: index_fingerprint() did not previously see. 1.4.0 adds the non-termination controls:
+#: ScoringConfig.max_claim_words (the parse-side guard, a re-scorable rule) and
+#: GenerationConfig.frequency_penalty / stop (the generation-side cause). SCHEMA_VERSION is
+#: unaffected by any of them — this versions the knobs, not the records.
+CONFIG_VERSION = "1.4.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +95,31 @@ class GenerationConfig:
     # docs/harvest/prompt_drafts.json), so 8192 - 1536 = 6656 still clears it.
     max_tokens: int = 1536
     temperature: float = 0.0
+    # Non-termination controls, shared by all three systems for the same reason max_citations is
+    # (CONFIG_VERSION 1.4.0). `temperature: 0.0` is greedy, and greedy decoding has no escape from a
+    # repetition loop: joint `21074975` walked one to 731 words in `parity_iter1b`.
+    #
+    # **`frequency_penalty`, never `repetition_penalty`.** Verified against vLLM source
+    # (`vllm/model_executor/layers/utils.py::apply_penalties`): repetition_penalty is applied over
+    # `prompt_mask | output_mask`, so it penalises every token that appears **in the prompt** — which
+    # is precisely the tokens a citation has to copy verbatim for `locate_quote` to find the span.
+    # It would suppress the measurement to treat a decoding defect. frequency_penalty and
+    # presence_penalty are computed from `output_tokens_tensor` alone; frequency_penalty scales with
+    # how often a token was already generated, which is what a runaway loop does. Neither is
+    # bypassed at temperature 0.0 — the penalty runs in `Sampler.forward` before `greedy_sample`,
+    # gated on `no_penalties` (value != default), not on temperature.
+    #
+    # Left at the OpenAI default of 0.0 because a positive value also reaches the verbatim quotes:
+    # they are generated tokens too, and a quote whose common words have already been emitted can be
+    # pushed off its exact wording, converting a repetition defect into a citation defect. The value
+    # is chosen by measuring both rates on the A4000 — `scripts/generate_smoke.py
+    # --frequency-penalty` — not from the desk.
+    frequency_penalty: float = 0.0
+    #: Hard textual backstop, excluded from the returned text by vLLM unless
+    #: `include_stop_str_in_output` is set (which this harness never sets). Empty by default: the
+    #: observed loop grows *across* CLAIM lines, so no fixed string delimits it, and a stop
+    #: sequence that clipped a legitimate reply would be charged to the system.
+    stop: tuple[str, ...] = ()
     seeds: tuple[int, ...] = (0, 1, 2)       # ≥3 seeds; only implementable locally (ADR-0004)
     granularity: str = "decontextualized_atomic"
 
@@ -123,6 +152,11 @@ class ScoringConfig:
     # too narrow. Flipping this to False exists only to reproduce the pre-ADR-0011 width in the W4
     # dry-run — it is not a legitimate setting for any reported number.
     bootstrap_cluster_on: str = "question"
+    # The parse-side non-termination guard (`prompts.MAX_CLAIM_WORDS`), imported rather than
+    # retyped so a re-scored G2 cannot disagree with the run log that produced it. It belongs here
+    # and not in GenerationConfig because `parse_response`'s errors are re-derived from
+    # `raw_generation` at scoring time: revising this number re-scores, it never forces a re-run.
+    max_claim_words: int = MAX_CLAIM_WORDS
 
 
 @dataclass(frozen=True, slots=True)

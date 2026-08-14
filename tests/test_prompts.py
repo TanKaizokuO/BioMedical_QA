@@ -6,6 +6,7 @@ import pytest
 
 from biomedqa.prompts import (
     CONTEXT_DEPTH,
+    MAX_CLAIM_WORDS,
     PARITY_ITERATION_LIMIT,
     PARITY_ITERATIONS,
     PARITY_LOOP_CLOSED,
@@ -36,6 +37,22 @@ def _passages(n=3):
         )
         for i in range(1, n + 1)
     ]
+
+#: Verbatim from joint's `21074975` in `docs/harvest/parity_iter1b.records.jsonl` — claim 5 of 13,
+#: 38 words, the longest claim in that query that is still a real claim. Claims 6..13 are the
+#: degenerate tail: each re-emits its predecessor's full text plus one more `and the risk ...`
+#: clause, at 59, 80, 101, 122, 143, 164, 206 and finally 731 words.
+REAL_LONG_CLAIM = (
+    "The risk of transition to psychosis is associated with the level of distress associated with "
+    "attenuated psychotic symptoms, but the association is not significant, and the level of "
+    "distress is not a useful criterion for enriching UHR samples."
+)
+
+#: The observed accumulation, reproduced by the clause that drove it.
+RUNAWAY_CLAIM = REAL_LONG_CLAIM + (
+    " and the risk of transition to psychosis is higher in individuals with higher levels of "
+    "distress associated with attenuated psychotic symptoms," * 8
+)
 
 
 def test_context_refuses_passages_with_no_text():
@@ -232,6 +249,72 @@ def test_over_cap_citations_are_kept_so_the_violation_stays_visible():
 
     assert len(out.claims[0].citations) == 4
     assert any("exceeds the cap" in e for e in out.errors)
+
+
+def test_a_runaway_repetition_claim_is_a_parse_error():
+    """Joint `21074975` emitted a 731-word non-terminating repetition loop and the parser accepted
+    it **clean**: no error, one claim, and 0.0 citation recall because nothing entails it. 34 of
+    joint's 719 claims exceed 30 words and every one of them scored 0/1. A generator failure that
+    parses clean is charged to the system's grounding rather than to the decoder that produced it,
+    which is exactly the misattribution ADR-0005 exists to prevent."""
+    raw = f"DECISION: maybe\nCLAIM 1: {RUNAWAY_CLAIM}\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert any("exceeds the max claim length" in e for e in out.errors)
+
+
+def test_an_oversized_claim_is_kept_so_the_failure_stays_countable():
+    """Same rule as over-cap citations: errors are data. Dropping the claim would delete the
+    evidence of non-termination from `records.jsonl` and quietly shrink G2's denominator, so the
+    arm that degenerates would look like the arm that emitted fewer claims."""
+    raw = f"DECISION: maybe\nCLAIM 1: {RUNAWAY_CLAIM}\nCITE 1: [p1] || Metformin\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert [c.claim_id for c in out.claims] == ["c1"]
+    assert out.claims[0].text == RUNAWAY_CLAIM
+    assert out.claims[0].citations[0].passage_id == "p1"
+
+
+def test_the_guard_clears_the_longest_real_claim_in_the_run():
+    """The threshold is a **pathology** detector, not a style rule, and this is the test that stops
+    it being tightened into one. Claim-length p95 is 29 (joint), 29 (post-hoc) and 34 (vanilla)
+    words in `parity_iter1b`, so a guard at 30 words would flag 4.73% / 3.06% / 9.43% of claims —
+    it would fail G2's >=95% valid-parse bar on vanilla by itself, and it would move C2's gap by
+    penalising the three arms at three different rates. At 50 it costs 2.78% / 0.24% / 0.25%: the
+    asymmetry that remains is joint's actual degeneracy, which is the finding, not the instrument."""
+    raw = f"DECISION: yes\nCLAIM 1: {REAL_LONG_CLAIM}\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert len(REAL_LONG_CLAIM.split()) == 38
+    assert MAX_CLAIM_WORDS > 34, "must clear every arm's p95, or the guard scores prose length"
+    assert out.errors == []
+
+
+def test_the_boundary_is_inclusive_so_the_threshold_reads_as_written():
+    """`max_claim_words` is the largest acceptable claim, not the smallest rejected one."""
+    at = " ".join(["word"] * MAX_CLAIM_WORDS)
+    over = " ".join(["word"] * (MAX_CLAIM_WORDS + 1))
+
+    assert parse_response(f"DECISION: yes\nCLAIM 1: {at}\n", _passages(), MAX_CITATIONS).errors == []
+    assert any(
+        "exceeds the max claim length" in e
+        for e in parse_response(
+            f"DECISION: yes\nCLAIM 1: {over}\n", _passages(), MAX_CITATIONS
+        ).errors
+    )
+
+
+def test_the_guard_is_one_number_shared_by_the_parser_and_the_scoring_config():
+    """Parse errors are re-derived at scoring time from `raw_generation` (`generate.py`), so the
+    guard is a **scoring** rule under ADR-0010 — revising it must re-score, never force a re-run.
+    Two copies of the threshold would let a re-scored G2 disagree with the run log that produced
+    it, and the disagreement would be invisible."""
+    from biomedqa.config import ScoringConfig
+
+    assert ScoringConfig().max_claim_words == MAX_CLAIM_WORDS
 
 
 def test_quotes_containing_the_separator_still_parse():

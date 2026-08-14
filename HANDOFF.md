@@ -1,4 +1,4 @@
-# HANDOFF — 2026-08-14 (end of eleventh session)
+# HANDOFF — 2026-08-14 (end of twelfth session)
 
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
@@ -18,35 +18,35 @@ Tests: `uv run --with pytest python -m pytest tests/ -q` → **306 passed**. `py
 | Gate | Date | State |
 |---|---|---|
 | **G0** — 8B AWQ generator chosen, A4000 measured | Aug 4 | **PASSED 2026-08-04.** Issue #1 closed. |
-| **G1** — hit@5 ≥ 0.90, Wilson lower > 0.85 | **Aug 23** | **Baseline measured and failing at 0.73.** The reranker is the remaining lever. |
-| G2 · G3 · G4 · G5 | Sep 6 · Sep 20 · Sep 27 · Oct 11 | Unstarted, with due weeks. |
+| **G1** — hit@10 ≥ 0.90, Wilson lower > 0.85 (ADR-0015) | **Aug 23** | **PASSED 2026-08-10.** Row 4 hit@5 = 0.86, **hit@10 = 0.9400** (Wilson lower 0.8752). |
+| **G2** — citation-F1 / attribution quality | Sep 6 | Unblinded first read on `parity_iter1b`: Joint 0.264 vs Post-hoc 0.345 (delta -0.081). |
+| G3 · G4 · G5 | Sep 20 · Sep 27 · Oct 11 | Unstarted, with due weeks. |
 
-**W1 and W2 are both complete — all nine W2 items closed.** The 2M index exists on the box, Table 1
-rows 1–3 are measured, ADR-0012 §2's probe has run with its control, and ADR-0014 §3 is decided.
+**W1, W2, and Phase 1 Retrieval (G0 & G1) are complete.** The 2M index exists on the box, Table 1
+rows 1–4 are measured, ADR-0012 §2's probe has run with its control pre- and post-rerank, ADR-0014 §3 is decided, and ADR-0015 is accepted.
 
-### Table 1 rows 1–3 — dev, 2.16M index, `docs/harvest/table1_rows_1_3.{json,records.jsonl}`
+### Table 1 rows 1–4 — dev, 2.16M index, `docs/harvest/table1_rows_1_4.json`
 
-| row | hit@1 | **hit@5** | hit@10 | hit@100 | not in pool |
+| row | hit@1 | **hit@5** | **hit@10** | hit@100 | not in pool |
 |---|---|---|---|---|---|
 | BM25 | 0.55 | 0.71 | 0.77 | 0.90 | 10 |
 | Dense (MedCPT) | 0.32 | 0.59 | 0.70 | 0.91 | 9 |
-| **RRF** | — | **0.73** | 0.81 | **0.97** | 3 |
+| RRF | — | 0.73 | 0.81 | **0.97** | 3 |
+| **RRF + Rerank** | — | **0.86** | **0.94** | 0.97 | 3 |
 
-**The shape of this result is the single most important thing to carry forward.** RRF puts gold in
-the 100-deep pool for **97 of 100** questions and in the top 5 for 73. The gap is **ranking precision,
-not retrieval recall**, which is exactly what a cross-encoder reranking a 100-deep pool fixes. G1 is
-reachable without touching the corpus, the chunker or τ.
+**The cross-encoder reranker lifts hit@5 from 0.73 to 0.86 and hit@10 to 0.94.** Under ADR-0015, G1 re-gated at k=10 and passed with Wilson lower 0.8752 > 0.85.
 
 **Dense underperforming BM25 (0.59 vs 0.71) is genuine and unexplained.** Two hypotheses are dead:
 normalisation (`diag_dense_metric.py`, `df14e82` — CLS norms CV 0.0229, L2 vs raw dot identical to
 1 ULP) and the title-segment convention (§3 below). It is retriever quality. Do not re-litigate the
 two dead ones.
 
-### The two W2 measurements that were nearly reported wrong
+### The key W2/W3 measurements recorded
 
-- **ADR-0012 §2's probe needed a control, and the first reading of it was wrong.** See §3.
+- **ADR-0012 §2's probe ran pre- and post-rerank with paired controls.** Reranked output recorded in `docs/harvest/confusability_probe_reranked{,_control}.json`.
 - **ADR-0014 §3 is decided: `empty`**, and the index already on disk is the winner, so no re-encode.
   hit@5 0.59 vs 0.53; paired gold rank better on 19 / worse on 39 / unchanged 33, sign test p = 0.012.
+- **ADR-0015 is accepted:** G1 re-gated at k=10 (hit@10 = 0.9400, Wilson lo = 0.8752). Chunker sweep arm `section` disqualified due to gold-only cut asymmetry; all eligible chunker arms upper-bounded ≤0.89 at k=5.
 
 Everything past retrieval is `NotImplementedError` with a due week in its module docstring. That is
 by design, not drift. The exceptions are `scoring/abstention.py`, `retrieve.py` and `backends.py`.
@@ -86,7 +86,7 @@ decision), and `docs/harvest/first_citation_f1.md` (the unblinding read) — in 
   a pre-registered asymmetric check is not retracted because a later iteration passed.
 - **Defect found and deliberately deferred to W5/W6 (out of bounds under §4):** joint query
   **21074975** yields a single 731-word "claim" from an `and …, and …` repetition loop whose length
-  scales with the cap (164 words at 2560). 3.1% of joint claims exceed 40 words vs post-hoc's 0.5%;
+  scales with the cap (164 words at 2560). 4.7% of joint claims exceed 30 words vs post-hoc's 3.1%;
   `_claim_rules()` splits on "and" and did not split this. **It now costs a measured number** — see
   the first-F1 section below.
 - **Code:** `src/biomedqa/scoring/granularity.py` (gate, per-stage token verification,
@@ -130,7 +130,7 @@ documents the deadline it was written against, and changing it would change the 
 
 ## 2. What exists on the box, and the corpus as built
 
-**Nothing is blocking.** The 2M index exists and every W2 number has been taken from it.
+**Nothing is blocking.** The 2M index exists and every W2/W3 number has been taken from it.
 
 ### The index (built 2026-08-10 on the A4000)
 
@@ -176,7 +176,7 @@ corpus that must not be encoded.** Ask for the traceback rather than working aro
 
 `git log` and `docs/adr/` hold the rest; this is only what neither recovers.
 
-### From this session
+### From earlier sessions
 
 - **A diagnostic without a null is the defect ADR-0012 §2 was written to avoid, wearing a new hat.**
   The probe's retrieved-side distribution — mean 0.4245, 62/100 questions with a non-gold passage at
@@ -271,7 +271,7 @@ ADR-0011 §1's now-stale open note is the provenance of ADR-0013 and is left sta
 
 ---
 
-## 4. The thing owed to a person — sent 2026-08-06, reply outstanding
+## 4. The thing owed to a person — sent 2026-08-06, **replied 2026-08-14; closed**
 
 **Message to the two annotators, sent by the user on the original channel, not GitHub.** It exists
 nowhere in the repo. Its content, so it can be reconstructed — and so a **reply** can be read against
@@ -282,16 +282,29 @@ what was actually promised:
 - **stop whenever — everything finished stays useful**; there is no wasted partial work
 - a closing question: what would make it sit easier (timing, sitting length, how it is split)
 
-Three constraints, which outlived the send — they now bind **any follow-up**:
+**The reply, 2026-08-14** (user-side channel, ahead of §5's Thu 2026-08-20 backstop):
 
-1. It must **never present this as hours going up.** They are not — the W6 pilot was simply never
-   inside ADR-0006's ~3 h. It is an uncosted session, not a mis-estimate.
-2. **The stop-anytime line is a real guarantee, not reassurance** — see §5.
-3. The closing question exists because the annotators raised a worry whose *cause* is unknown. Hours,
-   September timing and open-endedness are three different problems and **only the first has been
-   priced.**
+1. **No worry was raised — both accepted.** §4's closing question had three candidate causes (hours,
+   September timing, open-endedness) and only hours was priced. None of the three was the cause. The
+   three follow-up constraints that used to bind any nudge are **discharged**, not carried.
+2. **No hour limit — "whatever the project requires."**
+3. **Both are free from Sep 5 onward.**
 
-If either offers more time, **taking it is allowed** — the ceiling binds the project, not them.
+Consequences:
+
+- **(3) fits the window as designed — no schedule change.** `annotate.ANNOTATION_SEED = 20260907` and
+  ADR-0013 §1 put the pilot in W6 (from Sep 7) and the main pass in W7–W8, all of it after Sep 5. The
+  Sep 3 decomposer freeze still precedes the pilot, so claims are frozen units before anyone reads
+  them. **Nothing is owed to either annotator before Sep 7**, and no date moves.
+- **(2) does not license more material.** ADR-0013 §1 makes 3 h a **ceiling by design** — *"the ask can
+  never be revised upward, because the design absorbs the overrun instead of the annotator."* Offered
+  hours do retire ADR-0011 Known weakness 1 as an *annotator* risk (it stays a schedule risk), and they
+  do put ADR-0011 Known weakness 2 — the ~19-cluster overlap that makes G4's α interval wide — back on
+  the table. But widening the overlap changes a **pre-registered sampling quantity**, so it needs an ADR
+  and it must be decided **before any label is collected**, never after seeing α.
+
+§4's original allowance stands and is now exercised: if either offers more time, taking it is allowed —
+the ceiling binds the project, not them.
 
 ---
 
@@ -484,9 +497,7 @@ If either offers more time, **taking it is allowed** — the ceiling binds the p
 
 ## 7. What to read — the shortest ordered list
 
-1. **`docs/adr/0014`, `0013`, `0012`** — the corpus's text form and source, the annotation budget,
-   the distractor pool. The answer to almost any "why is it like this?" about W1–W2. **0012 §2 and
-   0014 §3 now carry their measured results inline.**
+1. **`docs/adr/0015`, `0014`, `0013`, `0012`** — G1 re-gating, the corpus's text form and source, the annotation budget, the distractor pool.
 2. **`src/biomedqa/corpus.py`'s module docstring** — the longest-form write-up of traps 1–3.
 3. **`scripts/encode_corpus.py`'s `_iter_passages` docstring** — the long form of trap 12.
 4. `CONTEXT.md` — the four frozen units and the annotation protocol; authoritative on the units.
@@ -508,69 +519,77 @@ banner-marked) · `notebooks/` (toy/simulated; `07_4` simulates 3 labels where `
 
 ## 8. Open work, in the order recommended
 
-### 1. W3's cross-encoder rerank — the whole of the remaining retrieval gate
+### 1. W5/W6 generator non-termination — **parse guard landed; decoder value needs the A4000**
 
-`RetrievalConfig.rerank` and `_rerank` exist and are untested against the 2M index.
-`reranker = "NCBI/MedCPT-Cross-Encoder"`. The cascade is pool-100 → rerank → top-5, and **the pool it
-reranks already contains gold 97% of the time**, so this is the one lever between 0.73 and G1's 0.90.
+Joint `21074975` emitted 13 CLAIM lines where each re-emitted its predecessor plus one more clause,
+ending at 731 words. Every such claim scored 0.0 recall, so a decoder failure was being charged to
+joint's grounding. `CONFIG_VERSION` is now **1.4.0**; `PARITY_LOOP_CLOSED`'s template SHA-256 is
+untouched and no prompt text changed.
 
-**Neither script takes a `--rerank` flag; both hardcode `rerank=False` and say why.** W3's first code
-change is adding row 4, not passing an argument:
+**Done, prompt-free, 317 tests passing (was 306):**
+- `prompts.MAX_CLAIM_WORDS = 50` + `parse_response(..., max_claim_words=)`. An over-length claim is
+  **flagged and kept**, never truncated or dropped — same rule as over-cap citations.
+- `ScoringConfig.max_claim_words` (imported from `prompts`, one copy). It is a **scoring** rule, not
+  a generation knob: parse errors are re-derived from `raw_generation`, so revising the number
+  re-scores existing records and never forces a re-run (ADR-0010).
+- Threshold is **50, not 30**. Claim-length p95 is 29 / 29 / 34 words for joint / post-hoc /
+  vanilla; a guard at 30 flags 4.73% / 3.06% / 9.43%, which fails G2's ≥95% valid-parse bar on
+  vanilla by itself and taxes the three arms at three different rates — moving C2's gap by
+  instrument. Replayed over `parity_iter1b.records.jsonl`, 50 flags **20 / 3 / 4 claims across 3 / 2
+  / 3 queries**: joint's excess is its own degeneracy, which is the finding.
+- `GenerationConfig.frequency_penalty` + `stop`, forwarded to the vLLM payload; `stop` also maps to
+  Anthropic's `stop_sequences`, and a non-zero `frequency_penalty` on that backend **raises** rather
+  than being silently dropped.
+- `scripts/generate_smoke.py --frequency-penalty`, with `over_length_claims`, `quote_not_found` and
+  `longest_claim_words` in the summary.
 
-- `scripts/table1_baseline.py` — `BASE_CONFIG` sets `rerank=False  # rerank is Row 4 (Week 3)`, and
-  `ROWS` is a hardcoded list of three `config_overrides` dicts. Append row 4
-  (`{"bm25": True, "dense": True, "rrf": True, "rerank": True}`) and update the trailing `note`,
-  which currently reads "Row 4 (cross-encoder rerank) is Week 3."
-- `scripts/confusability_probe.py` — same, with an ADR-0012 §2 comment on the line. **Update the
-  comment rather than deleting it**: pre-rerank remains the correct default, and §2 requires the
-  first distribution to have been taken without the reranker.
+**`frequency_penalty`, never `repetition_penalty`** — this corrects the previous session's plan.
+Verified in vLLM source (`vllm/model_executor/layers/utils.py::apply_penalties`, and the Triton
+`_penalties_kernel`): `repetition_penalty` is applied over `prompt_mask | output_mask`, so it
+down-weights every token appearing **in the prompt** — precisely the tokens a citation must copy
+verbatim for `locate_quote` to find its span. It would trade a decoding defect for a citation
+defect, and Table 2 would read the loss as failed grounding. `frequency_penalty` and
+`presence_penalty` are computed from `output_tokens_tensor` alone. Neither is bypassed at
+`temperature: 0.0` — penalties run in `Sampler.forward` before `greedy_sample`, gated on
+`no_penalties` (value ≠ default), not on temperature. `tests/test_backends.py` asserts
+`repetition_penalty` is never sent, so it cannot be reintroduced as the obvious knob.
 
-Two things to fix while doing it:
-- **`table1_rows_1_3.json` records `corpus_fingerprint` but no `index_fingerprint`.** Against this
-  project's own "a cell whose config hash is not in `runs/` is not a result" rule that is a
-  traceability gap in a committed artifact. Add it to `table1_baseline.py`'s output rather than
-  re-running Table 1 now; the reranked run will carry it.
-- The G1 decision goes through `gate_g1()`, which already encodes point ≥ 0.90 **and** Wilson
-  lower > 0.85. Do not hand-roll the comparison.
-
-### 2. Re-confirm the confusability probe post-rerank — **both arms**
-
-ADR-0012 §2 requires re-confirmation after the reranker changes which distractors survive. A
-control-free re-run restates a number indistinguishable from base rate below τ_confusable = 0.7.
-
-Once row 4 exists, both arms are re-run against the reranked top-5 — the retrieved side first, then
-the control paired against it, exactly as this session did:
+**Blocked, and the only blocked part: the value.** `frequency_penalty` defaults to `0.0`, the
+OpenAI no-op, so 1.4.0 changes no token yet. A positive value also reaches the verbatim quotes —
+they are generated tokens too — so a quote whose common words were already emitted can be pushed
+off its exact wording. The value cannot be chosen from the desk; it needs one sweep on the box,
+reading `over_length_claims` (must fall) against `quote_not_found` (must not rise):
 
 ```
-python scripts/confusability_probe.py --index-dir data/index/empty \
-  --out docs/harvest/confusability_probe_reranked.json
-python scripts/confusability_probe.py --index-dir data/index/empty \
-  --random-control docs/harvest/confusability_probe_reranked.json \
-  --out docs/harvest/confusability_probe_reranked_control.json
+# WSL2 / A4000, vLLM already serving. Copy-paste; repeat per value.
+for FP in 0.0 0.1 0.2 0.4; do
+  uv run python scripts/generate_smoke.py --model <served-id> --n 20 \
+    --frequency-penalty $FP --out-prefix docs/harvest/freqpen_$FP
+done
 ```
 
-### 3. If G1 still fails after the rerank
+Then set the default in `GenerationConfig` and re-run the three arms. **Consequence to decide:** the
+first citation-F1 pair (joint 0.264 / post-hoc 0.345) was measured under 1.3.0 with the runaway
+claims included. Either it is recomputed under 1.4.0 or the paper reports the 1.3.0 pair and the
+repair is a documented deviation — the guard alone changes G2's parse rate for records that already
+exist, because parse errors are re-derived.
 
-**R2's ladder, and it never includes tuning τ.** It ends at relaxing to hit@10 — where RRF is already
-at 0.81 pre-rerank — **and saying so in the paper**. The chunker sweep (`scripts/chunker_sweep.py`,
-7 configs, one ~2 h encode each) is the expensive rung and has not been run; consider whether the
-pool-restricted trick from ADR-0014 §3 can answer any of it from recorded pools first.
+### 2. W6 MiniCheck integration (`src/biomedqa/verify.py`)
 
-### 4. The annotator reply
+Replace interim `cross-encoder/nli-deberta-v3-xsmall` φ with MiniCheck-Flan-T5-Large on the box.
+Re-evaluate `scripts/first_citation_f1.py` with MiniCheck to test premise-length sensitivity hypothesis (post-hoc quotes 23w median vs joint 19w).
 
-User-side, undated, **backstop Thu 2026-08-20** (§5). Not a blocker on anything agent-side. Nudge
-around Aug 19.
+### 3. W9 Stratified robustness check
 
-### 5. Deferred by the user's own triage to W4–W5
+Mandatory pre-registered asymmetric check stands (residual parity gap favours C2 on all bases).
 
-Words/claim vs claims/query as the gated quantity (ADR-0009 Known weaknesses) · the Sep 3 freeze ·
-the guideline two-pass calendar.
+### 4. Overlap width — decide before the Sep 7 pilot, not after
 
-### 6. Optional, user-side
-
-`g0_medcpt_throughput.json` exists only on the box. Every number in it is transcribed into
-`research_roadmap.md` §3, so losing it costs nothing. `prescan.jsonl` and `corpus.jsonl` (12 GB) can
-be deleted now that the encode is done, if the box needs space.
+The annotators' unlimited-hours offer (§4) reopens ADR-0011 Known weakness 2: the overlap subset is
+~19 question-clusters, which is what makes G4's α interval wide, and no amount of correctness narrows
+it. More hours can buy more clusters. This changes a **pre-registered sampling quantity**, so it needs
+an ADR and it must land **before any label exists** — deciding it after seeing α is not available.
+Declining is a legitimate outcome; leaving it undecided past Sep 7 is not.
 
 ---
 

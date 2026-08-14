@@ -60,6 +60,22 @@ CONTEXT_DEPTH = 10
 #: the model an explicit escape hatch would manufacture the behaviour the analysis is measuring.
 DECISIONS = ("yes", "no", "maybe")
 
+#: The largest claim, in whitespace-delimited words, that `parse_response` accepts without flagging
+#: it. Not a style rule — a non-termination detector. Greedy decoding (`temperature: 0.0`) has no
+#: way out of a repetition loop, and joint `21074975` in `parity_iter1b` walked one to 731 words: 13
+#: CLAIM lines where each re-emitted its predecessor plus one more clause. Every such claim scored
+#: 0.0 recall, so the decoder's failure was being read as the system's failure to ground.
+#:
+#: 50 rather than 30 because claim-length p95 is 29 / 29 / 34 words for joint / post-hoc / vanilla:
+#: a guard at 30 flags 4.73% / 3.06% / 9.43% of claims, which breaks G2's >=95% valid-parse bar on
+#: vanilla on its own and taxes the three arms at three different rates, moving C2's gap by
+#: instrument. At 50 the cost is 2.78% / 0.24% / 0.25% — joint's excess is its own degeneracy.
+#:
+#: A **scoring** rule, not a generation knob (ADR-0010): parse errors are re-derived from
+#: `raw_generation`, so revising this re-scores existing records and never forces a re-run.
+#: `ScoringConfig.max_claim_words` defaults to it; this is the single copy.
+MAX_CLAIM_WORDS = 50
+
 _CITATION_SEP = "||"
 
 
@@ -531,13 +547,21 @@ class ParsedResponse:
 
 
 def parse_response(
-    raw: str, passages: list[RetrievedPassage], max_citations: int
+    raw: str,
+    passages: list[RetrievedPassage],
+    max_citations: int,
+    *,
+    max_claim_words: int = MAX_CLAIM_WORDS,
 ) -> ParsedResponse:
     """Parse the line grammar into claims with located citation spans.
 
     Over-cap citations are **kept**, not trimmed. `QueryRecord.validate()` already reports
     `exceeds_cap`, and silently dropping the fourth citation would erase the evidence that a system
     ignored a cap the fairness argument depends on.
+
+    An over-length claim is kept for the same reason: it is flagged, never truncated and never
+    dropped. `max_claim_words` is the largest acceptable claim, inclusive — see `MAX_CLAIM_WORDS`
+    for why the number is 50 and why it is a scoring rule rather than a generation knob.
     """
     text_by_id = {p.passage_id: (p.text or "") for p in passages}
     decision: str | None = None
@@ -615,6 +639,12 @@ def parse_response(
     if decision is None:
         errors.append("no DECISION line")
     for cid in order:
+        words = len(claims[cid].text.split())
+        if words > max_claim_words:
+            errors.append(
+                f"{cid}: {words} words exceeds the max claim length of {max_claim_words} "
+                "(non-terminating generation)"
+            )
         if len(claims[cid].citations) > max_citations:
             errors.append(
                 f"{cid}: {len(claims[cid].citations)} citations exceeds the cap of {max_citations}"

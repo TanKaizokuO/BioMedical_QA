@@ -1,0 +1,117 @@
+"""What actually reaches the server. A knob recorded in the manifest but absent from the request
+body is worse than no knob: the run claims a decoding setting the tokens never saw."""
+
+from __future__ import annotations
+
+import pytest
+
+from biomedqa import backends
+from biomedqa.config import GenerationConfig
+
+
+class _FakeResponse:
+    def __init__(self, text: str):
+        self._text = text
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict:
+        return {
+            "choices": [{"message": {"content": self._text}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+        }
+
+
+class _FakeClient:
+    """Captures the POST body. Instantiated by `_vllm_complete` as a context manager."""
+
+    last_body: dict | None = None
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def post(self, path: str, json: dict) -> _FakeResponse:
+        type(self).last_body = json
+        return _FakeResponse("DECISION: yes\nCLAIM 1: X.\n")
+
+
+@pytest.fixture
+def body(monkeypatch):
+    """Return the request body produced for a config, via a captured fake client."""
+
+    def _call(config: GenerationConfig) -> dict:
+        monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+        _FakeClient.last_body = None
+        backends.complete("prompt", config, seed=0, run_id="r", query_id="q")
+        assert _FakeClient.last_body is not None
+        return _FakeClient.last_body
+
+    return _call
+
+
+def _config(**kw) -> GenerationConfig:
+    return GenerationConfig(backend="vllm", model="m", **kw)
+
+
+def test_the_frequency_penalty_reaches_the_request(body):
+    """The whole point of CONFIG_VERSION 1.4.0. A value that stays in the dataclass leaves the
+    731-word repetition loop in `parity_iter1b` unaddressed while the config says otherwise."""
+    assert body(_config(frequency_penalty=0.3))["frequency_penalty"] == 0.3
+
+
+def test_repetition_penalty_is_never_sent(body):
+    """Verified in vLLM source (`model_executor/layers/utils.py::apply_penalties`): the penalty is
+    applied over `prompt_mask | output_mask`, so it down-weights every token appearing in the
+    prompt — exactly the tokens a citation must copy verbatim for `locate_quote` to find its span.
+    Reaching for it as the obvious anti-repetition knob would trade a decoding defect for a
+    citation defect, and Table 2 would read the loss as failed grounding. This test is the note
+    that stops it being added."""
+    sent = body(_config(frequency_penalty=0.3))
+
+    assert "repetition_penalty" not in sent
+    assert "presence_penalty" not in sent
+
+
+def test_stop_sequences_reach_the_request(body):
+    assert body(_config(stop=("\nQUESTION:",)))["stop"] == ["\nQUESTION:"]
+
+
+def test_the_default_config_asks_for_no_penalty_and_no_stop(body):
+    """The defaults are the OpenAI no-ops, so 1.4.0 changes no token until a value is chosen on the
+    box. Sent explicitly rather than omitted: the body is a faithful image of the config, which is
+    what makes a replayed request comparable to the run that produced it."""
+    sent = body(_config())
+
+    assert sent["frequency_penalty"] == 0.0
+    assert sent["stop"] == []
+
+
+def test_the_seedable_knobs_still_travel_together(body):
+    """ADR-0004: the local backend is the only seedable one, so seed and temperature must both
+    survive the payload change that added the penalties."""
+    sent = body(_config(temperature=0.0, max_tokens=1536))
+
+    assert sent["seed"] == 0
+    assert sent["temperature"] == 0.0
+    assert sent["max_tokens"] == 1536
+
+
+def test_anthropic_refuses_a_penalty_it_cannot_apply():
+    """Anthropic has no frequency_penalty. Dropping it silently would produce a run whose manifest
+    records a decoding setting that never reached the sampler — and because the two backends are
+    compared in Table 4, the divergence would be invisible."""
+    with pytest.raises(ValueError, match="no Anthropic equivalent"):
+        backends.complete(
+            "prompt",
+            GenerationConfig(backend="anthropic", model="claude-opus-5", frequency_penalty=0.3),
+            seed=0,
+            run_id="r",
+            query_id="q",
+        )
