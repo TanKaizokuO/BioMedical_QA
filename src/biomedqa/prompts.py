@@ -169,9 +169,55 @@ PROMPT_ITERATIONS: dict[System, tuple[Iteration, ...]] = {
 }
 
 
+#: **The parity ledger — ADR-0009 §7's third line, charged to neither system.**
+#:
+#: The blind granularity-parity loop tunes `POST_HOC_ANSWER_TEMPLATE` and nothing else (§4), so its
+#: cycles are a fairness-control cost rather than method development. Booking them to POST_HOC would
+#: report the baseline as more heavily engineered than it was; booking a matching cycle to JOINT to
+#: keep `effort_is_matched()` true would spend cycles on a prompt §4 puts out of bounds, and inflate
+#: the effort number the paper prints. So they are counted here, separately, and `iteration_counts()`
+#: never sees them.
+#:
+#: Bounded by §5: **a hard 10, or Aug 30, whichever comes first.** Not "~10".
+PARITY_ITERATIONS: tuple[Iteration, ...] = (
+    Iteration(
+        n=1,
+        date="2026-08-14",
+        rationale="Iteration 0 (docs/harvest/parity_iter0.md) measured joint 16 vs post-hoc 20 "
+        "median words/claim, +25% against a ±15% tolerance. The diagnostic said the excess is "
+        "mostly verbosity, not compounding: restricted to claims carrying no compound marker at "
+        "all, the gap is still +21% (14 vs 17), and coordination by 'and' is already identical "
+        "across the arms (28.4% vs 26.9%) because _claim_rules() splits it for both. So this "
+        "cycle adds a length target, promotes trailing qualifier clauses to their own claims — "
+        "post-hoc's subordinate-clause rate is 5.6% against joint's 0.9% — and bans study-framing "
+        "preamble ('The study found no evidence that X'), which spends words on the study rather "
+        "than the assertion. Says nothing about citing: a first pass that knows quotes are coming "
+        "is doing joint grounding, and the gap would close for the wrong reason "
+        "(tests/test_prompts.py::test_post_hoc_first_pass_never_mentions_citing).",
+        stages_touched=("answer",),
+    ),
+)
+
+#: §5's hard bound on the loop, kept next to the ledger it bounds.
+PARITY_ITERATION_LIMIT = 10
+
+
 def iteration_counts() -> dict[str, int]:
-    """Cycles spent per system — the number the paper reports."""
+    """Cycles spent per system — the number the paper reports.
+
+    Deliberately blind to `PARITY_ITERATIONS`: see that ledger's note.
+    """
     return {s.value: len(v) for s, v in PROMPT_ITERATIONS.items()}
+
+
+def parity_iteration_count() -> int:
+    """Cycles spent on the ADR-0009 parity loop, reported as its own line."""
+    return len(PARITY_ITERATIONS)
+
+
+def parity_budget_remains() -> bool:
+    """Is there a §5 iteration left? The loop stops on `False` whether or not parity was reached."""
+    return parity_iteration_count() < PARITY_ITERATION_LIMIT
 
 
 def effort_is_matched() -> bool:
@@ -286,6 +332,13 @@ Answer the question using only what the passages say. Do not use outside knowled
 state anything the passages do not support. Write the answer as a list of claims.
 
 {claim_rules}
+
+Keep each claim short. A claim carries one assertion and stops; around fifteen words is usually
+enough, and a claim running past twenty is usually two claims. When a claim trails off into a
+qualifying clause — one starting "which", "because", "although", "despite", or "while" — that
+clause is a separate assertion, so write it as its own claim or leave it out. State what the
+passages establish about the world, not what a study did or did not find: write "Vitamin D does not
+reduce fracture risk", never "The trial found no evidence that vitamin D reduces fracture risk".
 
 {format_block}"""
 

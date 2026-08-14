@@ -108,8 +108,9 @@ touched during the loop.
 
 ## Where the loop stands
 
-- Iterations used: **0 of 10**. Drop-dead **Aug 30**.
-- Ledger: joint 4, post_hoc 4, matched.
+- Iterations used at the time of writing: **0 of 10**. Drop-dead **Aug 30**. (Iteration 1 was
+  drafted 2026-08-14 against this baseline; the count lives in `PARITY_ITERATIONS`, not here.)
+- Ledger: joint 4, post_hoc 4, matched — and parity cycles never touch it (ADR-0009 §7).
 - Baseline of record: `parity_iter0b`, **joint 16 / post_hoc 20 median words/claim, +25.0%**.
 - Iteration 1 edits **`POST_HOC_ANSWER_TEMPLATE` only** (§4 as amended 2026-08-13), aimed at finer
   claims. `_claim_rules()` and the joint prompt stay out of bounds; `decompose.py` is not involved.

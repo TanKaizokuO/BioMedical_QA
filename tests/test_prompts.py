@@ -6,10 +6,15 @@ import pytest
 
 from biomedqa.prompts import (
     CONTEXT_DEPTH,
+    PARITY_ITERATION_LIMIT,
+    PARITY_ITERATIONS,
+    PROMPT_ITERATIONS,
     build_prompt,
     effort_is_matched,
     iteration_counts,
     locate_quote,
+    parity_budget_remains,
+    parity_iteration_count,
     parse_response,
     render_context,
 )
@@ -272,3 +277,44 @@ def test_joint_and_post_hoc_stay_on_equal_effort():
     counts = iteration_counts()
 
     assert effort_is_matched(), f"prompt-iteration budgets have drifted: {counts}"
+
+
+def test_parity_cycles_are_charged_to_neither_system():
+    """ADR-0009 §7's third ledger line, mechanised.
+
+    The silent failure: a parity cycle gets appended to `PROMPT_ITERATIONS[POST_HOC]` because that
+    is where post-hoc prompt edits "obviously" go. Two things break at once and neither is visible
+    at the call site. The paper reports the baseline as more engineered than it was — the opposite
+    of the undercount §4 argues is the safe direction to be wrong in. And `effort_is_matched()`
+    goes false, whose only in-bounds repair is a JOINT cycle that ADR-0009 §4 forbids for the
+    loop's duration. Parity work is a fairness control, not method development; it is counted
+    separately or not at all.
+    """
+    baseline = iteration_counts()
+    system_totals = sum(len(v) for v in PROMPT_ITERATIONS.values())
+
+    assert not any(
+        it in v for it in PARITY_ITERATIONS for v in PROMPT_ITERATIONS.values()
+    ), "a parity cycle is booked to a system ledger; ADR-0009 §7 charges it to neither"
+
+    assert iteration_counts() == baseline
+    assert sum(len(v) for v in PROMPT_ITERATIONS.values()) == system_totals
+    assert effort_is_matched(), (
+        "parity cycles must not disturb the joint/post-hoc balance: " f"{iteration_counts()}"
+    )
+
+
+def test_parity_iterations_are_numbered_from_one_without_gaps():
+    """A ledger nobody can audit is a ledger that gets reconstructed from memory in October — the
+    same reason `PROMPT_ITERATIONS` exists. A skipped `n` hides a cycle that was spent.
+    """
+    assert [it.n for it in PARITY_ITERATIONS] == list(range(1, len(PARITY_ITERATIONS) + 1))
+
+
+def test_the_parity_loop_stops_at_a_hard_ten():
+    """ADR-0009 §5: "A hard 10. Not '~10' — a bound written with a tilde grants exactly the
+    permission it exists to deny." The counter is only a bound if something reads it.
+    """
+    assert PARITY_ITERATION_LIMIT == 10
+    assert parity_iteration_count() <= PARITY_ITERATION_LIMIT
+    assert parity_budget_remains() == (parity_iteration_count() < PARITY_ITERATION_LIMIT)
