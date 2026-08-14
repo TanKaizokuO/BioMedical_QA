@@ -14,6 +14,7 @@ The unit tests around it each name a way the gate can be wrong while still retur
 from __future__ import annotations
 
 import inspect
+import statistics
 from pathlib import Path
 
 import pytest
@@ -382,3 +383,99 @@ def test_the_compound_diagnostic_still_says_verbosity_not_compounding() -> None:
     # The one rationale figure that reproduces exactly, and where post-hoc's excess is largest.
     assert post_hoc["marker_rate"]["multi_comma"] == pytest.approx(0.136, abs=0.0005)
     assert joint["marker_rate"]["multi_comma"] == pytest.approx(0.056, abs=0.0005)
+
+
+
+# ---------------------------------------------------------------------------------------------
+# Iteration 1 — the first run where the two bases disagree. `docs/harvest/parity_iter1.md`.
+# ---------------------------------------------------------------------------------------------
+
+
+def test_the_joint_arm_did_not_move_between_iterations() -> None:
+    """ADR-0009 §4 puts the joint prompt out of bounds for the loop's duration, and greedy decoding
+    makes that checkable rather than merely asserted: joint's 100 generations must be byte-identical
+    across iterations.
+
+    The silent failure is a shared edit — to `_claim_rules()`, the context block, the parser — that
+    moves both arms and makes the gap look closed by the loop when the loop did not close it. That
+    would be an invisible violation of the one restriction the blind depends on.
+    """
+    before, _ = _load("parity_iter0b")
+    after, _ = _load("parity_iter1")
+    joint_before = {r.query_id: r.raw_generation for r in before if r.system is System.JOINT}
+    joint_after = {r.query_id: r.raw_generation for r in after if r.system is System.JOINT}
+
+    assert joint_before == joint_after
+
+
+def test_iteration_1_passes_on_the_basis_of_record() -> None:
+    """The verdict: joint 16 vs post-hoc 16, +0.0% against ±15%, on all 100 records."""
+    records, _ = _load("parity_iter1")
+    gate = parity_gate(records, basis="all")
+
+    assert gate.joint.median_words_per_claim == 16
+    assert gate.post_hoc.median_words_per_claim == 16
+    assert gate.gap == pytest.approx(0.0)
+    assert gate.passes
+    assert not gate.requires_w9_robustness_check
+
+
+def test_the_gated_quantity_is_insensitive_to_cite_stage_truncation() -> None:
+    """The argument the iteration-1 verdict rests on, and the reason all-records is the sound basis
+    once the two disagree.
+
+    Truncation drops *trailing claims*; it does not shorten the claims that survive. So dropping the
+    final — possibly mid-sentence — claim of every truncated post-hoc record must leave the median
+    where it was. If this ever stops holding, the censoring is biasing the gate itself and the
+    untruncated basis becomes the honest one again.
+    """
+    records, costs = _load("parity_iter1")
+    truncated = truncated_queries(records, costs, 2560)[System.POST_HOC.value]
+    assert len(truncated) == 26, "the run this argument was made about"
+
+    post_hoc = [r for r in records if r.system is System.POST_HOC]
+    as_recorded = [c for r in post_hoc for c in r.claims]
+    tail_dropped = [
+        c
+        for r in post_hoc
+        for c in (r.claims[:-1] if r.query_id in truncated and r.claims else r.claims)
+    ]
+
+    assert len(tail_dropped) < len(as_recorded)
+    assert (
+        statistics.median(words_in_claim(c.text) for c in tail_dropped)
+        == statistics.median(words_in_claim(c.text) for c in as_recorded)
+        == 16
+    )
+
+
+def test_iteration_1_answered_finer_rather_than_less() -> None:
+    """The one reading that would make the pass worthless: words/claim falling because the model
+    answers *less*, not *finer*. ADR-0009 §2 reports claims/query without gating it precisely so
+    this is visible — a gate on words/claim alone cannot tell the two apart.
+    """
+    baseline, _ = _load("parity_iter0b")
+    records, _ = _load("parity_iter1")
+    before = arm_granularity(baseline, System.POST_HOC)
+    after = arm_granularity(records, System.POST_HOC)
+
+    assert after.median_words_per_claim < before.median_words_per_claim   # 20 -> 16
+    assert after.median_claims_per_query > before.median_claims_per_query  # 8 -> 10
+    assert after.n_claims > before.n_claims                               # 895 -> 1129
+
+
+def test_the_untruncated_basis_still_fails_and_is_reported() -> None:
+    """The disagreement is a finding, not a rounding error: +0.0% against +21.4% on the same run.
+    It is asserted here so that a future change which quietly collapses the two bases into one
+    number has to delete a test that says why both are printed."""
+    records, costs = _load("parity_iter1")
+    truncated = truncated_queries(records, costs, 2560)
+    joint = arm_granularity(records, System.JOINT, exclude=truncated[System.JOINT.value])
+    post_hoc = arm_granularity(records, System.POST_HOC,
+                               exclude=truncated[System.POST_HOC.value])
+    gap = ((post_hoc.median_words_per_claim - joint.median_words_per_claim)
+           / joint.median_words_per_claim)
+
+    assert (joint.n_records, post_hoc.n_records) == (91, 74)
+    assert gap == pytest.approx(0.2143, abs=0.0001)
+    assert gap > PARITY_TOLERANCE
