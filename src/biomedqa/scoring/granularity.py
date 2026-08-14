@@ -52,10 +52,21 @@ thing — on the module's markers by a wider margin (+28.6%) than the ledger rec
 The ledger's prose is left as the historical record it is; correcting a rationale string after the
 fact would make it a claim about a computation rather than a record of one. **Comparisons for
 iteration 1 and after come from this module, not from that string.**
+
+## The gate's resolution, measured
+
+`parity_iter1` and `parity_iter1b` ran **the same post-hoc prompt** — the second only raised the
+output cap for all three arms — and read **+0.0%** and **+13.3%** on the same basis. The medians
+involved are 14–20 words, so the statistic's resolution is **one word (~6.7%)** and the tolerance is
+two words wide. A point estimate therefore cannot separate a prompt effect from that grid, which is
+why `gap_bootstrap_ci` exists and why `GapInterval.passes` requires the *whole* interval to be inside
+the tolerance. The tolerance is not revised for this (§3); what changes is that a verdict is quoted
+with its interval.
 """
 
 from __future__ import annotations
 
+import random
 import re
 import statistics
 from collections.abc import Iterable, Sequence
@@ -212,6 +223,88 @@ def parity_gate(
     post_hoc = arm_granularity(records, System.POST_HOC, exclude=exclude)
     gap = (post_hoc.median_words_per_claim - joint.median_words_per_claim) / joint.median_words_per_claim
     return ParityGate(basis=basis, joint=joint, post_hoc=post_hoc, gap=gap)
+
+
+@dataclass(frozen=True, slots=True)
+class GapInterval:
+    """A resampling interval on the gate's gap, over queries. **Not a significance test** — there is
+    no null hypothesis here — it is the answer to "how much of this gap is the sample I happened to
+    draw?", which the gate's point estimate cannot answer and which iteration 1 made unavoidable.
+
+    `passes` is deliberately the *conservative* reading: the whole interval must lie inside the
+    tolerance. A gate whose point estimate passes while its interval straddles ±15% has not been
+    shown to pass; ADR-0009 §3 fixed the tolerance, not the number of digits it is compared at.
+    """
+
+    basis: str
+    lo: float
+    median: float
+    hi: float
+    draws: int
+    seed: int
+    tolerance: float = PARITY_TOLERANCE
+
+    @property
+    def passes(self) -> bool:
+        return max(abs(self.lo), abs(self.hi)) <= self.tolerance
+
+
+def gap_bootstrap_ci(
+    records: Iterable[QueryRecord],
+    *,
+    basis: str = "all",
+    exclude: Iterable[str] = (),
+    draws: int = 4000,
+    seed: int = 0,
+) -> GapInterval:
+    """Cluster bootstrap of the gap, resampling **queries** rather than claims.
+
+    Why queries: claims from one query are not independent draws — they come from one generation, of
+    one length, on one abstract. Resampling claims would understate the interval by exactly the
+    amount that matters.
+
+    Why this exists at all. `parity_iter1` and `parity_iter1b` ran **the same post-hoc prompt** and
+    read +0.0% and +13.3% on the same basis, because the gated statistic is an integer median sitting
+    on the 15/16 boundary: one word is 6.7% of it, nearly half the tolerance. A point estimate
+    therefore cannot distinguish a prompt effect from that quantization, and reporting one alone
+    would let either run be quoted as "the" result. The interval covers both readings, which is the
+    honest description of what was measured.
+
+    Deterministic in `seed`; blind by construction, like everything else here — it resamples word
+    counts.
+    """
+    records = list(records)
+    skip = set(exclude)
+    per_query: dict[str, dict[str, list[int]]] = {}
+    for r in records:
+        name = r.system.value if isinstance(r.system, System) else r.system
+        if name not in (System.JOINT.value, System.POST_HOC.value) or r.query_id in skip:
+            continue
+        per_query.setdefault(r.query_id, {})[name] = [words_in_claim(c.text) for c in r.claims]
+
+    qids = [q for q, arms in per_query.items() if len(arms) == 2]
+    if not qids:
+        raise ValueError("no query carries both arms; the gap is not resampleable")
+
+    rng = random.Random(seed)
+    gaps: list[float] = []
+    for _ in range(draws):
+        drawn = [qids[rng.randrange(len(qids))] for _ in qids]
+        joint = [w for q in drawn for w in per_query[q][System.JOINT.value]]
+        post_hoc = [w for q in drawn for w in per_query[q][System.POST_HOC.value]]
+        if not joint or not post_hoc:
+            continue
+        j = statistics.median(joint)
+        gaps.append((statistics.median(post_hoc) - j) / j)
+    gaps.sort()
+    return GapInterval(
+        basis=basis,
+        lo=gaps[int(0.025 * len(gaps))],
+        median=statistics.median(gaps),
+        hi=gaps[min(int(0.975 * len(gaps)), len(gaps) - 1)],
+        draws=len(gaps),
+        seed=seed,
+    )
 
 
 def stage_output_tokens(

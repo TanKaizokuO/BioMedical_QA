@@ -3,17 +3,24 @@
 
     uv run python scripts/parity_report.py docs/harvest/parity_iter1 --max-tokens 2560
 
-Prints the gate on **both bases** — all records, and untruncated-only — because on `parity_iter0b`
-they disagree by 18 points (+25.0% vs +42.9%) and a single number is not an answer to the gate. Also
-prints claims/query and the compound profile, which together answer the question the gate cannot ask
-itself: *did words/claim fall because the answers got finer, or because they got shorter?* If
-claims/query drops alongside words/claim, the model is answering **less** rather than answering
-**finer**, and a pass is a pass for the wrong reason.
+Prints the gate on **three bases** — all records, untruncated-per-arm, and untruncated on the same
+queries for both arms — because on `parity_iter0b` the first two disagree by 18 points (+25.0% vs
+42.9%) and a single number is not an answer to the gate. The third exists because the second is not
+like-for-like: each arm drops its *own* truncated records, and post-hoc's truncation is *caused by*
+the granularity edit, so conditioning on it selects against exactly the records that show the
+effect. Each basis also carries a query-level resampling interval, because the gated statistic is an
+integer median whose resolution (one word, ~6.7%) is nearly half the tolerance: `parity_iter1` and
+`parity_iter1b` ran the **same** post-hoc prompt and read +0.0% and +13.3% on the same basis.
+
+Also prints claims/query and the compound profile, which together answer the question the gate
+cannot ask itself: *did words/claim fall because the answers got finer, or because they got
+shorter?* If claims/query drops alongside words/claim, the model is answering **less** rather than
+answering **finer**, and a pass is a pass for the wrong reason.
 
 `--max-tokens` is the **per-call** cap the run was generated under, and it is required: the
-untruncated basis cannot be computed without it, and a post-hoc record's `completion_tokens` is the
+untruncated bases cannot be computed without it, and a post-hoc record's `completion_tokens` is the
 sum of both its stages, so it cannot be recovered from the records file. Comparing against
-`parity_iter0b` means 2560 (see `docs/harvest/parity_iter0.md`).
+`parity_iter0b` means 2560; `parity_iter1b` was generated at 3584 (see `docs/harvest/`).
 
 Blind by construction (ADR-0009 §6): nothing here reads a citation, a verifier score, or a label.
 """
@@ -40,6 +47,7 @@ from biomedqa.scoring.granularity import (  # noqa: E402
     ParityGate,
     arm_granularity,
     compound_profile,
+    gap_bootstrap_ci,
     parity_gate,
     stage_output_tokens,
     truncated_queries,
@@ -73,6 +81,15 @@ def _print_basis(gate: ParityGate) -> None:
         print("  residual gap runs against C2 -> ADR-0009 §5: note it and proceed")
 
 
+def _print_interval(records, *, basis: str, exclude=()) -> None:
+    """The interval, and the resolution warning that goes with it — the medians here are 14-17 words,
+    so one word is ~6.7% and ±15% is barely two words wide."""
+    ci = gap_bootstrap_ci(records, basis=basis, exclude=exclude)
+    verdict = "inside ±15% throughout" if ci.passes else f"straddles ±{PARITY_TOLERANCE:.0%}"
+    print(f"  resampling queries: gap {ci.median:+.1%}, 95% [{ci.lo:+.1%}, {ci.hi:+.1%}] "
+          f"({ci.draws} draws, seed {ci.seed})  ->  {verdict}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -97,8 +114,14 @@ def main() -> int:
         print("  NOTE: the cite stage truncates more than joint does. Post-hoc claims are parsed "
               "from\n        that stage, so its truncation drops claims off the record.")
 
+    print("  the gated statistic is an integer median of 14-20 words, so its resolution is ONE word\n"
+          "  (~6.7%) and ±15% is two words wide. iter1 and iter1b ran the same post-hoc prompt and\n"
+          "  read +0.0% and +13.3% on the same basis — hence the resampling interval under each\n"
+          "  basis, which is the reading a point estimate at this resolution cannot support alone.")
+
     truncated = truncated_queries(records, costs, args.max_tokens)
     _print_basis(parity_gate(records, basis="all records"))
+    _print_interval(records, basis="all records")
 
     joint = arm_granularity(records, System.JOINT, exclude=truncated[System.JOINT.value])
     post_hoc = arm_granularity(records, System.POST_HOC,
@@ -106,6 +129,14 @@ def main() -> int:
     gap = ((post_hoc.median_words_per_claim - joint.median_words_per_claim)
            / joint.median_words_per_claim)
     _print_basis(ParityGate(basis="untruncated only", joint=joint, post_hoc=post_hoc, gap=gap))
+    print("  each arm drops its OWN truncated records, so the two arms are measured on different\n"
+          "  queries — and post-hoc's truncation is caused by the treatment. See below.")
+
+    both = truncated[System.JOINT.value] | truncated[System.POST_HOC.value]
+    _print_basis(parity_gate(records, basis="untruncated, same queries both arms", exclude=both))
+    print(f"  the like-for-like censored basis: drop the {len(both)} queries where ANY arm hit the "
+          "cap, from\n  both arms. Symmetric, so it cannot be a selection effect in one arm.")
+    _print_interval(records, basis="untruncated, same queries both arms", exclude=both)
 
     print("\ncompound profile (all records)")
     print(f"  {'system':<10}{'simple%':>9}{'simple med':>12}{'and%':>8}{'sub%':>7}{'2+comma%':>10}")

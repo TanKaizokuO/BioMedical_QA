@@ -3,10 +3,10 @@
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line here
 is worse than a missing one, because the next session will trust it.
 
-`main` · **working tree clean, `HEAD` == `origin/main` at `0907d49`.** Everything this session is
-committed and pushed.
+`main` · **working tree clean, `HEAD` == `origin/main`.** Everything this session is committed and
+pushed.
 
-Tests: `uv run --with pytest python -m pytest tests/ -q` → **292 passed**. `pyproject.toml`'s
+Tests: `uv run --with pytest python -m pytest tests/ -q` → **301 passed**. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]` — `tests/test_corpus.py` imports from `scripts/build_corpus.py`.
 
 ---
@@ -51,19 +51,44 @@ two dead ones.
 Everything past retrieval is `NotImplementedError` with a due week in its module docstring. That is
 by design, not drift. The exceptions are `scoring/abstention.py`, `retrieve.py` and `backends.py`.
 
-### ADR-0009 Granularity-Parity Loop — Iteration 1 Complete (2026-08-14)
+### ADR-0009 Granularity-Parity Loop — Iteration 1 + 1b re-measure complete (2026-08-14)
 
-- **Gate verdict: PASS (+0.0%)** on all 100 records basis (joint 16 vs post-hoc 16 median words/claim, tolerance ±15%).
-- **Iterations used: 1 of 10** (`PARITY_ITERATIONS`), drop-dead Aug 30. Blind intact (no citation-F1 computed).
-- **Bases disagree for the first time:** all records = +0.0% (PASS), untruncated-only = +21.4% (FAIL).
-  - Untruncated basis is collider-biased here: the edit made post-hoc write finer claims → longer cite output → cite truncation 16 → 26/100. Discarding truncated records strips 41% of post-hoc claims from 26% of records (the finest output).
-  - Sensitivity check proves words/claim is insensitive to truncation censoring: dropping the final claim of every truncated record leaves the median unchanged at 16.0.
-- **Not answering less:** post-hoc claims/query rose 8 → 10 and total claims parsed rose 895 → 1129.
-- **Joint control verified:** joint generations are 100/100 byte-identical to `parity_iter0b`.
-- **vLLM determinism finding:** vanilla generations differed on 19/100 runs at `temp=0.0` due to server-side batching state altered by post-hoc calls. Recorded as a reproducibility fact.
-- **W9 stratified robustness check remains mandatory** (triggered by baseline at iteration 0, asymmetric pre-registered rule).
-- **Engineered code additions:** `src/biomedqa/scoring/granularity.py` (tested parity gate + stage token verification), `tests/test_scoring_granularity.py` (25 tests locking iter0/iter1 results), `scripts/parity_report.py` (CLI reporting script).
-- **Optional re-measure (`parity_iter1b`):** `--max-tokens 3584` with `--max-model-len 14336` will collapse the basis disagreement without spending a loop iteration.
+**The gate now passes on every basis, and the recommendation is to terminate the loop.** Full
+argument in `docs/harvest/parity_iter1b.md`; iteration 1's in `docs/harvest/parity_iter1.md`.
+
+- **Iterations used: 1 of 10** (`PARITY_ITERATIONS`), drop-dead Aug 30. **Blind intact — no
+  citation-F1 has been computed on any split.** `parity_iter1b` charges no iteration: it re-measures
+  the *same* prompt at a shared cap of 3584 (server `--max-model-len 14336`), which is run config,
+  not a prompt edit (`parity_iter0.md`'s precedent).
+- **`parity_iter1b` verdict, three bases:** all records **+13.3%** (joint 15 / post-hoc 17) ·
+  untruncated per arm **+14.3%** (was +21.4% FAIL at 2560) · untruncated on the same 78 queries both
+  arms **+6.7%**. All PASS. The baseline of record fails all three (+25.0% / +42.9% / +37.9%).
+- **The basis disagreement is closed** — the higher cap took post-hoc cite truncation 26 → 16 of 100,
+  which was the collider iteration 1 argued it was.
+- **The gate's resolution is one word (~6.7%), and ±15% is two words wide.** `parity_iter1` and
+  `parity_iter1b` ran the **same post-hoc prompt** and read **+0.0%** and **+13.3%** on the same
+  basis. So verdicts are now reported with a query-level bootstrap (`gap_bootstrap_ci`): all-records
+  95% interval **[+0.0%, +14.3%]** for `iter1b` against **[+18.8%, +40.0%]** for `parity_iter0b` —
+  non-overlapping, so the movement is real; the residual is one grid step and is not resolvable.
+- **Not answering less:** post-hoc holds 10 claims/query and parses **1242** claims against joint's
+  **719**.
+- **The joint control drifted 23/100 across the cap change** (same prompt, `temperature=0.0`) — the
+  second instance of the vLLM non-determinism recorded at iteration 1 (vanilla, 19/100). Checked
+  instead on the 77 byte-identical records, where joint's claim lists are *identical* (357 claims,
+  median 15 in both runs): joint's apparent 16 → 15 median shift is composition, not content.
+  **Byte-identity is a control check only across runs with matching server config.**
+- **W9 stratified robustness check remains mandatory** — the residual favours C2 on every basis, and
+  a pre-registered asymmetric check is not retracted because a later iteration passed.
+- **Defect found and deliberately deferred to W5/W6 (out of bounds under §4):** joint query
+  **21074975** yields a single 731-word "claim" from an `and …, and …` repetition loop whose length
+  scales with the cap (164 words at 2560). 3.1% of joint claims exceed 40 words vs post-hoc's 0.5%;
+  `_claim_rules()` splits on "and" and did not split this. It will be scored as one unit the moment
+  the blind lifts.
+- **Code:** `src/biomedqa/scoring/granularity.py` (gate, per-stage token verification, and now
+  `gap_bootstrap_ci`/`GapInterval`) · `scripts/parity_report.py` (three bases + intervals) ·
+  `tests/test_scoring_granularity.py` (39 tests locking iter0/iter0b/iter1/iter1b).
+- **Next decision, user's to make:** terminate the loop and unblind citation-F1 (§6), which starts the
+  six-day window to G2 on Sep 6.
 
 Unresolved, and **not needing re-derivation**: **W9 is triple-booked** (`research_roadmap.md` §5 ⚠)
 · the blind parity loop leaves six days between the first citation-F1 (≈Aug 31) and G2 (Sep 6)

@@ -23,8 +23,10 @@ from biomedqa.schema import Claim, CostRecord, QueryRecord, System, read_jsonl, 
 from biomedqa.scoring.granularity import (
     CALL_ORDER,
     PARITY_TOLERANCE,
+    GapInterval,
     arm_granularity,
     compound_profile,
+    gap_bootstrap_ci,
     markers_in,
     parity_gate,
     stage_output_tokens,
@@ -394,11 +396,15 @@ def test_the_compound_diagnostic_still_says_verbosity_not_compounding() -> None:
 def test_the_joint_arm_did_not_move_between_iterations() -> None:
     """ADR-0009 §4 puts the joint prompt out of bounds for the loop's duration, and greedy decoding
     makes that checkable rather than merely asserted: joint's 100 generations must be byte-identical
-    across iterations.
+    across iterations **run under the same server and cap** — `parity_iter0b` and `parity_iter1`.
 
     The silent failure is a shared edit — to `_claim_rules()`, the context block, the parser — that
     moves both arms and makes the gap look closed by the loop when the loop did not close it. That
     would be an invisible violation of the one restriction the blind depends on.
+
+    The identity does **not** survive a change of run config: see
+    `test_a_shared_run_config_change_moves_the_untouched_control`. Byte-identity is evidence about
+    the prompt only when nothing else moved either.
     """
     before, _ = _load("parity_iter0b")
     after, _ = _load("parity_iter1")
@@ -479,3 +485,164 @@ def test_the_untruncated_basis_still_fails_and_is_reported() -> None:
     assert (joint.n_records, post_hoc.n_records) == (91, 74)
     assert gap == pytest.approx(0.2143, abs=0.0001)
     assert gap > PARITY_TOLERANCE
+
+
+# ---------------------------------------------------------------------------------------------
+# Iteration 1b — the same prompt, re-measured at a larger cap. `docs/harvest/parity_iter1b.md`.
+#
+# It costs no loop iteration (a shared cap applied to all three arms is run config, not a post-hoc
+# prompt edit — `parity_iter0.md`'s precedent), and it is what closed the basis disagreement. It also
+# produced the finding that governs how the loop terminates: the same prompt read +0.0% and +13.3%.
+# ---------------------------------------------------------------------------------------------
+
+
+def test_the_larger_cap_relieved_the_binding_stage() -> None:
+    """The point of the re-measure. Post-hoc's cite stage is what its claims are parsed from, and it
+    was the stage at the cap: 26/100 at 2560, 16/100 at 3584. Joint barely moves either way, which
+    is why the cap — not the prompt — was the thing to change."""
+    records, costs = _load("parity_iter1b")
+    stages = stage_output_tokens(records, costs)
+    at_cap = {name: sum(1 for s in stages.values() if s[name] >= 3584) for name in CALL_ORDER}
+
+    assert at_cap == {"joint": 8, "post_hoc_answer": 10, "post_hoc_cite": 16, "vanilla": 7}
+
+
+def test_iteration_1b_passes_on_every_basis() -> None:
+    """What terminating the loop rests on. Three bases, one run, all inside ±15% — where the baseline
+    of record failed on all three (+25.0% / +42.9% / +37.9%).
+
+    The residual is positive on every basis, so it favours C2 and ADR-0009 §5's W9 stratified check
+    stays mandatory. A pass is not a retraction of that."""
+    records, costs = _load("parity_iter1b")
+    truncated = truncated_queries(records, costs, 3584)
+
+    every = parity_gate(records, basis="all")
+    assert (every.joint.median_words_per_claim, every.post_hoc.median_words_per_claim) == (15, 17)
+    assert every.gap == pytest.approx(2 / 15, abs=0.0001)  # +13.3%
+    assert every.passes
+
+    joint = arm_granularity(records, System.JOINT, exclude=truncated[System.JOINT.value])
+    post_hoc = arm_granularity(records, System.POST_HOC,
+                               exclude=truncated[System.POST_HOC.value])
+    per_arm = ((post_hoc.median_words_per_claim - joint.median_words_per_claim)
+               / joint.median_words_per_claim)
+    assert (joint.n_records, post_hoc.n_records) == (92, 84)
+    assert per_arm == pytest.approx(1 / 7, abs=0.0001)  # +14.3%, was +21.4% at 2560
+    assert per_arm <= PARITY_TOLERANCE
+
+    both = parity_gate(records, basis="untruncated",
+                       exclude=truncated[System.JOINT.value] | truncated[System.POST_HOC.value])
+    assert (both.joint.n_records, both.post_hoc.n_records) == (78, 78)
+    assert both.gap == pytest.approx(1 / 15, abs=0.0001)  # +6.7%
+    assert both.passes
+    assert every.favours_c2 and both.favours_c2
+
+
+def test_the_same_prompt_read_two_different_gaps() -> None:
+    """The measurement finding, and the reason the loop terminates on an interval rather than on a
+    point. `parity_iter1` and `parity_iter1b` differ **only** in the shared output cap — the post-hoc
+    prompt is the same — and the all-records gap reads +0.0% on one and +13.3% on the other.
+
+    So a point estimate at this resolution cannot distinguish a prompt effect from the grid the
+    statistic lives on, and any further tuning against it would be fitting run noise. This test is
+    the guard against quoting either number as *the* result."""
+    iter1, _ = _load("parity_iter1")
+    iter1b, _ = _load("parity_iter1b")
+
+    assert parity_gate(iter1).gap == pytest.approx(0.0)
+    assert parity_gate(iter1b).gap == pytest.approx(2 / 15, abs=0.0001)
+
+
+def test_a_shared_run_config_change_moves_the_untouched_control() -> None:
+    """The reproducibility fact `parity_iter1.md` recorded on vanilla, now measured on joint too, and
+    larger: raising the cap and `--max-model-len` moved **23 of joint's 100 generations** at
+    `temperature=0.0` on a prompt nobody touched.
+
+    Consequence for the loop: byte-identity is the control check only across runs whose server config
+    matches. Across a config change the control must be checked on the subset that did not move —
+    which is what `test_the_joint_median_shift_is_composition_not_content` does."""
+    iter1, _ = _load("parity_iter1")
+    iter1b, _ = _load("parity_iter1b")
+    before = {r.query_id: r.raw_generation for r in iter1 if r.system is System.JOINT}
+    after = {r.query_id: r.raw_generation for r in iter1b if r.system is System.JOINT}
+
+    identical = sum(1 for q, g in before.items() if after[q] == g)
+    assert identical == 77
+
+
+def test_the_joint_median_shift_is_composition_not_content() -> None:
+    """Joint's all-records median reads 16 at 2560 and 15 at 3584, which looks like the out-of-bounds
+    control moving. On the 77 generations that are byte-identical across the two runs it is the same
+    number and the same claims in both — so the shift is which records contribute, not what joint
+    said. Without this the +13.3% could be read as joint drifting rather than post-hoc's residual."""
+    iter1, _ = _load("parity_iter1")
+    iter1b, _ = _load("parity_iter1b")
+    before = {r.query_id: r for r in iter1 if r.system is System.JOINT}
+    after = {r.query_id: r for r in iter1b if r.system is System.JOINT}
+    stable = {q for q, r in before.items() if after[q].raw_generation == r.raw_generation}
+
+    words_before = [words_in_claim(c.text) for q in stable for c in before[q].claims]
+    words_after = [words_in_claim(c.text) for q in stable for c in after[q].claims]
+
+    assert words_before == words_after
+    assert len(words_before) == 357
+    assert statistics.median(words_before) == 15
+
+
+def test_the_interval_separates_the_baseline_from_the_candidate() -> None:
+    """What the gate can and cannot resolve, stated once. Resampling queries on all records:
+
+    | run | 95% interval | reading |
+    |---|---|---|
+    | `parity_iter0b` | [+18.8%, +40.0%] | outside ±15% throughout — the FAIL is not a sample |
+    | `parity_iter1b` | [+0.0%, +14.3%] | inside ±15% throughout — the PASS is not a sample either |
+
+    The two do not overlap, so the movement is real at a resolution the gate can support. The residual
+    is not: it is one word wide, which is the grid."""
+    baseline, _ = _load("parity_iter0b")
+    candidate, _ = _load("parity_iter1b")
+
+    before = gap_bootstrap_ci(baseline)
+    after = gap_bootstrap_ci(candidate)
+
+    assert before.lo > PARITY_TOLERANCE and not before.passes
+    assert after.hi == pytest.approx(1 / 7, abs=0.0001)
+    assert after.passes
+    assert after.hi < before.lo
+
+
+def test_the_interval_is_deterministic_and_resamples_queries_not_claims() -> None:
+    """Two properties the loop's verdict depends on. Same seed, same interval — a bootstrap that
+    moves between runs cannot appear in a paper. And the unit is the query: claims from one
+    generation are not independent draws, so resampling them would report an interval narrower than
+    the evidence supports, in the direction that makes any residual look resolved."""
+    records, _ = _load("parity_iter1b")
+
+    assert gap_bootstrap_ci(records, draws=500) == gap_bootstrap_ci(records, draws=500)
+    assert gap_bootstrap_ci(records, draws=500, seed=1) != gap_bootstrap_ci(records, draws=500)
+
+    per_query = gap_bootstrap_ci(records, draws=1000)
+    claims = [c for r in records if r.system is System.JOINT for c in r.claims]
+    assert per_query.hi - per_query.lo > 0
+    assert len(claims) > 100, "the resampling unit is the query, of which there are 100"
+
+
+def test_the_interval_refuses_a_run_with_unpaired_arms() -> None:
+    """The gap is a paired quantity: resampling a query must take both arms of it. A file where the
+    arms do not share query ids is a broken run, and reporting an interval off it would silently
+    compare different questions."""
+    records = [_record("q1", System.JOINT, [_words(10)]),
+               _record("q2", System.POST_HOC, [_words(12)])]
+    with pytest.raises(ValueError, match="both arms"):
+        gap_bootstrap_ci(records, draws=10)
+
+
+def test_the_whole_interval_must_pass_not_its_midpoint() -> None:
+    """`GapInterval.passes` is the conservative reading on purpose: an interval whose midpoint is
+    inside ±15% but whose upper end is outside has not shown parity. Loosening this to the midpoint
+    would let the loop terminate on the half of the interval that flatters C2."""
+    straddling = GapInterval(basis="t", lo=0.05, median=0.12, hi=0.21, draws=10, seed=0)
+    inside = GapInterval(basis="t", lo=0.0, median=0.07, hi=0.143, draws=10, seed=0)
+
+    assert not straddling.passes
+    assert inside.passes
