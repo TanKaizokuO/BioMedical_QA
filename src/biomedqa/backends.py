@@ -107,6 +107,8 @@ def _vllm_complete(
     forwarded before calling this.
     """
     base_url = os.environ.get("VLLM_BASE_URL", _VLLM_BASE_URL_DEFAULT).rstrip("/")
+    if base_url.endswith("/v1"):
+        base_url = base_url[:-3].rstrip("/")
 
     # `frequency_penalty` and `stop` are OpenAI-standard top-level fields on vLLM's
     # /v1/chat/completions (`ChatCompletionRequest`), so they need no extra_body. `repetition_penalty`

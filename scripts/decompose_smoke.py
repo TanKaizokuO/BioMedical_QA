@@ -100,8 +100,11 @@ def load_post_hoc(path: Path, n: int) -> list[QueryRecord]:
 
 
 def assert_served(base_url: str, model: str, timeout: float) -> None:
+    norm_url = base_url.rstrip("/")
+    if norm_url.endswith("/v1"):
+        norm_url = norm_url[:-3].rstrip("/")
     try:
-        with httpx.Client(base_url=base_url, timeout=timeout) as client:
+        with httpx.Client(base_url=norm_url, timeout=timeout) as client:
             served = [m["id"] for m in client.get("/v1/models").json()["data"]]
     except Exception as exc:
         raise SystemExit(
