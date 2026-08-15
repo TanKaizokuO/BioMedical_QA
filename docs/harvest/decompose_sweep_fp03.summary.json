@@ -1,0 +1,54 @@
+{
+  "script": "scripts/decompose_smoke.py",
+  "purpose": "C7 live-path smoke test; not a gate run and not a sample",
+  "run_id": "decompose_sweep_fp03",
+  "manifest": "decompose_sweep_fp03.manifest.json",
+  "config_hash": "bad5101e8f5d",
+  "fake_completer": false,
+  "finished_at": "2026-08-15T14:23:44.601996+00:00",
+  "run_arguments": {
+    "base_url": "http://localhost:8000",
+    "n_questions": 15,
+    "contexts": "docs/harvest/parity_iter1b.records.jsonl",
+    "max_tokens": 4096,
+    "frequency_penalty": 0.3
+  },
+  "per_row": {
+    "sentence": {
+      "n_queries": 15,
+      "total_claims": 177,
+      "clean_decompose_rate": 1.0,
+      "clean_cite_rate": 1.0,
+      "median_words_per_claim": 17,
+      "duplicate_claim_count": 0,
+      "quote_not_found_count": 0
+    },
+    "atomic": {
+      "n_queries": 15,
+      "total_claims": 244,
+      "clean_decompose_rate": 0.0,
+      "clean_cite_rate": 0.0,
+      "median_words_per_claim": 13.0,
+      "duplicate_claim_count": 45,
+      "quote_not_found_count": 51,
+      "divergence_rate": 0.8228
+    },
+    "decontextualized_atomic": {
+      "n_queries": 15,
+      "total_claims": 70,
+      "clean_decompose_rate": 0.0,
+      "clean_cite_rate": 0.0,
+      "median_words_per_claim": 14.0,
+      "duplicate_claim_count": 2,
+      "quote_not_found_count": 23
+    }
+  },
+  "monotonicity_check": {
+    "passes": false,
+    "medians": {
+      "sentence": 17,
+      "atomic": 13.0,
+      "decontextualized_atomic": 14.0
+    }
+  }
+}
