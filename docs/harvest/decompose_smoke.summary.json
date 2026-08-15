@@ -3,13 +3,15 @@
   "purpose": "C7 live-path smoke test; not a gate run and not a sample",
   "run_id": "decompose_smoke",
   "manifest": "decompose_smoke.manifest.json",
-  "config_hash": "2b565b151c52",
+  "config_hash": "ed536d993964",
   "fake_completer": false,
-  "finished_at": "2026-08-15T12:17:02.889425+00:00",
+  "finished_at": "2026-08-15T18:46:03.038931+00:00",
   "run_arguments": {
-    "base_url": "http://localhost:8000",
+    "base_url": "http://localhost:8000/v1",
     "n_questions": 100,
-    "contexts": "docs/harvest/parity_iter1b.records.jsonl"
+    "contexts": "docs/harvest/parity_iter1b.records.jsonl",
+    "max_tokens": 4096,
+    "frequency_penalty": 0.5
   },
   "per_row": {
     "sentence": {
@@ -17,30 +19,36 @@
       "total_claims": 1246,
       "clean_decompose_rate": 1.0,
       "clean_cite_rate": 1.0,
-      "median_words_per_claim": 17.0
+      "median_words_per_claim": 17.0,
+      "duplicate_claim_count": 0,
+      "quote_not_found_count": 0
     },
     "atomic": {
       "n_queries": 100,
-      "total_claims": 4548,
-      "clean_decompose_rate": 0.33,
-      "clean_cite_rate": 0.02,
-      "median_words_per_claim": 11.0,
-      "divergence_rate": 0.8544
+      "total_claims": 1602,
+      "clean_decompose_rate": 0.06,
+      "clean_cite_rate": 0.0,
+      "median_words_per_claim": 13.0,
+      "duplicate_claim_count": 273,
+      "quote_not_found_count": 183,
+      "divergence_rate": 0.7606
     },
     "decontextualized_atomic": {
       "n_queries": 100,
-      "total_claims": 1007,
+      "total_claims": 318,
       "clean_decompose_rate": 0.01,
-      "clean_cite_rate": 0.01,
-      "median_words_per_claim": 13
+      "clean_cite_rate": 0.0,
+      "median_words_per_claim": 13.0,
+      "duplicate_claim_count": 30,
+      "quote_not_found_count": 35
     }
   },
   "monotonicity_check": {
-    "passes": false,
+    "passes": true,
     "medians": {
       "sentence": 17.0,
-      "atomic": 11.0,
-      "decontextualized_atomic": 13
+      "atomic": 13.0,
+      "decontextualized_atomic": 13.0
     }
   }
 }

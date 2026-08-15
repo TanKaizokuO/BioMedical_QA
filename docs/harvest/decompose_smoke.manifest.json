@@ -11,10 +11,10 @@
     "config_version": "1.4.0",
     "generation": {
       "backend": "vllm",
-      "frequency_penalty": 0.0,
+      "frequency_penalty": 0.5,
       "granularity": "decontextualized_atomic",
       "max_citations": 3,
-      "max_tokens": 1536,
+      "max_tokens": 4096,
       "model": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
       "seeds": [
         0
@@ -51,10 +51,10 @@
       "model": "lytang/MiniCheck-Flan-T5-Large"
     }
   },
-  "config_hash": "2b565b151c52",
+  "config_hash": "ed536d993964",
   "config_version": "1.4.0",
-  "finished_at": "2026-08-15T12:17:02.897143+00:00",
-  "git_sha": "8673a5d635fc9a7b596afd05b5aa0220ccb87cbd",
+  "finished_at": "2026-08-15T18:46:03.059210+00:00",
+  "git_sha": "adf6313b43f03005dfee43029fa6845a8de31db2-dirty",
   "index_fingerprint": "57ab89e445f8",
   "manifest_version": "1.0.0",
   "models": {
@@ -65,7 +65,7 @@
     "reranker": "NCBI/MedCPT-Cross-Encoder",
     "verifier": "lytang/MiniCheck-Flan-T5-Large"
   },
-  "n_costs": 321,
+  "n_costs": 440,
   "n_records": 300,
   "provenance": {
     "kind": "live"
@@ -77,5 +77,5 @@
   ],
   "split": "dev",
   "split_hash": "71c46cc5b0ca",
-  "started_at": "2026-08-15T10:45:38.115257+00:00"
+  "started_at": "2026-08-15T17:39:07.598620+00:00"
 }
