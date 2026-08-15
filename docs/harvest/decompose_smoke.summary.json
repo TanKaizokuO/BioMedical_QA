@@ -1,0 +1,46 @@
+{
+  "script": "scripts/decompose_smoke.py",
+  "purpose": "C7 live-path smoke test; not a gate run and not a sample",
+  "run_id": "decompose_smoke",
+  "manifest": "decompose_smoke.manifest.json",
+  "config_hash": "2b565b151c52",
+  "fake_completer": false,
+  "finished_at": "2026-08-15T12:17:02.889425+00:00",
+  "run_arguments": {
+    "base_url": "http://localhost:8000",
+    "n_questions": 100,
+    "contexts": "docs/harvest/parity_iter1b.records.jsonl"
+  },
+  "per_row": {
+    "sentence": {
+      "n_queries": 100,
+      "total_claims": 1246,
+      "clean_decompose_rate": 1.0,
+      "clean_cite_rate": 1.0,
+      "median_words_per_claim": 17.0
+    },
+    "atomic": {
+      "n_queries": 100,
+      "total_claims": 4548,
+      "clean_decompose_rate": 0.33,
+      "clean_cite_rate": 0.02,
+      "median_words_per_claim": 11.0,
+      "divergence_rate": 0.8544
+    },
+    "decontextualized_atomic": {
+      "n_queries": 100,
+      "total_claims": 1007,
+      "clean_decompose_rate": 0.01,
+      "clean_cite_rate": 0.01,
+      "median_words_per_claim": 13
+    }
+  },
+  "monotonicity_check": {
+    "passes": false,
+    "medians": {
+      "sentence": 17.0,
+      "atomic": 11.0,
+      "decontextualized_atomic": 13
+    }
+  }
+}
