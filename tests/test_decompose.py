@@ -215,6 +215,23 @@ class TestParsing:
         assert result.claims == ()
         assert "no CLAIM lines" in result.errors
 
+    def test_a_repeated_claim_is_flagged_not_deduplicated(self):
+        """The live 2026-08-15 A4000 run found greedy decoding taking the repetition escape
+        `MAX_CLAIM_WORDS` does not cover: re-emitting an already-written claim instead of a new
+        one. It is kept, same reasoning as an over-length claim — collapsing duplicates would hide
+        the defect the flag exists to surface, and would understate `total_claims` too."""
+        stub = _Replay(
+            "CLAIM 1 FROM 1: Metformin reduces all-cause mortality.\n"
+            "CLAIM 2 FROM 1: Metformin reduces all-cause mortality.\n"
+            "CLAIM 3 FROM 1:   Metformin reduces   all-cause mortality.  \n"
+            "CLAIM 4 FROM 2: Metformin's benefit was not seen in the elderly.\n"
+        )
+        result = decompose(_GENERATION, _config("atomic"), completer=stub)
+
+        assert len(result.claims) == 4
+        assert sum(1 for e in result.errors if "repeats" in e and "verbatim" in e) == 2
+        assert any("c1" in e for e in result.errors)
+
 
 class TestCost:
     def test_the_decomposition_call_is_billed_to_decompose(self):

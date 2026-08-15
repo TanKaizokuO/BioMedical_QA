@@ -238,9 +238,19 @@ def parse_decomposition(
     hide the defect it detects), and a claim whose sentence index is unusable is kept with no span
     rather than deleted, because deleting it would shrink the denominator of the very rate that is
     supposed to report decomposition failure.
+
+    **A repeated claim is the same defect wearing a different shape.** `MAX_CLAIM_WORDS` catches a
+    non-terminating generation that grows one claim without bound (`21074975`'s 731 words,
+    `parity_iter1b.md`); a live run of this decomposer (`docs/harvest/decompose_smoke.md`,
+    2026-08-15) found greedy decoding taking the *other* escape from a repetition loop — re-emitting
+    an already-written claim verbatim instead of advancing, sometimes dozens of times, with no upper
+    bound but the output cap. Exact-text repetition within one decomposition is therefore also
+    flagged (not deduplicated — collapsing it would hide the defect it was added to measure, same
+    reasoning as `MAX_CLAIM_WORDS`).
     """
     claims: list[Claim] = []
     errors: list[str] = []
+    text_seen: dict[str, str] = {}
 
     for lineno, line in enumerate(raw.splitlines(), start=1):
         head, sep, text = line.strip().partition(":")
@@ -280,6 +290,14 @@ def parse_decomposition(
                 source_end=span[1] if span else None,
             )
         )
+        norm = " ".join(text.split()).lower()
+        if norm in text_seen:
+            errors.append(
+                f"{claims[-1].claim_id}: repeats {text_seen[norm]}'s claim text verbatim "
+                "(non-terminating generation)"
+            )
+        else:
+            text_seen[norm] = claims[-1].claim_id
 
     if not claims:
         errors.append("no CLAIM lines")

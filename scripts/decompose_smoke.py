@@ -180,6 +180,12 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=100, help="post_hoc questions (default: %(default)s — the full parity_iter1b dev slice)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-tokens", type=int, default=GenerationConfig().max_tokens)
+    ap.add_argument(
+        "--frequency-penalty", type=float, default=GenerationConfig().frequency_penalty,
+        help="OpenAI-standard frequency_penalty, forwarded to vLLM as-is (never repetition_penalty "
+             "— see GenerationConfig.frequency_penalty). Sweep this to escape the greedy-decoding "
+             "repetition loop documented in docs/harvest/decompose_smoke.summary.json.",
+    )
     ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--out-prefix", type=Path, default=Path("docs/harvest/decompose_smoke"))
     ap.add_argument("--fake", action="store_true", help="canned completers; no network, no GPU")
@@ -207,6 +213,7 @@ def main() -> int:
             "generation.backend": "vllm",
             "generation.model": args.model,
             "generation.max_tokens": args.max_tokens,
+            "generation.frequency_penalty": args.frequency_penalty,
             "generation.seeds": (args.seed,),
             # Nominal — the three rows share this manifest under one `run_id`, told apart by the
             # `:<granularity>` query_id suffix, same pattern `generate_smoke.py` uses for `system`.
@@ -225,7 +232,13 @@ def main() -> int:
 
     records: list[QueryRecord] = []
     costs: list[CostRecord] = []
-    per_row: dict[str, dict] = {row.value: {"claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0} for row in ALL_ROWS}
+    per_row: dict[str, dict] = {
+        row.value: {
+            "claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0,
+            "duplicate_claim_count": 0, "quote_not_found_count": 0,
+        }
+        for row in ALL_ROWS
+    }
 
     row_configs = {
         row: run_config.ablate(f"{run_id}-{row.value}", **{"generation.granularity": row.value}).generation
@@ -246,6 +259,9 @@ def main() -> int:
             per_row[row.value]["n"] += 1
             if not decomp.errors:
                 per_row[row.value]["clean_decompose"] += 1
+            per_row[row.value]["duplicate_claim_count"] += sum(
+                1 for problem in decomp.errors if "claim text verbatim" in problem
+            )
 
             claims = list(decomp.claims)
             if row in MODEL_ROWS and claims and src.retrieved:
@@ -257,6 +273,9 @@ def main() -> int:
                 costs.append(recite.cost)
                 if not recite.errors:
                     per_row[row.value]["clean_cite"] += 1
+                per_row[row.value]["quote_not_found_count"] += sum(
+                    1 for problem in recite.errors if "quote not found verbatim" in problem
+                )
                 claims = list(recite.claims)
             elif row is Granularity.SENTENCE:
                 per_row[row.value]["clean_cite"] += 1  # no cite call attempted for the control row
@@ -287,6 +306,8 @@ def main() -> int:
             "clean_decompose_rate": round(stats["clean_decompose"] / stats["n"], 4) if stats["n"] else None,
             "clean_cite_rate": round(stats["clean_cite"] / stats["n"], 4) if stats["n"] else None,
             "median_words_per_claim": statistics.median(words) if words else None,
+            "duplicate_claim_count": stats["duplicate_claim_count"],
+            "quote_not_found_count": stats["quote_not_found_count"],
         }
         if row is Granularity.ATOMIC:
             diverged = checkable = 0
@@ -335,6 +356,8 @@ def main() -> int:
                     "base_url": None if args.fake else args.base_url,
                     "n_questions": args.n,
                     "contexts": str(args.contexts),
+                    "max_tokens": args.max_tokens,
+                    "frequency_penalty": args.frequency_penalty,
                 },
                 "per_row": summary,
                 "monotonicity_check": {"passes": monotonic, "medians": medians},
