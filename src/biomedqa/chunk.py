@@ -72,8 +72,12 @@ class Chunk:
     char_end: int
 
 
-def _sentence_spans(text: str, start: int, end: int) -> list[tuple[int, int]]:
+def sentence_spans(text: str, start: int, end: int) -> list[tuple[int, int]]:
     """Sentence boundaries within `[start, end)`, as offsets into `text`.
+
+    Public because `decompose.py` needs the *same* splitter: the `sentence` C7 ablation row and a
+    passage window are the same operation on different text, and a second sentence rule in the
+    package would make "sentence" mean two things in one paper.
 
     Leading whitespace is skipped rather than included, so a chunk never begins with the space
     `Instance.abstract_text` joined its sections on.
@@ -177,7 +181,7 @@ def _spans(
         spans = sections if sections else whole
     elif config.strategy == "sentence_window":
         spans = _windowed(
-            _sentence_spans(text, 0, len(text)),
+            sentence_spans(text, 0, len(text)),
             config.window_sentences,
             config.stride_sentences,
         )

@@ -221,7 +221,7 @@ class CostRecord:
 
     run_id: str
     query_id: str | None
-    component: str                # "generate" | "verify" | "judge" | "rerank" | "encode"
+    component: str                # "generate" | "decompose" | "decompose_cite" | "verify" | "judge" | "rerank" | "encode"
     backend: str                  # "vllm:<model>" | "anthropic:<model>"
     input_tokens: int | None = None
     output_tokens: int | None = None

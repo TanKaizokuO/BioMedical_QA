@@ -32,17 +32,24 @@ value). `generate_one` returns them alongside the record for the run log.
 **`retrieved` is the context the model actually saw**, sliced to `depth`, not the 100-deep pool
 Table 1 stores. Citation validity is defined against the passages the prompt listed: a citation
 naming rank 47 is a hallucinated passage id, and `QueryRecord.validate()` must be able to say so.
+
+**A fifth thing lives here for C7 only: `cite_claims`.** `decompose.py`'s own docstring puts
+re-attaching citations to a re-cut answer out of its scope — "a re-cut claim has no citations: the
+spans belonged to units that no longer exist" — and names this module as where the re-run belongs.
+It reuses `POST_HOC_CITE_TEMPLATE` unchanged rather than inventing a second citation grammar: the
+template already says "attach quotations to an answer that is already written" and does not care
+which system, or which granularity, wrote that answer.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from . import backends
 from .config import GenerationConfig
 from .prompts import CONTEXT_DEPTH, build_prompt, parse_response
-from .schema import CostRecord, QueryRecord, RetrievedPassage, System
+from .schema import Claim, CostRecord, QueryRecord, RetrievedPassage, System
 
 #: Marks the boundary between post-hoc's two stages inside `raw_generation`. Chosen to be something
 #: no model emits: it is not part of the response grammar and carries the project namespace.
@@ -162,3 +169,73 @@ def _total(values: Iterable[float | None]) -> float | None:
     if any(v is None for v in seen):
         return None
     return sum(seen)  # type: ignore[arg-type]
+
+
+@dataclass(frozen=True, slots=True)
+class Recitation:
+    """C7's citation re-run: `decompose.py`'s claims, now carrying citations against `passages`.
+
+    Mirrors `Generation`'s error handling — a claim the reply dropped is kept with no citations
+    rather than discarded, so the denominator `errors` is read against never shrinks silently.
+    """
+
+    claims: tuple[Claim, ...]
+    cost: CostRecord
+    errors: tuple[str, ...]
+
+
+def cite_claims(
+    claims: Sequence[Claim],
+    question: str,
+    passages: Sequence[RetrievedPassage],
+    config: GenerationConfig,
+    *,
+    complete: Completer = backends.complete,
+    seed: int = 0,
+    run_id: str = "",
+    query_id: str | None = None,
+    depth: int = CONTEXT_DEPTH,
+) -> Recitation:
+    """Attach fresh citations to an already re-cut answer — chosen as Option A over mapping the
+    original citations onto the new claim boundaries (HANDOFF.md): the old citations were located
+    against units that no longer exist, so a real citation-F1 for C7 needs a real second pass, at
+    the cost of one extra call per row.
+
+    `claims` is one `Decomposition.claims` — any granularity, any originating system. The reply is
+    matched back to `claims` **positionally**: the cite stage is told to reproduce every claim in
+    order and never told a claim's id, so an id is not a channel this function can rely on to
+    re-align a dropped or added line. A count mismatch is `errors`, not a raised exception — same
+    reason `decompose.parse_decomposition` never drops a claim for being wrong-shaped.
+    """
+    context = list(passages[:depth])
+    if not context:
+        raise ValueError(f"{query_id}: no passages to cite against; retrieval must run first")
+    if not claims:
+        raise ValueError("no claims to cite")
+
+    rendered = "\n".join(f"CLAIM {i}: {c.text}" for i, c in enumerate(claims, start=1))
+    prompt = build_prompt(
+        System.POST_HOC, question, context, config.max_citations, stage="cite",
+        answer=rendered, depth=depth,
+    )
+    raw, cost = complete(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
+    # Table 4 must separate this call from both the generation it re-cites and the decomposition
+    # call that produced `claims` — `backends` stamps every call "generate" because generation is
+    # all it has ever been asked for, same reasoning as `decompose.decompose`'s "decompose" stamp.
+    cost.component = "decompose_cite"
+    parsed = parse_response(raw, context, config.max_citations)
+
+    errors = list(parsed.errors)
+    if len(parsed.claims) != len(claims):
+        errors.append(
+            f"cite stage returned {len(parsed.claims)} CLAIM lines for {len(claims)} claims sent"
+        )
+    cited = []
+    for i, original in enumerate(claims):
+        if i < len(parsed.claims):
+            citations = parsed.claims[i].citations
+        else:
+            citations = []
+            errors.append(f"{original.claim_id}: no matching CLAIM line in the cite-stage reply")
+        cited.append(replace(original, citations=citations))
+    return Recitation(tuple(cited), cost, tuple(errors))

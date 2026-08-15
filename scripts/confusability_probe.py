@@ -56,7 +56,9 @@ MINICHECK_MODEL_ID = "lytang/MiniCheck-Flan-T5-Large"
 
 
 # ---------------------------------------------------------------------------
-# Sentence splitting (proxy for gold-claim decomposition — decompose.py is W3)
+# Sentence splitting (proxy for gold-claim decomposition — decompose.py now exists as the C7
+# granularity-ablation tool, off the C2 headline path; its regex is left alone here since editing
+# it would invalidate the committed probe artifacts this script already produced)
 # ---------------------------------------------------------------------------
 
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")

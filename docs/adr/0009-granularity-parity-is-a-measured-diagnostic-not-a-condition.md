@@ -9,6 +9,10 @@ blind, hard-10 — is unchanged. Made on the user's explicit instruction, in pre
 **Terminated 2026-08-14** — the loop closed at **1 of 10 iterations** on `parity_iter1b`, with the
 gate passing on every basis. §6's blind is lifted; the W9 stratified check survives it. See
 *Termination* at the end.
+**Amended 2026-08-15** — the *Termination* section's premise that the `_claim_rules()` fix for the
+731-word joint claim "lands before the first citation-F1 is read" expired: F1 was read the day
+before, 2026-08-14. See *Second amendment* at the end for the resulting decision — the guard stays
+on the scoring side, `_claim_rules()` is not touched pre-freeze.
 
 ## Context
 
@@ -274,3 +278,37 @@ whose length scales with the output cap (164 words at 2560). 3.1% of joint's cla
 against post-hoc's 0.5%, and `_claim_rules()` splits on "and" yet did not split this. §4 puts
 `_claim_rules()` out of bounds and the fix is W5/W6 work, but it lands **before** the first citation-F1
 is read: that claim would be scored as one unit.
+
+## Second amendment, 2026-08-15 — the 731-word claim stays a scoring-side guard, not a prompt edit
+
+**What expired.** *Known weakness* under *Termination* read "[the fix] lands **before** the first
+citation-F1 is read: that claim would be scored as one unit." First F1 was computed the same day
+this ADR terminated (`docs/harvest/first_citation_f1.md`, 2026-08-14). The premise that justified
+deferring the fix to W5/W6 rather than deciding its treatment now no longer holds.
+
+**The decision, made now rather than deferred again.** `_claim_rules()` is **not** edited before the
+Sep 3 decomposer freeze. Editing it moves all three prompts at once (§4's Amendment: the grammar is
+shared for fairness), which would mean the parity gate, the published `parity_iter1b` table, and the
+first F1 read all describe prompts that no longer exist — not a fix, a full re-run with the gate
+recomputed. Nothing forces that re-run: the defect is already caught and reportable through the
+mechanism §4's Consequences names for exactly this — `ScoringConfig.max_claim_words`
+(`prompts.MAX_CLAIM_WORDS = 50`), the parse-side, re-scorable guard `parse_response` and
+`decompose.parse_decomposition` both already apply.
+
+**The number, at the guard's actual threshold.** The *Termination* section quoted the 40-word band
+from the exploratory read that found the defect. At the guard's own threshold, 50 words, recomputed
+from `docs/harvest/parity_iter1b.records.jsonl`:
+
+| system | claims | words/claim >50 | rate |
+|---|---|---|---|
+| joint | 719 | 20 | **2.78%** |
+| post_hoc | 1242 | 3 | **0.24%** |
+| vanilla | 1622 | 4 | 0.25% |
+
+This is not a new measurement — it is `prompts.MAX_CLAIM_WORDS`'s own justifying comment (2.78% /
+0.24% / 0.25%, chosen at 50 over 30's 4.73% / 3.06% / 9.43% specifically so the guard would not tax
+the three arms at three different rates and move C2's gap by instrument) — recorded here as the
+disclosed defect rate rather than left to be found only in a code comment.
+
+**If the prompt is ever fixed**, it is a dated, budgeted re-run with the parity gate recomputed
+against the new prompts, per §4 — not a quiet edit to a frozen template.

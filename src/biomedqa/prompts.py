@@ -348,6 +348,19 @@ def render_context(passages: list[RetrievedPassage], depth: int = CONTEXT_DEPTH)
     return "\n\n".join(f"[{p.passage_id}]\n{p.text}" for p in selected)
 
 
+#: The two halves of ADR-0005's unit, as separate constants so that `decompose.py` can ask for one
+#: without the other: the `atomic` C7 ablation row is *bare* atomic, and a decomposer that resolved
+#: pronouns anyway would make the `atomic` and `decontextualized_atomic` rows the same row.
+#: `_claim_rules()` joins them with a single space and is byte-identical to what it was before the
+#: split — the three systems' prompts are unchanged, and `tests/test_prompts.py` pins the fragments.
+DECONTEXTUALIZATION_RULE = """Write each CLAIM line so it stands alone. Resolve every pronoun, every "this"/"these",
+and every implied subject, so that a reader who sees the claim and nothing else knows exactly what
+it asserts."""
+
+ATOMICITY_RULE = """Each claim states exactly one thing; split anything joined by "and" into separate
+claims when the parts could be true or false independently."""
+
+
 def _claim_rules() -> str:
     """Decontextualization and atomicity — ADR-0005's unit. Shared by all three systems, because
     a baseline whose claims are shaped differently is being compared on the wrong axis.
@@ -355,10 +368,7 @@ def _claim_rules() -> str:
     Scoped to CLAIM lines explicitly. Unscoped, it read as advice about the whole reply, and the
     live smokes showed the model dutifully decontextualizing its *quotes* as well.
     """
-    return """Write each CLAIM line so it stands alone. Resolve every pronoun, every "this"/"these",
-and every implied subject, so that a reader who sees the claim and nothing else knows exactly what
-it asserts. Each claim states exactly one thing; split anything joined by "and" into separate
-claims when the parts could be true or false independently."""
+    return f"{DECONTEXTUALIZATION_RULE} {ATOMICITY_RULE}"
 
 
 def _citation_rules(max_citations: int) -> str:
