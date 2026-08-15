@@ -13,7 +13,7 @@ Module map — each names the table it feeds (`research_roadmap.md` §1):
     annotate.py   blinded task build + the offline labelling form  → G4 (Krippendorff's α)
     schema.py     THE FROZEN OUTPUT SCHEMA
     scoring/      pure functions over the schema                   → Tables 1–5
-    harness.py    seed loop, cost log, run manifest, config diff
+    harness.py    run manifest + provenance audit                   → G5 (every cell traceable)
 """
 
 __all__ = ["config", "data", "schema"]

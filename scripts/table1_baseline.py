@@ -32,6 +32,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from biomedqa.config import CONFIG_VERSION, RetrievalConfig, RunConfig  # noqa: E402
 from biomedqa.data import Instance, load_splits, load_instances  # noqa: E402
+from biomedqa.harness import (  # noqa: E402
+    finalize_run,
+    manifest_path,
+    records_path,
+    run_manifest,
+    verify_run,
+)
 from biomedqa.retrieve import RetrievalIndex, retrieve  # noqa: E402
 from biomedqa.schema import (  # noqa: E402
     QueryRecord,
@@ -84,6 +91,23 @@ ROWS: list[dict] = [
 ]
 
 
+#: The four retrieval stages, in the order an arm's `run_id` names them.
+ARM_FLAGS = ("bm25", "dense", "rrf", "rerank")
+
+
+def arm_run_id(config: RetrievalConfig | dict) -> str:
+    """The `run_id` stamped on one row's records, derived from that row's **flags**.
+
+    Derived from the flags rather than the label because the flags are what the artifact records, so
+    `scripts/backfill_manifests.py` can rebuild the same id for a run made before manifests existed.
+    It reproduces every id already on disk: `bm25` alone is `table1_bm25_only`, all four is
+    `table1_bm25_and_dense_and_rrf_and_rerank`.
+    """
+    flags = config if isinstance(config, dict) else {f: getattr(config, f) for f in ARM_FLAGS}
+    on = [f for f in ARM_FLAGS if flags[f]]
+    return f"table1_{'_and_'.join(on)}" + ("_only" if len(on) == 1 else "")
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -99,7 +123,6 @@ def _run_retrieval(
     instances: list[Instance],
     config: RetrievalConfig,
     index: RetrievalIndex,
-    row_label: str,
     gate_k: int,
 ) -> list[QueryRecord]:
     """Retrieve to the full pool depth, not to ``top_k``.
@@ -125,7 +148,7 @@ def _run_retrieval(
         ]
         records.append(
             QueryRecord(
-                run_id=f"table1_{row_label.lower().replace(' ', '_').replace('+', 'and')}",
+                run_id=arm_run_id(config),
                 query_id=inst.pubid,
                 question=inst.question,
                 system=System.JOINT,
@@ -195,7 +218,7 @@ def _eval_row(
     config = replace(_BASE_CONFIG, **row_spec["config_overrides"])
 
     print(f"\n  Row {row_spec['row']}: {label}")
-    records = _run_retrieval(instances, config, index, label, k)
+    records = _run_retrieval(instances, config, index, k)
 
     hits, n = hit_at_k(records, k)
     point, lower, upper = wilson_interval(hits, n)
@@ -338,6 +361,28 @@ def main() -> int:
         f"\nEvaluating Table 1 rows {', '.join(str(r['row']) for r in selected)} "
         f"on '{args.split}' split (k={args.k}) …"
     )
+
+    # Before the first record. Each row is a different Table 1 *cell*, so each is an arm with its own
+    # config hash under one manifest; the top-level config is the shared index, split and pool. G5
+    # reads a cell off a manifest or not at all.
+    prefix = args.out.with_suffix("")
+    arms = {
+        arm_run_id(replace(_BASE_CONFIG, **row["config_overrides"])): {
+            f"retrieval.{flag}": value for flag, value in row["config_overrides"].items()
+        }
+        for row in selected
+    }
+    try:
+        manifest = run_manifest(
+            RunConfig(retrieval=replace(_BASE_CONFIG, top_k=args.k), split=args.split),
+            prefix,
+            arms=arms,
+        )
+    except FileExistsError as exc:
+        print(exc, file=sys.stderr)
+        return 1
+    print(f"  manifest {manifest_path(prefix)}  config {manifest['config_hash']}  "
+          f"git {manifest['git_sha']}")
     row_results: list[dict] = []
     all_records: list[tuple[int, QueryRecord]] = []
     for row_spec in selected:
@@ -392,6 +437,10 @@ def main() -> int:
             "config_version": CONFIG_VERSION,
         },
         "rows": row_results,
+        # The knobs above are kept for `table1_report.py`, which reads the recorded fingerprint; the
+        # manifest is the authority and carries the whole config plus a hash per row.
+        "manifest": manifest_path(prefix).name,
+        "config_hash": manifest["config_hash"],
         "note": "G1 gate requires hit@5 ≥ 0.90 and Wilson lower > 0.85, read off row 4.",
     }
     args.out.write_text(json.dumps(output, indent=2, ensure_ascii=False))
@@ -401,13 +450,16 @@ def main() -> int:
     # this file is recoverable from the summaries. hit@10, a question-clustered bootstrap and
     # "which question missed, and what did it get instead" all need it, and re-deriving it costs
     # another index load and another 3x100 retrievals.
-    records_path = args.out.with_suffix(".records.jsonl")
-    with records_path.open("w", encoding="utf-8") as fh:
+    rec_path = records_path(prefix)
+    with rec_path.open("w", encoding="utf-8") as fh:
         for row_num, rec in all_records:
             payload = to_dict(rec)
             payload["table1_row"] = row_num
             fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    print(f"Per-query records written to {records_path}  ({len(all_records)} rows)")
+    print(f"Per-query records written to {rec_path}  ({len(all_records)} rows)")
+    finalize_run(prefix)
+    for problem in verify_run(prefix):
+        print(f"  provenance: {problem}")
     return 0
 
 

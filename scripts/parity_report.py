@@ -34,6 +34,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from biomedqa.harness import costs_path, records_path  # noqa: E402
 from biomedqa.prompts import (  # noqa: E402
     PARITY_ITERATION_LIMIT,
     parity_budget_remains,
@@ -100,8 +101,10 @@ def main() -> int:
     args = ap.parse_args()
 
     prefix = Path(args.prefix)
-    records = list(read_query_records(prefix.with_suffix(".records.jsonl")))
-    costs = [CostRecord(**d) for d in read_jsonl(prefix.with_suffix(".costs.jsonl"))]
+    # `records_path`/`costs_path`, not `prefix.with_suffix(...)`: with_suffix truncates at the last
+    # dot, so a prefix like `freqpen_0.1` would silently read `freqpen_0.records.jsonl`.
+    records = list(read_query_records(records_path(prefix)))
+    costs = [CostRecord(**d) for d in read_jsonl(costs_path(prefix))]
 
     print(f"{prefix.name}: {len(records)} records, {len(costs)} cost rows, "
           f"per-call cap {args.max_tokens}")

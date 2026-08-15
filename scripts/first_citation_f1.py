@@ -44,6 +44,7 @@ from pathlib import Path
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from biomedqa.harness import costs_path, records_path  # noqa: E402
 from biomedqa.prompts import PARITY_LOOP_CLOSED  # noqa: E402
 from biomedqa.schema import CostRecord, System, read_jsonl, read_query_records  # noqa: E402
 from biomedqa.scoring.abstention import answered_claims  # noqa: E402
@@ -170,7 +171,9 @@ def main() -> int:
         raise SystemExit("ADR-0009 §6: the parity loop is open; citation-F1 is not computable yet")
 
     prefix = Path(args.prefix)
-    records = list(read_query_records(prefix.with_suffix(".records.jsonl")))
+    # `records_path`, not `prefix.with_suffix(...)`: with_suffix truncates at the last dot, so a
+    # prefix like `freqpen_0.1` would silently read `freqpen_0.records.jsonl`.
+    records = list(read_query_records(records_path(prefix)))
     by_system = {s: [r for r in records if r.system is s] for s in SCORED}
 
     print(f"first citation-F1 · {prefix.name} · φ = {PHI_MODEL} (interim, not MiniCheck)")
@@ -227,7 +230,7 @@ def main() -> int:
 
     censored = None
     if args.max_tokens is not None:
-        costs = [CostRecord(**d) for d in read_jsonl(prefix.with_suffix(".costs.jsonl"))]
+        costs = [CostRecord(**d) for d in read_jsonl(costs_path(prefix))]
         truncated = truncated_queries(records, costs, args.max_tokens)
         drop = truncated[System.JOINT.value] | truncated[System.POST_HOC.value]
         kept = [q for q in shared if q not in drop]

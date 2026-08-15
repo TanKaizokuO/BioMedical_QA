@@ -22,10 +22,17 @@ Three things it deliberately does:
    no citations". Both are measurements — see `Generation`'s docstring. A smoke run whose records
    were quietly cleaned would prove the wrong thing.
 
+4. **Manifests the run before making it.** `<prefix>.manifest.json` is written by
+   `harness.run_manifest` before the first record and finalized after the last, so every number this
+   script produces can be traced to a config hash, an index fingerprint, a split hash and a commit —
+   G5's condition. The knobs are no longer restated in the summary; `verify_run`'s findings are
+   printed at the end, and a dirty tree is one of them.
+
 `--fake` swaps in a canned completer and touches no network, which is what the `Completer` seam in
 `generate.py` exists for: the box is copy-paste only, so orchestration bugs are found here rather
-than on the GPU. Fake runs stamp their `run_id` so their records can never be mistaken for real
-ones.
+than on the GPU. Fake runs carry `_fakecompleter` in the **prefix** as well as the `run_id`, so
+their records can never be mistaken for real ones and `run_id == prefix.name` still holds — which is
+what ties a manifest to the records beside it.
 """
 
 from __future__ import annotations
@@ -44,8 +51,16 @@ import httpx
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
-from biomedqa.config import GenerationConfig  # noqa: E402
+from biomedqa.config import GenerationConfig, RunConfig  # noqa: E402
 from biomedqa.generate import generate_one, split_stages  # noqa: E402
+from biomedqa.harness import (  # noqa: E402
+    costs_path,
+    finalize_run,
+    manifest_path,
+    records_path,
+    run_manifest,
+    verify_run,
+)
 from biomedqa.prompts import CONTEXT_DEPTH, MAX_CLAIM_WORDS  # noqa: E402
 from biomedqa.schema import (  # noqa: E402
     CostRecord,
@@ -54,8 +69,6 @@ from biomedqa.schema import (  # noqa: E402
     to_dict,
     write_jsonl,
 )
-
-RUN_ID = "w4_generate_smoke"
 
 
 def load_contexts(path: Path, n: int) -> list[dict]:
@@ -184,10 +197,25 @@ def main() -> int:
     )
     ap.add_argument("--out-prefix", type=Path, default=Path("docs/harvest/generate_smoke"))
     ap.add_argument("--fake", action="store_true", help="canned completer; no network, no GPU")
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help=(
+            "delete this prefix's manifest, records and costs first. Without it a prefix that "
+            "already holds a manifest is refused, because a second run under one manifest inherits "
+            "the first run's provenance."
+        ),
+    )
     args = ap.parse_args()
 
-    run_id = RUN_ID + ("_fakecompleter" if args.fake else "")
     completer = _fake_completer if args.fake else None
+    # The fake marker lives in the *prefix*, not only in the run id, so `run_id == prefix.name`
+    # holds and the manifest can never describe records stamped with a different id. Fake records
+    # remain unmistakable for real ones — now their filenames say so too.
+    prefix = args.out_prefix
+    if args.fake and not prefix.name.endswith("_fakecompleter"):
+        prefix = prefix.with_name(prefix.name + "_fakecompleter")
+    run_id = prefix.name
 
     if args.fake:
         print("--fake: canned completer, no network. Records are stamped and are not a real run.")
@@ -198,13 +226,33 @@ def main() -> int:
         assert_served(args.base_url, args.model, args.timeout)
 
     contexts = load_contexts(args.contexts, args.n)
-    config = GenerationConfig(
-        backend="vllm",
-        model=args.model,
-        max_tokens=args.max_tokens,
-        temperature=0.0,
-        frequency_penalty=args.frequency_penalty,
+    # A whole RunConfig, not a bare GenerationConfig: the manifest's job is to name every knob the
+    # numbers rest on, and `--depth` is a retrieval knob that the summary used to record as a loose
+    # integer next to knobs from a different section.
+    run_config = RunConfig().ablate(
+        run_id,
+        **{
+            "generation.backend": "vllm",
+            "generation.model": args.model,
+            "generation.max_tokens": args.max_tokens,
+            "generation.frequency_penalty": args.frequency_penalty,
+            "generation.seeds": (args.seed,),
+            "retrieval.top_k": args.depth,
+        },
     )
+    config = run_config.generation
+
+    if args.overwrite:
+        for path in (manifest_path(prefix), records_path(prefix), costs_path(prefix)):
+            path.unlink(missing_ok=True)
+    # After the preflight, before the first record. Written at the end it would carry the tree and
+    # the clock as they were once the run finished, and a crashed run would read as a complete one.
+    try:
+        manifest = run_manifest(run_config, prefix)
+    except FileExistsError as exc:
+        raise SystemExit(f"{exc} Pass --overwrite to do exactly that.")
+    print(f"manifest: {manifest_path(prefix)}  config {manifest['config_hash']}  "
+          f"git {manifest['git_sha']}")
 
     records, costs, rows = [], [], []
     for ctx in contexts:
@@ -298,10 +346,9 @@ def main() -> int:
         "(post_hoc must be two calls, joint and vanilla one)"
     )
 
-    args.out_prefix.parent.mkdir(parents=True, exist_ok=True)
-    rec_path = args.out_prefix.with_suffix(".records.jsonl")
-    cost_path = args.out_prefix.with_suffix(".costs.jsonl")
-    sum_path = args.out_prefix.with_suffix(".summary.json")
+    rec_path = records_path(prefix)
+    cost_path = costs_path(prefix)
+    sum_path = Path(str(prefix) + ".summary.json")
     write_jsonl(rec_path, records)
     write_jsonl(cost_path, costs)
     sum_path.write_text(
@@ -310,19 +357,18 @@ def main() -> int:
                 "script": "scripts/generate_smoke.py",
                 "purpose": "W4 live-path smoke test; not a gate run and not a sample",
                 "run_id": run_id,
+                # The knobs are not restated here. The manifest holds the whole RunConfig and its
+                # hash; a second copy beside it is a second thing to keep in sync, and the summary
+                # used to carry knobs from three config sections flattened into one dict.
+                "manifest": manifest_path(prefix).name,
+                "config_hash": manifest["config_hash"],
                 "fake_completer": args.fake,
                 "finished_at": datetime.now(timezone.utc).isoformat(),
-                "config": {
-                    "model": args.model,
+                "run_arguments": {
                     "base_url": None if args.fake else args.base_url,
                     "n_questions": args.n,
-                    "seed": args.seed,
-                    "depth": args.depth,
-                    "max_tokens": args.max_tokens,
-                    "temperature": 0.0,
-                    "frequency_penalty": args.frequency_penalty,
+                    "contexts": str(args.contexts),
                     "max_claim_words": MAX_CLAIM_WORDS,
-                    "max_citations": config.max_citations,
                 },
                 "stage_count_check": {"expected": expected, "passed": stage_ok},
                 "per_system": per_system,
@@ -333,7 +379,10 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
-    print(f"\nWritten to {rec_path}, {cost_path}, {sum_path}")
+    finalize_run(prefix)
+    print(f"\nWritten to {rec_path}, {cost_path}, {sum_path}, {manifest_path(prefix)}")
+    for problem in verify_run(prefix):
+        print(f"  provenance: {problem}")
     return 0 if stage_ok else 1
 
 
