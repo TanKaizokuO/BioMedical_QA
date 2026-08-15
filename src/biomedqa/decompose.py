@@ -72,6 +72,12 @@ from .schema import Claim, CostRecord, Granularity
 #: offsets are what a claim's span is measured in.
 _CLAIM_HEAD = re.compile(r"^[ \t]*CLAIM[ \t]+\d+[ \t]*:[ \t]*", re.IGNORECASE | re.MULTILINE)
 
+#: Maximum number of sentences sent to the model per `decompose()` LLM call. Long answers (>10
+#: sentences) cause an 8B model under frequency penalty to suffer format collapse (syntax drift and
+#: dropped sentences). Chunking sentences into batches of at most 10 avoids long generation outputs
+#: and guarantees complete coverage.
+MAX_SENTENCES_PER_CHUNK = 10
+
 #: The decomposer's own output header: `CLAIM <n> FROM <sentence>`. The claim number is parsed and
 #: then **ignored** — ids are assigned in output order. Same lesson as `parse_response`: two live
 #: runs showed an 8B model repurposing the number it was asked to write, and reading it as an
@@ -204,10 +210,17 @@ def _tighten(answer: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
-def build_prompt(answer: str, granularity: Granularity, question: str | None = None) -> str:
-    """Render the decomposer prompt for one answer. Exposed because a prompt nobody can print is a
-    prompt nobody can review, and this one is frozen on Sep 3 with the rest of the decomposer."""
-    units = sentence_units(answer)
+def build_prompt(
+    answer: str,
+    granularity: Granularity,
+    question: str | None = None,
+    units: list[tuple[int, int]] | None = None,
+) -> str:
+    """Render the decomposer prompt for one answer (or a sentence chunk of an answer). Exposed
+    because a prompt nobody can print is a prompt nobody can review, and this one is frozen on
+    Sep 3 with the rest of the decomposer."""
+    if units is None:
+        units = sentence_units(answer)
     if not units:
         raise ValueError("answer carries no text to decompose")
     return DECOMPOSE_TEMPLATE.format(
@@ -223,13 +236,13 @@ def build_prompt(answer: str, granularity: Granularity, question: str | None = N
         format_block=FORMAT_BLOCK,
     )
 
-
 def parse_decomposition(
     raw: str,
     units: list[tuple[int, int]],
     granularity: Granularity,
     *,
     max_claim_words: int = MAX_CLAIM_WORDS,
+    check_coverage: bool = True,
 ) -> tuple[list[Claim], list[str]]:
     """The decomposer's line grammar → claims, plus everything that did not parse.
 
@@ -301,7 +314,7 @@ def parse_decomposition(
 
     if not claims:
         errors.append("no CLAIM lines")
-    else:
+    elif check_coverage:
         covered = {c.source_start for c in claims}
         missed = [i for i, (s, _) in enumerate(units, start=1) if s not in covered]
         if missed:
@@ -321,6 +334,7 @@ def decompose(
     run_id: str = "",
     query_id: str | None = None,
     max_claim_words: int = MAX_CLAIM_WORDS,
+    max_sentences_per_chunk: int = MAX_SENTENCES_PER_CHUNK,
 ) -> Decomposition:
     """Re-cut a generated answer into claims at `config.granularity`.
 
@@ -352,12 +366,60 @@ def decompose(
             errors=() if units else ("no sentences",),
         )
 
-    prompt = build_prompt(answer, granularity, question)
-    raw, cost = completer(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
-    # Table 4 must be able to tell a C7 row's decomposition call from the generation it re-cuts;
-    # `backends` stamps every call "generate" because generation is all it has ever been asked for.
-    cost.component = "decompose"
-    claims, errors = parse_decomposition(
-        raw, units, granularity, max_claim_words=max_claim_words
-    )
-    return Decomposition(tuple(claims), (cost,), tuple(errors))
+    if not units:
+        return Decomposition(tuple(), (), ("no sentences",))
+
+    chunks = [
+        units[i : i + max_sentences_per_chunk]
+        for i in range(0, len(units), max_sentences_per_chunk)
+    ]
+
+    all_claims: list[Claim] = []
+    costs: list[CostRecord] = []
+    errors: list[str] = []
+    for chunk_idx, chunk_units in enumerate(chunks):
+        chunk_query_id = (
+            f"{query_id}:chunk{chunk_idx}" if len(chunks) > 1 and query_id else query_id
+        )
+        prompt = build_prompt(answer, granularity, question, units=chunk_units)
+        raw, cost = completer(
+            prompt, config, seed=seed, run_id=run_id, query_id=chunk_query_id
+        )
+        # Table 4 must be able to tell a C7 row's decomposition call from the generation it re-cuts;
+        # `backends` stamps every call "generate" because generation is all it has ever been asked for.
+        cost.component = "decompose"
+        costs.append(cost)
+
+        chunk_claims, chunk_errors = parse_decomposition(
+            raw,
+            chunk_units,
+            granularity,
+            max_claim_words=max_claim_words,
+            check_coverage=len(chunks) == 1,
+        )
+        errors.extend(chunk_errors)
+
+        for claim in chunk_claims:
+            claim_id = f"c{len(all_claims) + 1}"
+            all_claims.append(
+                Claim(
+                    claim_id=claim_id,
+                    text=claim.text,
+                    granularity=claim.granularity,
+                    source_start=claim.source_start,
+                    source_end=claim.source_end,
+                )
+            )
+
+    if len(chunks) > 1:
+        if not all_claims:
+            errors.append("no CLAIM lines")
+        else:
+            covered = {c.source_start for c in all_claims if c.source_start is not None}
+            missed = [i for i, (s, _) in enumerate(units, start=1) if s not in covered]
+            if missed:
+                errors.append(
+                    f"sentences {missed} produced no claim — the answer was dropped, not decomposed"
+                )
+
+    return Decomposition(tuple(all_claims), tuple(costs), tuple(errors))

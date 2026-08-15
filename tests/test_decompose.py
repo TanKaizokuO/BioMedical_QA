@@ -252,6 +252,39 @@ class TestCost:
         assert decompose(_GENERATION, _config("sentence")).costs == ()
 
 
+class TestChunking:
+    def test_multi_chunk_decomposition(self):
+        answer = ". ".join(f"Sentence {i} asserts fact {i}" for i in range(1, 16)) + "."
+        prompts_seen = []
+
+        def chunk_completer(prompt, config, *, seed=0, run_id="", query_id=None):
+            prompts_seen.append(prompt)
+            lines = []
+            for line in prompt.splitlines():
+                if line and line[0].isdigit() and ". Sentence " in line:
+                    num = line.split(".")[0]
+                    lines.append(f"CLAIM {num} FROM {num}: sentence {num} fact.")
+            return "\n".join(lines), CostRecord(run_id=run_id, query_id=query_id, component="decompose", backend="test", input_tokens=10, output_tokens=10)
+
+        result = decompose(
+            answer,
+            _config("atomic"),
+            completer=chunk_completer,
+            max_sentences_per_chunk=5,
+            run_id="c7_test",
+            query_id="q_multi",
+        )
+
+        assert len(prompts_seen) == 3
+        assert len(result.claims) == 15
+        assert result.claims[0].claim_id == "c1"
+        assert result.claims[14].claim_id == "c15"
+        assert len(result.costs) == 3
+        assert result.costs[0].query_id == "q_multi:chunk0"
+        assert result.costs[1].query_id == "q_multi:chunk1"
+        assert result.costs[2].query_id == "q_multi:chunk2"
+        assert result.errors == ()
+
 
 class TestFreeze:
     def test_the_decomposer_prompt_is_pinned_ahead_of_the_sep_3_freeze(self):
