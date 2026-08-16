@@ -43,7 +43,7 @@ class _Recorder:
         self.response = response
         self.prompts: list[str] = []
 
-    def __call__(self, prompt, config, *, seed, run_id, query_id):
+    def __call__(self, prompt, config, *, seed=0, run_id="", query_id=None, **kw):
         self.prompts.append(prompt)
         return self.response, CostRecord(
             run_id=run_id, query_id=query_id, component="generate", backend="stub",
@@ -58,9 +58,9 @@ class _Scripted(_Recorder):
         super().__init__("")
         self.responses = list(responses)
 
-    def __call__(self, prompt, config, *, seed=0, run_id="", query_id=None):
+    def __call__(self, prompt, config, *, seed=0, run_id="", query_id=None, **kw):
         self.response = self.responses[len(self.prompts)]
-        return super().__call__(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
+        return super().__call__(prompt, config, seed=seed, run_id=run_id, query_id=query_id, **kw)
 
 
 def _cited_response() -> str:

@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import os
 import time
+from typing import Any
 
 import httpx
 
@@ -62,15 +63,17 @@ def complete(
     seed: int = 0,
     run_id: str = "",
     query_id: str | None = None,
+    response_format: dict[str, Any] | None = None,
 ) -> tuple[str, CostRecord]:
     """One completion plus its cost row. Backend is chosen by ``config.backend``.
 
     Args:
-        prompt:   The fully-rendered prompt string.
-        config:   Generation knobs — model, max_tokens, temperature, backend.
-        seed:     RNG seed passed to vLLM (ignored for Anthropic — ADR-0004).
-        run_id:   Propagated into ``CostRecord`` for cross-table joins.
-        query_id: Propagated into ``CostRecord``; ``None`` for batch/offline calls.
+        prompt:          The fully-rendered prompt string.
+        config:          Generation knobs — model, max_tokens, temperature, backend.
+        seed:            RNG seed passed to vLLM (ignored for Anthropic — ADR-0004).
+        run_id:          Propagated into ``CostRecord`` for cross-table joins.
+        query_id:        Propagated into ``CostRecord``; ``None`` for batch/offline calls.
+        response_format: Optional structured output constraint dictionary (e.g. OpenAI json_schema).
 
     Returns:
         ``(text, cost_record)`` — the raw model output and its accounting row.
@@ -80,9 +83,15 @@ def complete(
         httpx.ConnectError: vLLM server unreachable (see runbook in README §G0).
     """
     if config.backend == "vllm":
-        return _vllm_complete(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
+        return _vllm_complete(
+            prompt, config, seed=seed, run_id=run_id, query_id=query_id,
+            response_format=response_format,
+        )
     if config.backend == "anthropic":
-        return _anthropic_complete(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
+        return _anthropic_complete(
+            prompt, config, seed=seed, run_id=run_id, query_id=query_id,
+            response_format=response_format,
+        )
     raise ValueError(
         f"Unknown backend {config.backend!r}. Expected 'vllm' or 'anthropic'."
     )
@@ -95,6 +104,7 @@ def _vllm_complete(
     seed: int,
     run_id: str,
     query_id: str | None,
+    response_format: dict[str, Any] | None = None,
 ) -> tuple[str, CostRecord]:
     """POST to the vLLM OpenAI-compatible chat endpoint and build a CostRecord.
 
@@ -114,7 +124,11 @@ def _vllm_complete(
     # /v1/chat/completions (`ChatCompletionRequest`), so they need no extra_body. `repetition_penalty`
     # is deliberately absent: vLLM applies it over prompt *and* output tokens, which would penalise
     # the verbatim quotes citations are made of — see `GenerationConfig.frequency_penalty`.
-    body = {
+    #
+    # `response_format` is an optional OpenAI-standard parameter passed to vLLM's structured output
+    # engine (e.g. `type: "json_schema"`). Used by post-hoc re-citation to constrain citation quotes
+    # to candidate spans/sentences from context passages by construction, eliminating transcription drift.
+    body: dict[str, Any] = {
         "model": config.model,
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": config.max_tokens,
@@ -123,6 +137,8 @@ def _vllm_complete(
         "stop": list(config.stop),
         "seed": seed,
     }
+    if response_format is not None:
+        body["response_format"] = response_format
 
     t0 = time.perf_counter()
     try:
@@ -157,6 +173,7 @@ def _vllm_complete(
     return text, cost
 
 
+
 def _anthropic_complete(
     prompt: str,
     config: GenerationConfig,
@@ -164,6 +181,7 @@ def _anthropic_complete(
     seed: int,  # noqa: ARG001 — Anthropic API has no seed parameter (ADR-0004)
     run_id: str,
     query_id: str | None,
+    response_format: dict[str, Any] | None = None,
 ) -> tuple[str, CostRecord]:
     """Call the Anthropic Messages API and build a CostRecord.
 

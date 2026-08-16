@@ -101,6 +101,14 @@ def test_the_seedable_knobs_still_travel_together(body):
     assert sent["seed"] == 0
     assert sent["temperature"] == 0.0
     assert sent["max_tokens"] == 1536
+def test_response_format_reaches_the_request(monkeypatch):
+    """Slice A: response_format is forwarded to vLLM's structured output engine."""
+    monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+    _FakeClient.last_body = None
+    rf = {"type": "json_schema", "json_schema": {"name": "test", "schema": {}}}
+    backends.complete("prompt", _config(), seed=0, run_id="r", query_id="q", response_format=rf)
+    assert _FakeClient.last_body is not None
+    assert _FakeClient.last_body.get("response_format") == rf
 
 
 def test_anthropic_refuses_a_penalty_it_cannot_apply():

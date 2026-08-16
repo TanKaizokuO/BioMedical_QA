@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from biomedqa.prompts import (
@@ -12,6 +14,7 @@ from biomedqa.prompts import (
     PARITY_LOOP_CLOSED,
     POST_HOC_ANSWER_TEMPLATE,
     PROMPT_ITERATIONS,
+    build_citation_response_format,
     build_prompt,
     effort_is_matched,
     iteration_counts,
@@ -520,3 +523,118 @@ def test_the_budget_left_over_is_not_spendable():
     assert not parity_loop_is_open(), (
         "budget remaining is not permission: termination is what governs, and it has happened"
     )
+
+
+def _guided_schema(passages, claim_count=2, max_citations=MAX_CITATIONS):
+    fmt = build_citation_response_format(passages, claim_count, max_citations)
+    assert fmt is not None
+    assert fmt["type"] == "json_schema"
+    return fmt["json_schema"]["schema"]
+
+
+def test_guided_citation_quotes_are_verbatim_by_construction():
+    """The whole point of the constrained decode: every quote the decoder can reach is a span the
+    passage really contains, so `locate_quote` cannot fail on a schema-legal reply. This is what
+    took `quote_located_rate` from 0.74 to 1.00 on the A4000 — asking for verbatim copies had
+    already been tried three prompt iterations deep."""
+    passages = _passages(3)
+    text_by_id = {p.passage_id: p.text for p in passages}
+    branches = _guided_schema(passages)["properties"]["claims"]["items"]["properties"]["citations"][
+        "items"
+    ]["anyOf"]
+
+    assert branches, "no citation branch was compiled from three non-empty passages"
+    for branch in branches:
+        pid = branch["properties"]["passage_id"]["const"]
+        for quote in branch["properties"]["quote"]["enum"]:
+            assert quote in text_by_id[pid], f"{quote!r} is not a span of {pid}"
+            assert locate_quote(quote, pid, text_by_id[pid]) is not None
+
+
+def test_guided_citation_pairs_each_quote_with_its_own_passage():
+    """`const` id beside the `enum` of that passage's spans, one branch per passage. A flat schema
+    with a shared quote enum would let the model file passage 2's sentence under passage 1's id —
+    exactly the mis-attribution the line grammar had to be repaired for twice."""
+    passages = _passages(2)
+    branches = _guided_schema(passages)["properties"]["claims"]["items"]["properties"]["citations"][
+        "items"
+    ]["anyOf"]
+
+    by_id = {b["properties"]["passage_id"]["const"]: set(b["properties"]["quote"]["enum"]) for b in branches}
+    assert set(by_id) == {"p1", "p2"}
+    assert not any(q in PASSAGE_TEXT for q in by_id["p2"])
+    assert not any(q in OTHER_TEXT for q in by_id["p1"])
+
+
+def test_guided_citation_schema_takes_the_cap_from_the_caller():
+    """A schema with its own idea of the cap would enforce a different fairness contract than
+    `QueryRecord.validate()` reports on."""
+    schema = _guided_schema(_passages(2), claim_count=4, max_citations=2)
+    claims = schema["properties"]["claims"]
+    assert (claims["minItems"], claims["maxItems"]) == (4, 4)
+    assert claims["items"]["properties"]["citations"]["maxItems"] == 2
+    index = claims["items"]["properties"]["claim_index"]
+    assert (index["minimum"], index["maximum"]) == (1, 4)
+
+
+def test_guided_citation_schema_is_none_when_no_passage_yields_a_span():
+    """`None` sends `cite_claims` back to the prose stage. The earlier draft padded the enum with
+    `"N/A"` instead, which put a string the passage does not contain inside the one structure whose
+    purpose is that this cannot happen — and made the model's only legal choice a quote-not-found
+    error."""
+    empty = [
+        RetrievedPassage(passage_id="p1", rank=1, score=1.0, retriever="rerank", text=""),
+        RetrievedPassage(passage_id="p2", rank=2, score=0.5, retriever="rerank", text="short"),
+    ]
+    assert build_citation_response_format(empty, 2, MAX_CITATIONS) is None
+
+
+def test_json_reply_is_parsed_with_the_same_contract_as_the_line_grammar():
+    passages = _passages(2)
+    raw = json.dumps(
+        {
+            "claims": [
+                {"claim_index": 1, "citations": [{"passage_id": "p1", "quote": "No severe hypoglycaemia occurred."}]},
+                {"claim_index": 2, "citations": []},
+            ]
+        }
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS, require_decision=False)
+
+    assert parsed.errors == []
+    assert [c.claim_id for c in parsed.claims] == ["c1", "c2"]
+    assert [len(c.citations) for c in parsed.claims] == [1, 0]
+    cit = parsed.claims[0].citations[0]
+    assert PASSAGE_TEXT[cit.char_start : cit.char_end] == "No severe hypoglycaemia occurred."
+    # The claim text is deliberately empty: `cite_claims` re-attaches the frozen claim it sent.
+    assert all(c.text == "" for c in parsed.claims)
+
+
+def test_json_reply_never_redirects_an_out_of_range_claim_index_to_c1():
+    """Sending a stray citation to the first claim mis-attributes evidence and manufactures cap
+    violations — the failure `PROMPT_ITERATIONS[JOINT]` n=3 was spent on. It is reported, not
+    silently absorbed."""
+    passages = _passages(2)
+    raw = json.dumps(
+        {
+            "claims": [
+                {"claim_index": 9, "citations": [{"passage_id": "p1", "quote": PASSAGE_TEXT}]},
+                {"claim_index": 2, "citations": []},
+            ]
+        }
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS, require_decision=False)
+
+    assert parsed.claims[0].citations == []
+    assert any("out of range" in e for e in parsed.errors)
+
+
+def test_malformed_json_is_reported_as_json_not_as_a_missing_claim_line():
+    """A truncated structured reply filed under `no CLAIM lines` would land in the wrong bucket of
+    the error histogram `decompose_smoke.py` gates on."""
+    parsed = parse_response('{"claims": [{"claim_index": 1,}', _passages(2), MAX_CITATIONS, require_decision=False)
+
+    assert parsed.claims == []
+    assert len(parsed.errors) == 1
+    assert "malformed JSON" in parsed.errors[0]
+    assert not any("CLAIM" in e for e in parsed.errors)

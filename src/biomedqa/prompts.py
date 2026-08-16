@@ -48,9 +48,12 @@ does not produce.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import hashlib
+import json
 import re
+from typing import Any
 
 from .schema import Citation, Claim, Granularity, RetrievedPassage, System
 
@@ -508,6 +511,43 @@ the claim, with no CITE line under it.
 {format_block}"""
 
 
+#: The re-citation stage as a **constrained** decode (`generate.cite_claims`, `guided_decoding=True`).
+#:
+#: `POST_HOC_RECITE_TEMPLATE` above asks the model to transcribe a quote and hope; a live n=100 run
+#: put `quote_located_rate` at 0.74, which is `clean_cite_rate` 0.00 once a query ANDs ~30 claims
+#: together. Prose could not fix it — `_citation_rules` already spells the copy rule out three
+#: failure modes deep. So this stage stops asking. `build_citation_response_format` compiles the
+#: passages into a JSON schema whose `quote` is an `enum` of spans taken *out of* the passage text,
+#: paired by `const` with the id of the passage they came from, so a quote the passage does not
+#: contain is not a reply the decoder can emit. Transcription drift stops being a failure mode
+#: instead of being detected as one.
+#:
+#: The prompt is therefore thin on purpose: the schema carries the grammar, the cap, and the
+#: verbatim rule, and repeating them in prose would be three copies of one contract. What prose
+#: still has to carry is the part the schema cannot express — that the claims are final, and that an
+#: unsupported claim gets an empty `citations` array rather than a borrowed quote.
+#:
+#: Like `POST_HOC_RECITE_TEMPLATE`, this is C7 decomposition machinery and is **not** booked to
+#: `PROMPT_ITERATIONS[POST_HOC]`: the post-hoc baseline never re-cites a decomposed answer, and
+#: charging C7's stage to its ledger would report the baseline as more engineered than it was and
+#: break `effort_is_matched()`.
+POST_HOC_RECITE_JSON_TEMPLATE = """You are attaching supporting quotations to claims that are already written.
+
+{context}
+
+Question: {question}
+
+The {claim_count} claims to cite:
+{answer}
+
+For each of these {claim_count} claims, in order, find the passages above that support it and quote
+them. Return one entry per claim, with `claim_index` counting 1 to {claim_count}. The claims are
+final: do not reword, split, merge, add, or drop one. If no passage supports a claim, return that
+claim with an empty `citations` array — never a quote borrowed from a claim it does not support.
+
+Reply with a single JSON object and nothing else."""
+
+
 VANILLA_TEMPLATE = """You are answering a biomedical research question using only the passages below.
 
 {context}
@@ -532,10 +572,12 @@ def build_prompt(
     depth: int = CONTEXT_DEPTH,
     claim_count: int | None = None,
 ) -> str:
-    """Render one prompt. `stage` is `"cite"` for post-hoc's second pass and `"recite"` for C7's
-    re-citation of an already-decomposed answer (`generate.cite_claims`), which needs
-    `claim_count`: the model is told how many CLAIM lines the reply must carry, because a reply
-    with a different number is unmatchable positionally."""
+    """Render one prompt. `stage` is `"cite"` for post-hoc's second pass, `"recite"` for C7's
+    re-citation of an already-decomposed answer (`generate.cite_claims`), and `"recite_json"` for
+    the same stage under the constrained decode. `"recite"` needs `claim_count`: the model is told
+    how many CLAIM lines the reply must carry, because a reply with a different number is
+    unmatchable positionally. `"recite_json"` needs it too, but there the count is also compiled
+    into the schema's `minItems`/`maxItems`, so the prose is a reminder rather than the guarantee."""
     context = render_context(passages, depth)
 
     def rules(cite: bool, shape_claims: bool = True, decision: bool = True) -> dict[str, str]:
@@ -564,6 +606,16 @@ def build_prompt(
             answer=answer, claim_count=claim_count,
             **rules(cite=True, shape_claims=False, decision=False),
         )
+    if stage == "recite_json":
+        if answer is None:
+            raise ValueError("the re-citation stage needs the claims it is citing")
+        if not claim_count:
+            raise ValueError("the re-citation stage needs the number of claims it is citing")
+        # No `claim_rules` and no `format_block`: `build_citation_response_format` is the grammar
+        # here, and a prose copy of a contract the decoder already enforces can only drift from it.
+        return POST_HOC_RECITE_JSON_TEMPLATE.format(
+            context=context, question=question, answer=answer, claim_count=claim_count,
+        )
     if stage == "cite":
         if answer is None:
             raise ValueError("post-hoc's cite stage needs the answer from its first stage")
@@ -573,6 +625,92 @@ def build_prompt(
     # has nothing to do with the systems.
     return POST_HOC_ANSWER_TEMPLATE.format(**rules(cite=False))
 
+def build_citation_response_format(
+    passages: Sequence[RetrievedPassage], claim_count: int, max_citations: int
+) -> dict[str, Any] | None:
+    """Compile the passages into the JSON schema that makes a citation verbatim by construction.
+
+    One `anyOf` branch per passage, each pairing a `const` passage id with an `enum` of spans cut
+    out of *that* passage's text. Two properties follow from the shape rather than from asking:
+    a quote the passage does not contain is unreachable, and a quote cannot be filed under a
+    different passage's id — the pairing is in the branch, not in the model's discipline.
+
+    Candidates are whole sentences, sentences minus trailing punctuation, and `;`/`:`-delimited
+    clauses. That is coarser than the free-form span the unconstrained stage could produce: a quote
+    beginning mid-sentence is legal there (`_citation_rules`) and is not offered here. The trade is
+    deliberate — a coarser span that is real beats a precise one that is invented — but it does mean
+    `char_start`/`char_end` widths are not comparable across the two modes.
+
+    Returns `None` when no passage yields a candidate, which is the caller's signal to fall back to
+    the prose stage. The earlier draft padded the enum with `"N/A"` instead; that put a string the
+    passage does not contain inside the one structure whose whole purpose is that it cannot happen,
+    and `locate_quote` would have booked the model's only legal choice as a quote-not-found error.
+    """
+    citation_schemas: list[dict[str, Any]] = []
+
+    for p in passages:
+        text = p.text or ""
+        quotes: set[str] = set()
+        for s in (s.strip() for s in re.split(r"(?<=[.!?])\s+", text)):
+            if len(s) < 10:
+                continue
+            # Every candidate is checked back against `text`: the split and the strips are string
+            # surgery, and a span that no longer occurs in the passage would be a fabricated quote
+            # with a schema's authority behind it.
+            for candidate in (s, s.rstrip(".,;:!?()")):
+                if len(candidate) >= 10 and candidate in text:
+                    quotes.add(candidate)
+            for c in re.split(r"[;:]", s):
+                c = c.strip(" \t\r\n.,;:!?()")
+                if len(c) >= 15 and c in text:
+                    quotes.add(c)
+        if not quotes:
+            continue
+        citation_schemas.append({
+            "type": "object",
+            "properties": {
+                "passage_id": {"const": p.passage_id},
+                "quote": {"type": "string", "enum": sorted(quotes)},
+            },
+            "required": ["passage_id", "quote"],
+        })
+
+    if not citation_schemas:
+        return None
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "claims": {
+                "type": "array",
+                # Exactly `claim_count` entries, because `cite_claims` matches the reply back to the
+                # batch positionally. The count the prose asks for is the count the decoder enforces.
+                "minItems": claim_count,
+                "maxItems": claim_count,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "claim_index": {"type": "integer", "minimum": 1, "maximum": claim_count},
+                        # The cap is `ScoringConfig.max_citations`, not a literal: a schema with its
+                        # own idea of the cap would silently enforce a different fairness contract
+                        # than `QueryRecord.validate()` reports on.
+                        "citations": {
+                            "type": "array",
+                            "maxItems": max_citations,
+                            "items": {"anyOf": citation_schemas},
+                        },
+                    },
+                    "required": ["claim_index", "citations"],
+                },
+            }
+        },
+        "required": ["claims"],
+    }
+
+    return {
+        "type": "json_schema",
+        "json_schema": {"name": "recitation_response", "schema": schema},
+    }
 
 def locate_quote(quote: str, passage_id: str, text: str) -> Citation | None:
     """Turn a quoted string into a span, or `None` if the model did not copy it exactly.
@@ -665,6 +803,75 @@ def parse_response(
     for why the number is 50 and why it is a scoring rule rather than a generation knob.
     """
     text_by_id = {p.passage_id: (p.text or "") for p in passages}
+    # The constrained re-citation stage (`build_citation_response_format`) replies with a JSON
+    # object rather than the line grammar. It is the same contract read out of a different shape:
+    # every quote still goes through `locate_quote`, every id still has to be in the context, and a
+    # failure is still an entry in `errors` rather than an exception.
+    stripped = raw.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            res_obj = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            # Not a fall-through to the line parser: a reply that opens with `{` was trying to be
+            # JSON, and letting the line grammar report `no CLAIM lines` on it would file a
+            # truncated structured reply under the wrong failure mode in the error histogram.
+            return ParsedResponse(None, [], [f"reply is malformed JSON: {exc}"], [])
+        claims_dict: dict[str, Claim] = {}
+        order: list[str] = []
+        errs: list[str] = []
+        recov: list[str] = []
+        raw_claims = res_obj.get("claims")
+        if not isinstance(raw_claims, list):
+            return ParsedResponse(None, [], ["JSON reply has no 'claims' array"], [])
+        for idx in range(1, len(raw_claims) + 1):
+            cid = f"c{idx}"
+            # `text` stays empty on purpose. This stage is told the claims and returns only the
+            # evidence for them, so `cite_claims` re-attaches each original claim with
+            # `replace(original, citations=...)`; a text read back out of the reply would be a
+            # second, drifting copy of a claim `decompose.py` has already frozen.
+            claims_dict[cid] = Claim(
+                claim_id=cid,
+                text="",
+                citations=[],
+                granularity=Granularity.DECONTEXTUALIZED_ATOMIC,
+            )
+            order.append(cid)
+        for pos, item in enumerate(raw_claims, start=1):
+            if not isinstance(item, dict):
+                errs.append(f"claim entry {pos} is not an object")
+                continue
+            c_idx = item.get("claim_index")
+            if not isinstance(c_idx, int) or not 1 <= c_idx <= len(raw_claims):
+                # Never redirected to c1. An out-of-range index sent every stray citation to the
+                # first claim once already (see the CITE-numbering iteration in PROMPT_ITERATIONS):
+                # it mis-attributes evidence and manufactures cap violations, and it does it
+                # invisibly. The entry is reported and dropped instead.
+                errs.append(f"claim entry {pos} has claim_index {c_idx!r}, which is out of range")
+                continue
+            cid = f"c{c_idx}"
+            citations = item.get("citations")
+            if not isinstance(citations, list):
+                errs.append(f"claim {cid} has no 'citations' array")
+                continue
+            for cit in citations:
+                if not isinstance(cit, dict):
+                    errs.append(f"claim {cid} has a citation that is not an object")
+                    continue
+                pid, quote = cit.get("passage_id"), cit.get("quote")
+                if not pid or not quote:
+                    errs.append(f"claim {cid} has a citation missing its passage id or quote")
+                    continue
+                if pid not in text_by_id:
+                    errs.append(f"claim {cid} cites {pid!r}, which is not in the context")
+                    continue
+                citation = locate_quote(quote, pid, text_by_id[pid])
+                if citation is None:
+                    errs.append(f"quote not found verbatim in {pid} ({quote[:60]!r})")
+                    continue
+                if citation.quoted_text != quote.strip():
+                    recov.append(f"quote in {pid} matched only after normalising")
+                claims_dict[cid].citations.append(citation)
+        return ParsedResponse(None, [claims_dict[c] for c in order], errs, recov)
     decision: str | None = None
     claims: dict[str, Claim] = {}
     order: list[str] = []

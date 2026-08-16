@@ -43,14 +43,19 @@ which system, or which granularity, wrote that answer.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 
 from . import backends
 from .config import GenerationConfig
-from .prompts import CONTEXT_DEPTH, build_prompt, parse_response
+from .prompts import (
+    CONTEXT_DEPTH,
+    build_citation_response_format,
+    build_prompt,
+    parse_response,
+)
 from .schema import Claim, CostRecord, QueryRecord, RetrievedPassage, System
-
 #: Marks the boundary between post-hoc's two stages inside `raw_generation`. Chosen to be something
 #: no model emits: it is not part of the response grammar and carries the project namespace.
 STAGE_SEPARATOR = "\n\n===== biomedqa:stage=cite =====\n\n"
@@ -210,6 +215,7 @@ def cite_claims(
     query_id: str | None = None,
     depth: int = CONTEXT_DEPTH,
     max_claims_per_call: int = MAX_CLAIMS_PER_CITE_CALL,
+    guided_decoding: bool = True,
 ) -> Recitation:
     """Attach fresh citations to an already re-cut answer — chosen as Option A over mapping the
     original citations onto the new claim boundaries (HANDOFF.md): the old citations were located
@@ -247,17 +253,39 @@ def cite_claims(
 
     for batch_idx, batch in enumerate(batches):
         rendered = "\n".join(f"CLAIM {i}: {c.text}" for i, c in enumerate(batch, start=1))
+        # A schema is only buildable against vLLM's structured-output engine, and only when the
+        # passages actually yield candidate spans. `None` on either count falls back to the prose
+        # stage rather than silently citing nothing.
+        guided_format = (
+            build_citation_response_format(context, len(batch), config.max_citations)
+            if guided_decoding and config.backend == "vllm"
+            else None
+        )
         prompt = build_prompt(
-            System.POST_HOC, question, context, config.max_citations, stage="recite",
+            System.POST_HOC, question, context, config.max_citations,
+            stage="recite_json" if guided_format else "recite",
             answer=rendered, depth=depth, claim_count=len(batch),
         )
         batch_query_id = (
             f"{query_id}:cite{batch_idx}" if len(batches) > 1 and query_id else query_id
         )
-        raw, cost = complete(prompt, config, seed=seed, run_id=run_id, query_id=batch_query_id)
-        # Table 4 must separate this call from both the generation it re-cites and the decomposition
-        # call that produced `claims` — `backends` stamps every call "generate" because generation is
-        # all it has ever been asked for, same reasoning as `decompose.decompose`'s "decompose" stamp.
+        complete_kw = {"response_format": guided_format} if guided_format is not None else {}
+        raw, cost = complete(
+            prompt, config, seed=seed, run_id=run_id, query_id=batch_query_id,
+            **complete_kw,
+        )
+        if guided_format and raw.startswith('"'):
+            # vLLM occasionally returns the structured reply as a JSON *string* holding the object
+            # rather than the object itself. Unwrapping one level of encoding is reading the reply,
+            # not repairing it: anything that does not decode to a string is left exactly as it came
+            # back, so `parse_response` still gets to call it malformed.
+            try:
+                unwrapped = json.loads(raw)
+            except json.JSONDecodeError:
+                pass
+            else:
+                if isinstance(unwrapped, str):
+                    raw = unwrapped
         cost.component = "decompose_cite"
         costs.append(cost)
         parsed = parse_response(
