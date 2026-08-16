@@ -48,8 +48,9 @@ does not produce.
 
 from __future__ import annotations
 
-import hashlib
 from dataclasses import dataclass
+import hashlib
+import re
 
 from .schema import Citation, Claim, Granularity, RetrievedPassage, System
 
@@ -529,19 +530,43 @@ def build_prompt(
 def locate_quote(quote: str, passage_id: str, text: str) -> Citation | None:
     """Turn a quoted string into a span, or `None` if the model did not copy it exactly.
 
-    Exact search only. A fuzzy match here would fabricate `char_start`/`char_end` for text the
-    passage does not contain, and every downstream verifier reads that span as ground truth.
+    Exact search with quotation-mark and whitespace normalization. A fuzzy match here would
+    fabricate `char_start`/`char_end` for text the passage does not contain; stripping outer quote
+    delimiters and matching whitespace variants recovers spans without altering text content.
     """
-    start = text.find(quote)
-    if start < 0:
-        return None
-    return Citation(
-        passage_id=passage_id,
-        char_start=start,
-        char_end=start + len(quote),
-        quoted_text=quote,
-    )
+    q = quote.strip()
+    for qmark in ('"', "'", '“', '”', '‘', '’'):
+        if q.startswith(qmark) and q.endswith(qmark) and len(q) > 1:
+            q = q[1:-1].strip()
 
+    start = text.find(q)
+    if start >= 0:
+        return Citation(
+            passage_id=passage_id,
+            char_start=start,
+            char_end=start + len(q),
+            quoted_text=q,
+        )
+
+    words = q.split()
+    if not words:
+        return None
+    pattern_str = r"\s+".join(re.escape(w) for w in words)
+    try:
+        pattern = re.compile(pattern_str)
+        match = pattern.search(text)
+        if match:
+            s, e = match.span()
+            return Citation(
+                passage_id=passage_id,
+                char_start=s,
+                char_end=e,
+                quoted_text=text[s:e],
+            )
+    except Exception:
+        pass
+
+    return None
 
 @dataclass(frozen=True, slots=True)
 class ParsedResponse:

@@ -210,6 +210,18 @@ def test_locate_quote_is_exact_and_refuses_near_misses():
     assert locate_quote("reduced HbA1c by 1.3%", "p1", PASSAGE_TEXT) is None
 
 
+def test_locate_quote_normalizes_wrapping_quotes_and_whitespace_verbatim():
+    """Quotes wrapped in quotes or carrying newline/space differences are recovered as verbatim passage spans."""
+    hit_q = locate_quote('"reduced HbA1c by 1.2%"', "p1", PASSAGE_TEXT)
+    assert hit_q is not None
+    assert PASSAGE_TEXT[hit_q.char_start : hit_q.char_end] == "reduced HbA1c by 1.2%"
+
+    passage_nl = "reduced HbA1c\nby 1.2%"
+    hit_nl = locate_quote("reduced HbA1c by 1.2%", "p1", passage_nl)
+    assert hit_nl is not None
+    assert passage_nl[hit_nl.char_start : hit_nl.char_end] == "reduced HbA1c\nby 1.2%"
+
+
 def test_parse_recovers_claims_citations_and_decision():
     raw = (
         "DECISION: yes\n"
