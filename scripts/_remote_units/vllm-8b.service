@@ -1,0 +1,20 @@
+[Unit]
+Description=vLLM server, Llama-3.1-8B-Instruct-AWQ-INT4, port 8000 (C7 decompose measurement)
+# No After=network.target: this is a --user unit and the server binds 0.0.0.0 lazily.
+
+[Service]
+Type=simple
+ExecStart=/home/user/serve_8b.sh
+WorkingDirectory=/home/user
+Restart=on-failure
+RestartSec=15
+# The A4000 also drives the Windows desktop; a restart storm would fight the compositor for VRAM.
+StartLimitBurst=3
+StartLimitIntervalSec=600
+StandardOutput=append:/home/user/vllm_8b.log
+StandardError=append:/home/user/vllm_8b.log
+KillSignal=SIGINT
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

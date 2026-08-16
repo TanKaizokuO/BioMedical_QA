@@ -1,0 +1,20 @@
+[Unit]
+Description=C7 decompose measurement, n=100 guided v2
+# Requires= not Wants=: a measurement against a dead server produces a file full of connection
+# errors that looks like a result. If the server unit stops, this one is stopped with it.
+Requires=vllm-8b.service
+After=vllm-8b.service
+
+[Service]
+Type=simple
+ExecStart=/home/user/run_measure.sh
+WorkingDirectory=/home/user/BioMedical_QA
+# The point of the unit: it is owned by `systemd --user`, not by a pts the wsl.exe interop relay
+# closes when the SSH channel drops. Never restart it — a half-finished --overwrite run restarted
+# from zero silently discards hours of work, which is the failure this unit exists to prevent.
+Restart=no
+StandardOutput=append:/home/user/run_all.log
+StandardError=append:/home/user/run_all.log
+
+[Install]
+WantedBy=default.target
