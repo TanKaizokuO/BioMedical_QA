@@ -48,7 +48,7 @@ does not produce.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import hashlib
 import re
 
@@ -394,17 +394,19 @@ from two passages, into one quote. Cite more than one passage only when the clai
 them together — for instance when one gives the dose and another the outcome."""
 
 
-def _format_block(max_citations: int, cite: bool) -> str:
+def _format_block(max_citations: int, cite: bool, decision: bool = True) -> str:
+    """`decision=False` is C7's re-citation only. That stage re-cites claims cut out of an answer
+    that already produced its decision, so asking for one again buys nothing and costs a failure
+    mode: a live A4000 run logged `no DECISION line` on replies that were otherwise perfect."""
+    decision_line = f"DECISION: one of {', '.join(DECISIONS)}\n" if decision else ""
     if not cite:
         return f"""Reply in exactly this format and add nothing else:
 
-DECISION: one of {", ".join(DECISIONS)}
-CLAIM 1: the first claim
+{decision_line}CLAIM 1: the first claim
 CLAIM 2: the second claim"""
     return f"""Reply in exactly this format and add nothing else:
 
-DECISION: one of {", ".join(DECISIONS)}
-CLAIM 1: the first claim
+{decision_line}CLAIM 1: the first claim
 CITE: [passage_id] {_CITATION_SEP} exact quote from that passage
 CLAIM 2: the second claim
 CITE: [passage_id] {_CITATION_SEP} exact quote from that passage
@@ -473,6 +475,38 @@ line under it.
 
 {format_block}"""
 
+#: C7's re-citation pass (`generate.cite_claims`). Deliberately **not** `POST_HOC_CITE_TEMPLATE`:
+#: that template carries `_claim_rules()`, which tells the model to resolve pronouns and to split
+#: anything joined by "and". For post-hoc's own second stage that is harmless — the claims it cites
+#: were written under those same rules one call earlier. For C7 it is a contradiction, and a live
+#: A4000 probe (2026-08-16) showed exactly what the model does with it: asked to reproduce five
+#: already-cut claims *and* to reshape them, it cited three, then emitted twelve empty `CLAIM` lines
+#: and a note explaining that the rest "were not present in the original answer". Every such reply
+#: is a `cite stage returned N CLAIM lines for M claims sent` error, which is what pinned
+#: `clean_cite_rate` at 0.0 for both model rows.
+#:
+#: The grammar is unchanged (same `_format_block`, same `_citation_rules`) — only the instruction to
+#: reshape a claim is withheld, because at this point the claim is already frozen by `decompose.py`.
+POST_HOC_RECITE_TEMPLATE = """You are attaching supporting quotations to claims that are already written.
+
+{context}
+
+Question: {question}
+
+The {claim_count} claims to cite:
+{answer}
+
+Copy each of these {claim_count} claims back exactly as it is written above, in the same order, and
+put the passages that support it underneath it. The claims are final: do not reword one, do not
+split one, do not merge two, do not add one, and do not drop one. Write exactly {claim_count} CLAIM
+lines, numbered 1 to {claim_count}, each carrying the full text of the claim above — never an empty
+CLAIM line and never a CLAIM line past {claim_count}. If no passage supports a claim, still write
+the claim, with no CITE line under it.
+
+{claim_rules}
+
+{format_block}"""
+
 
 VANILLA_TEMPLATE = """You are answering a biomedical research question using only the passages below.
 
@@ -496,19 +530,23 @@ def build_prompt(
     stage: str = "answer",
     answer: str | None = None,
     depth: int = CONTEXT_DEPTH,
+    claim_count: int | None = None,
 ) -> str:
-    """Render one prompt. `stage` is `"cite"` only for post-hoc's second pass."""
+    """Render one prompt. `stage` is `"cite"` for post-hoc's second pass and `"recite"` for C7's
+    re-citation of an already-decomposed answer (`generate.cite_claims`), which needs
+    `claim_count`: the model is told how many CLAIM lines the reply must carry, because a reply
+    with a different number is unmatchable positionally."""
     context = render_context(passages, depth)
 
-    def rules(cite: bool) -> dict[str, str]:
-        block = _claim_rules()
+    def rules(cite: bool, shape_claims: bool = True, decision: bool = True) -> dict[str, str]:
+        block = _claim_rules() if shape_claims else ""
         if cite:
-            block += "\n\n" + _citation_rules(max_citations)
+            block = f"{block}\n\n{_citation_rules(max_citations)}" if block else _citation_rules(max_citations)
         return {
             "context": context,
             "question": question,
             "claim_rules": block,
-            "format_block": _format_block(max_citations, cite=cite),
+            "format_block": _format_block(max_citations, cite=cite, decision=decision),
         }
 
     if system is System.JOINT:
@@ -517,6 +555,15 @@ def build_prompt(
         # Vanilla still gets the passages — it is "retrieve → generate, no attribution"
         # (schema.py:73), so it isolates attribution rather than retrieval.
         return VANILLA_TEMPLATE.format(**rules(cite=False))
+    if stage == "recite":
+        if answer is None:
+            raise ValueError("the re-citation stage needs the claims it is citing")
+        if not claim_count:
+            raise ValueError("the re-citation stage needs the number of claims it is citing")
+        return POST_HOC_RECITE_TEMPLATE.format(
+            answer=answer, claim_count=claim_count,
+            **rules(cite=True, shape_claims=False, decision=False),
+        )
     if stage == "cite":
         if answer is None:
             raise ValueError("post-hoc's cite stage needs the answer from its first stage")
@@ -530,9 +577,15 @@ def build_prompt(
 def locate_quote(quote: str, passage_id: str, text: str) -> Citation | None:
     """Turn a quoted string into a span, or `None` if the model did not copy it exactly.
 
-    Exact search with quotation-mark and whitespace normalization. A fuzzy match here would
-    fabricate `char_start`/`char_end` for text the passage does not contain; stripping outer quote
-    delimiters and matching whitespace variants recovers spans without altering text content.
+    Exact search first, then two widenings that **find** a span the passage really has rather than
+    inventing one: outer quote delimiters are stripped, runs of whitespace are allowed to differ,
+    and finally case is allowed to differ. A fuzzy match would fabricate `char_start`/`char_end`
+    for text the passage does not contain; these do not — every returned `quoted_text` is copied
+    back out of `text`, so the span is exact even when the model's transcription was not.
+
+    A widened match is still a defect in the reply. `parse_response` notices (the returned
+    `quoted_text` differs from what the model wrote) and records it under `ParsedResponse.recovered`
+    so the drift keeps being counted instead of disappearing into a clean rate.
     """
     q = quote.strip()
     for qmark in ('"', "'", '“', '”', '‘', '’'):
@@ -548,25 +601,29 @@ def locate_quote(quote: str, passage_id: str, text: str) -> Citation | None:
             quoted_text=q,
         )
 
-    words = q.split()
-    if not words:
-        return None
-    pattern_str = r"\s+".join(re.escape(w) for w in words)
-    try:
-        pattern = re.compile(pattern_str)
-        match = pattern.search(text)
-        if match:
-            s, e = match.span()
-            return Citation(
-                passage_id=passage_id,
-                char_start=s,
-                char_end=e,
-                quoted_text=text[s:e],
-            )
-    except Exception:
-        pass
+    # Edge punctuation is where the model tidies: a span it copied out of the middle of a sentence
+    # comes back finished with a full stop, or a passage's trailing comma is dropped. The words in
+    # between still have to match in order, so this finds the span the model meant without letting
+    # it invent one. Interior drift — "HR, 1.85" for "HR: 1.85", or two separated spans spliced
+    # into one — still fails, which is the point: those are attribution errors, not typography.
+    for candidate in (q, q.strip(" \t\r\n.,;:!?")):
+        words = candidate.split()
+        if not words:
+            continue
+        pattern_str = r"\s+".join(re.escape(w) for w in words)
+        for flags in (0, re.IGNORECASE):
+            match = re.compile(pattern_str, flags).search(text)
+            if match:
+                s, e = match.span()
+                return Citation(
+                    passage_id=passage_id,
+                    char_start=s,
+                    char_end=e,
+                    quoted_text=text[s:e],
+                )
 
     return None
+
 
 @dataclass(frozen=True, slots=True)
 class ParsedResponse:
@@ -574,11 +631,19 @@ class ParsedResponse:
 
     G2 gates on ≥95% valid claim parse, so the failures have to survive to be counted. A parser
     that raises on the first malformed line reports one error per generation and hides the rest.
+
+    `recovered` is the third category, between clean and broken: a line whose meaning was
+    unambiguous but whose transcription drifted — a quote that differs only in case or whitespace,
+    a passage id that dropped its chunk index when only one chunk of that document is in context.
+    These are read, not rejected, because refusing them would throw away a citation the passage
+    genuinely supports. They are listed anyway, so widening acceptance can never quietly become
+    "the defect stopped happening".
     """
 
     decision: str | None
     claims: list[Claim]
     errors: list[str]
+    recovered: list[str] = field(default_factory=list)
 
 
 def parse_response(
@@ -587,6 +652,7 @@ def parse_response(
     max_citations: int,
     *,
     max_claim_words: int = MAX_CLAIM_WORDS,
+    require_decision: bool = True,
 ) -> ParsedResponse:
     """Parse the line grammar into claims with located citation spans.
 
@@ -603,6 +669,7 @@ def parse_response(
     claims: dict[str, Claim] = {}
     order: list[str] = []
     errors: list[str] = []
+    recovered: list[str] = []
 
     for lineno, line in enumerate(raw.splitlines(), start=1):
         line = line.strip()
@@ -633,6 +700,13 @@ def parse_response(
             if cid in claims:
                 errors.append(f"line {lineno}: claim {cid} declared twice")
                 continue
+            if not rest:
+                # A live A4000 probe caught the model padding a short reply with bare `CLAIM 4:`
+                # lines up to a count it had been given. Keeping them would let a padded reply
+                # satisfy the positional match with empty text, so the padding is reported and the
+                # line is not counted as a claim.
+                errors.append(f"line {lineno}: claim {cid} is empty")
+                continue
             claims[cid] = Claim(
                 claim_id=cid,
                 text=rest,
@@ -661,17 +735,33 @@ def parse_response(
         if len(pid) > 1 and pid[0] == "[" and pid[-1] == "]":
             pid = pid[1:-1].strip()
         if pid not in text_by_id:
-            errors.append(f"line {lineno}: cites {pid!r}, which is not in the context")
-            continue
+            # The model routinely drops the chunk index off an id ("[pubmed23n0263_2785:]" for
+            # "[pubmed23n0263_2785:0]"). When exactly one passage in the context comes from that
+            # document there is only one span it can mean, so the citation is read and recorded as
+            # drift. When two chunks of the same document are in context the id is genuinely
+            # ambiguous and stays an error — guessing would attribute evidence to the wrong chunk.
+            base = pid.split(":")[0]
+            candidates = [k for k in text_by_id if k.split(":")[0] == base]
+            if len(candidates) == 1:
+                recovered.append(f"line {lineno}: cites {pid!r}, read as {candidates[0]!r}")
+                pid = candidates[0]
+            else:
+                errors.append(f"line {lineno}: cites {pid!r}, which is not in the context")
+                continue
         citation = locate_quote(quote, pid, text_by_id[pid])
         if citation is None:
             errors.append(
                 f"line {lineno}: quote not found verbatim in {pid} ({quote[:60]!r})"
             )
             continue
+        if citation.quoted_text != quote.strip():
+            recovered.append(
+                f"line {lineno}: quote in {pid} matched only after normalising "
+                f"delimiters, whitespace or case ({quote[:60]!r})"
+            )
         claims[cid].citations.append(citation)
 
-    if decision is None:
+    if decision is None and require_decision:
         errors.append("no DECISION line")
     for cid in order:
         words = len(claims[cid].text.split())
@@ -687,4 +777,4 @@ def parse_response(
     if not order:
         errors.append("no CLAIM lines")
 
-    return ParsedResponse(decision, [claims[c] for c in order], errors)
+    return ParsedResponse(decision, [claims[c] for c in order], errors, recovered)

@@ -51,6 +51,18 @@ class _Recorder:
         )
 
 
+class _Scripted(_Recorder):
+    """`_Recorder` for a batched run: one scripted reply per call, in call order."""
+
+    def __init__(self, responses: list[str]):
+        super().__init__("")
+        self.responses = list(responses)
+
+    def __call__(self, prompt, config, *, seed=0, run_id="", query_id=None):
+        self.response = self.responses[len(self.prompts)]
+        return super().__call__(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
+
+
 def _cited_response() -> str:
     return (
         "DECISION: yes\n"
@@ -90,7 +102,7 @@ class TestHappyPath:
             _claims(), "Does metformin reduce mortality?", _passages(),
             GenerationConfig(model="stub"), complete=stub,
         )
-        assert result.cost.component == "decompose_cite"
+        assert [c.component for c in result.costs] == ["decompose_cite"]
 
 
 class TestCountMismatchIsData:
@@ -109,6 +121,76 @@ class TestCountMismatchIsData:
         assert result.claims[1].citations == []
         assert any("no matching CLAIM line" in e for e in result.errors)
         assert any("returned 1 CLAIM lines for 2 claims" in e for e in result.errors)
+
+
+class TestBatching:
+    """One call per `max_claims_per_call` claims. A live A4000 run showed the 8B model reproducing
+    only the first handful of a 20-25 claim answer, so the whole-answer call could never come back
+    complete; batching is what makes positional matching survive a long re-cut answer."""
+
+    def _four_claims(self) -> list[Claim]:
+        return [
+            Claim(claim_id=f"c{i}", text=f"Claim number {i}.", granularity=Granularity.ATOMIC)
+            for i in range(1, 5)
+        ]
+
+    def test_claims_are_sent_in_batches_each_renumbered_from_one(self):
+        stub = _Scripted([
+            "DECISION: yes\nCLAIM 1: Claim number 1.\nCLAIM 2: Claim number 2.\n",
+            "DECISION: yes\nCLAIM 1: Claim number 3.\n"
+            "CITE: [p1] || Metformin reduced all-cause mortality by 21%\n"
+            "CLAIM 2: Claim number 4.\n",
+        ])
+        result = cite_claims(
+            self._four_claims(), "q", _passages(), GenerationConfig(model="stub"),
+            complete=stub, query_id="q1", max_claims_per_call=2,
+        )
+        assert len(stub.prompts) == 2
+        assert "CLAIM 1: Claim number 1." in stub.prompts[0]
+        assert "CLAIM 2: Claim number 2." in stub.prompts[0]
+        assert "Claim number 3." not in stub.prompts[0]
+        # The second batch restarts at 1: the reply is matched positionally within its own batch.
+        assert "CLAIM 1: Claim number 3." in stub.prompts[1]
+        assert "CLAIM 2: Claim number 4." in stub.prompts[1]
+
+    def test_every_batch_keeps_its_claim_identities_costs_and_citations(self):
+        stub = _Scripted([
+            "DECISION: yes\nCLAIM 1: Claim number 1.\nCLAIM 2: Claim number 2.\n",
+            "DECISION: yes\nCLAIM 1: Claim number 3.\n"
+            "CITE: [p1] || Metformin reduced all-cause mortality by 21%\n"
+            "CLAIM 2: Claim number 4.\n",
+        ])
+        result = cite_claims(
+            self._four_claims(), "q", _passages(), GenerationConfig(model="stub"),
+            complete=stub, query_id="q1", max_claims_per_call=2,
+        )
+        assert result.errors == ()
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3", "c4"]
+        # The citation belongs to the third claim overall, not to the first of its batch.
+        assert [len(c.citations) for c in result.claims] == [0, 0, 1, 0]
+        assert [c.component for c in result.costs] == ["decompose_cite"] * 2
+        assert [c.query_id for c in result.costs] == ["q1:cite0", "q1:cite1"]
+
+    def test_a_short_batch_is_counted_and_does_not_shift_later_batches(self):
+        stub = _Scripted([
+            "DECISION: yes\nCLAIM 1: Claim number 1.\n",  # batch 1 drops its second claim
+            "DECISION: yes\nCLAIM 1: Claim number 3.\nCLAIM 2: Claim number 4.\n",
+        ])
+        result = cite_claims(
+            self._four_claims(), "q", _passages(), GenerationConfig(model="stub"),
+            complete=stub, max_claims_per_call=2,
+        )
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3", "c4"]
+        assert any("returned 1 CLAIM lines for 2 claims" in e for e in result.errors)
+        assert any("c2: no matching CLAIM line" in e for e in result.errors)
+
+    def test_a_single_batch_keeps_the_unsuffixed_query_id(self):
+        stub = _Scripted([_cited_response()])
+        result = cite_claims(
+            _claims(), "q", _passages(), GenerationConfig(model="stub"),
+            complete=stub, query_id="q1", max_claims_per_call=5,
+        )
+        assert [c.query_id for c in result.costs] == ["q1"]
 
 
 class TestGuardRails:

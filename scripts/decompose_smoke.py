@@ -4,9 +4,9 @@ the A4000, once per granularity row, over post-hoc's already-generated `parity_i
 
 Mirrors `generate_smoke.py`'s reasoning exactly (read that docstring first): every component here
 has only ever seen an injected completer, and the question this answers has never been asked of real
-hardware — does an 8B model honour `CLAIM <n> FROM <k>`, does the `atomic` row actually stay bare, and
-does the re-citation call (`generate.cite_claims`, Option A per `HANDOFF.md`) survive contact with
-the model twice per query for the two model-driven rows?
+hardware — does an 8B model honour the `CLAIM <n>` grammar one sentence at a time, does the `atomic`
+row actually stay bare, and does the re-citation call (`generate.cite_claims`, Option A per
+`HANDOFF.md`) survive contact with the model once per five claims for the two model-driven rows?
 
 Three things it measures that a stub cannot:
 
@@ -47,6 +47,7 @@ import os
 import re
 import statistics
 import sys
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -117,17 +118,20 @@ def assert_served(base_url: str, model: str, timeout: float) -> None:
 
 
 def _fake_decompose_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, CostRecord]:
-    """One claim per numbered sentence, verbatim. Exercises `CLAIM <n> FROM <k>` orchestration and
-    parsing — never decontextualizes, because there is no model behind it to do so (module
-    docstring, "`--fake`'s numbers are not that measurement")."""
-    m = re.search(r"Answer, one sentence per line:\n(.*?)\n\nSplit the answer", prompt, re.S)
-    if m is None:
+    """The target sentence back as one claim, verbatim. Exercises the one-call-per-sentence
+    orchestration and the `CLAIM <n>` grammar — never decontextualizes, because there is no model
+    behind it to do so (module docstring, "`--fake`'s numbers are not that measurement")."""
+    sentences = re.search(
+        r"The whole answer, one sentence per line:\n(.*?)\n\nSplit sentence", prompt, re.S
+    )
+    target = re.search(r"Split sentence (\d+)", prompt)
+    if sentences is None or target is None:
         raise AssertionError("canned decompose completer could not find the numbered sentence list")
     lines = []
-    for line in m.group(1).splitlines():
+    for line in sentences.group(1).splitlines():
         idx, sep, text = line.partition(". ")
-        if sep and idx.strip().isdigit() and text.strip():
-            lines.append(f"CLAIM {idx.strip()} FROM {idx.strip()}: {text.strip()}")
+        if sep and idx.strip() == target.group(1) and text.strip():
+            lines.append(f"CLAIM 1: {text.strip()}")
     return (
         "\n".join(lines),
         CostRecord(
@@ -143,10 +147,10 @@ def _fake_cite_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[s
     if ctx_m is None:
         raise AssertionError("canned cite completer found no bracketed passage id in the prompt")
     pid, text = ctx_m.group(1), ctx_m.group(2)
-    ans_m = re.search(r"Answer already given:\n(.*?)\n\nFor each claim", prompt, re.S)
+    ans_m = re.search(r"claims to cite:\n(.*?)\n\nCopy each of these", prompt, re.S)
     if ans_m is None:
-        raise AssertionError("canned cite completer could not find the reproduced answer")
-    lines = ["DECISION: yes"]
+        raise AssertionError("canned cite completer could not find the reproduced claims")
+    lines: list[str] = []
     for claim_line in ans_m.group(1).splitlines():
         if claim_line.strip():
             lines.append(claim_line.strip())
@@ -173,6 +177,17 @@ def _divergence(claims, answer: str) -> tuple[int, int]:
         if c.text.strip() not in source:
             diverged += 1
     return diverged, checkable
+
+
+#: Collapses the variable part of an error message — line numbers, counts, claim ids, quoted text —
+#: so that `error_kinds` counts *failure modes* rather than 1600 unique strings. A rate of 0.0 with
+#: no attribution is unactionable: the Aug-15 run reported `clean_cite_rate` 0.0 for both model rows
+#: without recording which error fired, which cost a whole GPU run to re-measure.
+def _error_kind(problem: str) -> str:
+    kind = re.sub(r"'[^']*'", "'...'", problem)
+    kind = re.sub(r"\(.*\)$", "(...)", kind)
+    kind = re.sub(r"\[[^\]]*\]", "[...]", kind)
+    return re.sub(r"\b\d+\b", "N", kind).strip()
 
 
 def main() -> int:
@@ -239,6 +254,9 @@ def main() -> int:
         row.value: {
             "claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0,
             "duplicate_claim_count": 0, "quote_not_found_count": 0,
+            "claims_unmatched": 0, "quotes_located": 0,
+            "decompose_error_kinds": Counter(), "cite_error_kinds": Counter(),
+            "cite_recovered_kinds": Counter(),
         }
         for row in ALL_ROWS
     }
@@ -265,19 +283,36 @@ def main() -> int:
             per_row[row.value]["duplicate_claim_count"] += sum(
                 1 for problem in decomp.errors if "claim text verbatim" in problem
             )
+            per_row[row.value]["decompose_error_kinds"].update(
+                _error_kind(problem) for problem in decomp.errors
+            )
 
             claims = list(decomp.claims)
+            cite_errors: tuple[str, ...] = ()
             if row in MODEL_ROWS and claims and src.retrieved:
                 ckw = {"complete": cite_completer} if cite_completer else {}
                 recite = cite_claims(
                     claims, src.question, src.retrieved, row_config, seed=args.seed,
                     run_id=run_id, query_id=row_id, **ckw,
                 )
-                costs.append(recite.cost)
+                costs.extend(recite.costs)
                 if not recite.errors:
                     per_row[row.value]["clean_cite"] += 1
                 per_row[row.value]["quote_not_found_count"] += sum(
                     1 for problem in recite.errors if "quote not found verbatim" in problem
+                )
+                per_row[row.value]["cite_error_kinds"].update(
+                    _error_kind(problem) for problem in recite.errors
+                )
+                per_row[row.value]["cite_recovered_kinds"].update(
+                    _error_kind(note) for note in recite.recovered
+                )
+                cite_errors = recite.errors
+                per_row[row.value]["claims_unmatched"] += sum(
+                    1 for problem in recite.errors if "no matching CLAIM line" in problem
+                )
+                per_row[row.value]["quotes_located"] += sum(
+                    len(c.citations) for c in recite.claims
                 )
                 claims = list(recite.claims)
             elif row is Granularity.SENTENCE:
@@ -294,9 +329,9 @@ def main() -> int:
             )
             print(
                 f"{src.query_id:>9s} {row.value:24s} claims={len(claims):2d} "
-                f"decompose_errors={len(decomp.errors)}"
+                f"decompose_errors={len(decomp.errors)} cite_errors={len(cite_errors)}"
             )
-            for problem in decomp.errors:
+            for problem in (*decomp.errors, *cite_errors):
                 print(f"{'':>9s}   ! {problem}")
 
     summary = {}
@@ -311,6 +346,28 @@ def main() -> int:
             "median_words_per_claim": statistics.median(words) if words else None,
             "duplicate_claim_count": stats["duplicate_claim_count"],
             "quote_not_found_count": stats["quote_not_found_count"],
+            # `clean_*_rate` above is all-or-nothing per query: one drifted quote among a query's
+            # sixty citation lines fails the whole query. G2's bar is per *claim* ("≥95% valid
+            # claim parse", ROADMAP §1), and citation fidelity is a separate question about the
+            # model rather than about the parser, so both are reported on their own denominators.
+            "claim_parse_rate": (
+                round(1 - stats["claims_unmatched"] / len(stats["claims"]), 4)
+                if stats["claims"] else None
+            ),
+            "quote_located_rate": (
+                round(
+                    stats["quotes_located"]
+                    / (stats["quotes_located"] + stats["quote_not_found_count"]), 4
+                )
+                if stats["quotes_located"] + stats["quote_not_found_count"] else None
+            ),
+            # Which failure modes made the rates above what they are, most frequent first.
+            "decompose_error_kinds": dict(stats["decompose_error_kinds"].most_common()),
+            "cite_error_kinds": dict(stats["cite_error_kinds"].most_common()),
+            # Read-but-drifted citation lines. Not errors (the span they name is real), but they
+            # must stay visible: this is where widened parse acceptance would otherwise hide.
+            "cite_recovered_count": sum(stats["cite_recovered_kinds"].values()),
+            "cite_recovered_kinds": dict(stats["cite_recovered_kinds"].most_common()),
         }
         if row is Granularity.ATOMIC:
             diverged = checkable = 0

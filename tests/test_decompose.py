@@ -14,6 +14,7 @@ Two properties are load-bearing, and every test here is one of them or a way of 
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -137,48 +138,77 @@ class TestTheThreeRowsDiffer:
         assert "Question the answer" not in build_prompt(_GENERATION, Granularity.ATOMIC)
 
 
+def _target_of(prompt: str) -> int:
+    """Which sentence this prompt asked for. The decomposer makes one call per sentence, so a stub
+    that ignores the target would answer every call with the same claims."""
+    return int(re.search(r"Split sentence (\d+)", prompt).group(1))
+
+
+class _PerSentence:
+    """Replays one scripted reply per target sentence, keyed by the sentence the prompt names."""
+
+    def __init__(self, by_target: dict[int, str]):
+        self.by_target = by_target
+        self.prompts: list[str] = []
+        self.targets: list[int] = []
+
+    def __call__(self, prompt, config, *, seed=0, run_id="", query_id=None):
+        self.prompts.append(prompt)
+        target = _target_of(prompt)
+        self.targets.append(target)
+        return self.by_target.get(target, ""), CostRecord(
+            run_id=run_id, query_id=query_id, component="generate",
+            backend=f"vllm:{config.model}", input_tokens=11, output_tokens=22,
+        )
+
+
 class TestParsing:
     def test_ids_follow_output_order_and_the_models_numbering_is_ignored(self):
         """`parse_response` learned this the expensive way: an 8B model repurposes the number it
         was asked to write, and reading it as an identity mis-attributes the claim."""
-        stub = _Replay(
-            "CLAIM 4 FROM 2: Metformin's benefit was not seen in the elderly.\n"
-            "CLAIM 4 FROM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 9 FROM 3: Metformin's mortality benefit is dose dependent.\n"
-        )
+        stub = _PerSentence({
+            1: "CLAIM 4: Metformin reduces all-cause mortality.\n",
+            2: "CLAIM 4: Metformin's benefit was not seen in the elderly.\n",
+            3: "CLAIM 9: Metformin's mortality benefit is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("decontextualized_atomic"), completer=stub)
 
         assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3"]
         assert [_GENERATION[c.source_start:c.source_end] for c in result.claims] == [
-            "It was not observed in the elderly.",
             "Metformin reduces all-cause mortality.",
+            "It was not observed in the elderly.",
             "This effect is dose dependent.",
         ]
         assert result.errors == ()
 
-    def test_an_unusable_sentence_index_keeps_the_claim_without_a_span(self):
-        """Dropping it would shrink the denominator of the rate that is supposed to report
-        decomposition failure — the failure would erase its own evidence."""
-        stub = _Replay(
-            "CLAIM 1 FROM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 2 FROM 2: Metformin's benefit was not seen in the elderly.\n"
-            "CLAIM 3 FROM 9: Metformin's mortality benefit is dose dependent.\n"
-        )
+    def test_a_claims_span_is_the_sentence_its_call_was_about(self):
+        """The span is no longer a number the model writes and can get wrong: it is the sentence
+        the call asked about. A live run mis-stamped claims onto sentences they did not come from,
+        which is invisible in the rates and corrupts the decomposition audit trail."""
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            # The model tries to answer for another sentence anyway; it cannot — there is no field
+            # left to say so with, so the claim belongs to the sentence that was asked about.
+            2: "CLAIM 1: This effect is dose dependent.\n",
+            3: "CLAIM 1: This effect is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
-        assert len(result.claims) == 3
-        assert (result.claims[2].source_start, result.claims[2].source_end) == (None, None)
-        assert any("sentence 9 does not exist" in e for e in result.errors)
+        assert [_GENERATION[c.source_start:c.source_end] for c in result.claims] == [
+            "Metformin reduces all-cause mortality.",
+            "It was not observed in the elderly.",
+            "This effect is dose dependent.",
+        ]
 
     def test_an_over_length_claim_is_flagged_and_kept(self):
         """`MAX_CLAIM_WORDS` is a non-termination detector, not a style rule: truncating the claim
         would hide the defect the detector exists to surface."""
         runaway = " ".join(["and metformin reduces mortality"] * 20)
-        stub = _Replay(
-            f"CLAIM 1 FROM 1: {runaway}\n"
-            "CLAIM 2 FROM 2: Metformin's benefit was not seen in the elderly.\n"
-            "CLAIM 3 FROM 3: Metformin's mortality benefit is dose dependent.\n"
-        )
+        stub = _PerSentence({
+            1: f"CLAIM 1: {runaway}\n",
+            2: "CLAIM 1: Metformin's benefit was not seen in the elderly.\n",
+            3: "CLAIM 1: Metformin's mortality benefit is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
         assert result.claims[0].text == runaway
@@ -186,28 +216,29 @@ class TestParsing:
 
     def test_a_dropped_sentence_is_an_error_not_a_shorter_answer(self):
         """A decomposer that skips a sentence deletes an assertion from the answer it is re-cutting,
-        which moves the C7 row for a reason that is not granularity."""
-        stub = _Replay("CLAIM 1 FROM 1: Metformin reduces all-cause mortality.\n")
+        which moves the C7 row for a reason that is not granularity. One call per sentence makes
+        this exact: the sentence whose own call came back empty is the one named."""
+        stub = _PerSentence({1: "CLAIM 1: Metformin reduces all-cause mortality.\n"})
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
         assert len(result.claims) == 1
-        assert any("produced no claim" in e for e in result.errors)
+        assert any("sentence 2 produced no claim" in e for e in result.errors)
+        assert any("sentence 3 produced no claim" in e for e in result.errors)
 
     def test_malformed_and_empty_lines_are_reported_rather_than_raised(self):
         """G2 gates on >=95% valid parse, so every failure has to survive to be counted; a parser
         that raises reports one failure per answer and hides the rest."""
-        stub = _Replay(
-            "Here are the claims:\n"
-            "CLAIM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 2 FROM 2:\n"
-            "CLAIM 3 FROM 3: Metformin's mortality benefit is dose dependent.\n"
-        )
+        stub = _PerSentence({
+            1: "Here are the claims:\nCLAIM ONE AND A HALF: Metformin reduces mortality.\n",
+            2: "CLAIM 1:\n",
+            3: "CLAIM 1: Metformin's mortality benefit is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
         assert [c.text for c in result.claims] == [
             "Metformin's mortality benefit is dose dependent."
         ]
-        assert any("is not 'CLAIM <n> FROM <sentence>'" in e for e in result.errors)
+        assert any("is not 'CLAIM <n>'" in e for e in result.errors)
         assert any("claim is empty" in e for e in result.errors)
 
     def test_a_response_with_no_claims_is_an_error_and_no_claims(self):
@@ -216,105 +247,134 @@ class TestParsing:
         assert "no CLAIM lines" in result.errors
 
     def test_a_repeated_claim_is_flagged_not_deduplicated(self):
-        """The live 2026-08-15 A4000 run found greedy decoding taking the repetition escape
+        """The live A4000 runs found greedy decoding taking the repetition escape
         `MAX_CLAIM_WORDS` does not cover: re-emitting an already-written claim instead of a new
         one. It is kept, same reasoning as an over-length claim — collapsing duplicates would hide
         the defect the flag exists to surface, and would understate `total_claims` too."""
-        stub = _Replay(
-            "CLAIM 1 FROM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 2 FROM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 3 FROM 1:   Metformin reduces   all-cause mortality.  \n"
-            "CLAIM 4 FROM 2: Metformin's benefit was not seen in the elderly.\n"
-        )
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n"
+               "CLAIM 2: Metformin reduces all-cause mortality.\n"
+               "CLAIM 3:   Metformin reduces   all-cause mortality.  \n",
+            2: "CLAIM 1: Metformin's benefit was not seen in the elderly.\n",
+            3: "CLAIM 1: Metformin's mortality benefit is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
-        assert len(result.claims) == 4
+        assert len(result.claims) == 5
         assert sum(1 for e in result.errors if "repeats" in e and "verbatim" in e) == 2
         assert any("c1" in e for e in result.errors)
 
-    def test_drift_variants_are_parsed_leniently_and_logged(self):
-        """Grammar drift variants like CLAIM7FROM4, CLAIM S7.1 FROM S7, and parenthesized sentence numbers
-        are parsed into claims with source spans while logging the head grammar error for telemetry."""
-        stub = _Replay(
-            "CLAIM7FROM1: Metformin reduces all-cause mortality.\n"
-            "CLAIM S2.1 FROM S2: Metformin's benefit was not seen in the elderly.\n"
-            "CLAIM 3 FROM (3): Metformin's mortality benefit is dose dependent.\n"
-        )
+    def test_a_claim_repeated_across_sentences_names_both_sentences(self):
+        """A loop that spans calls is still a loop, and the two sentences it straddles are what a
+        post-mortem needs. Charged to the decomposer only when the sentences actually differ."""
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            2: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            3: "CLAIM 1: This effect is dose dependent.\n",
+        })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
         assert len(result.claims) == 3
-        assert result.claims[0].text == "Metformin reduces all-cause mortality."
-        assert result.claims[1].text == "Metformin's benefit was not seen in the elderly."
-        assert result.claims[2].text == "Metformin's mortality benefit is dose dependent."
-        assert result.claims[0].source_start is not None
-        assert result.claims[1].source_start is not None
-        assert result.claims[2].source_start is not None
+        assert any(
+            "across sentences 1 and 2" in e and "non-terminating" in e for e in result.errors
+        )
+
+    def test_a_repeat_of_a_sentence_the_answer_itself_repeats_is_not_the_decomposers_fault(self):
+        """14 of 100 live post-hoc answers repeat a sentence verbatim. Charging the decomposer with
+        a repetition loop for faithfully re-cutting a repeated sentence would blame it for an
+        upstream defect, so the error says which one it is."""
+        answer = "Metformin reduces mortality. Metformin reduces mortality."
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces mortality.\n",
+            2: "CLAIM 1: Metformin reduces mortality.\n",
+        })
+        result = decompose(answer, _config("atomic"), completer=stub)
+
+        assert len(result.claims) == 2
+        assert any("repeats sentence 1 verbatim in the answer" in e for e in result.errors)
+        assert not any("non-terminating" in e for e in result.errors)
+
+    def test_drift_variants_are_parsed_leniently_and_logged(self):
+        """Bullets, missing spaces and bold markers around the head are drift, not a broken claim:
+        the line still carries exactly one claim, so throwing it away would understate the row."""
+        stub = _PerSentence({
+            1: "CLAIM1: Metformin reduces all-cause mortality.\n",
+            2: "- **CLAIM 2**: Metformin's benefit was not seen in the elderly.\n",
+            3: "CLAIM: Metformin's mortality benefit is dose dependent.\n",
+        })
+        result = decompose(_GENERATION, _config("atomic"), completer=stub)
+
+        assert [c.text for c in result.claims] == [
+            "Metformin reduces all-cause mortality.",
+            "Metformin's benefit was not seen in the elderly.",
+            "Metformin's mortality benefit is dose dependent.",
+        ]
+        assert all(c.source_start is not None for c in result.claims)
         assert result.errors == ()
 
+
 class TestCost:
-    def test_the_decomposition_call_is_billed_to_decompose(self):
-        """Table 4 has to be able to tell a C7 row's extra call from the generation it re-cuts;
-        `backends` stamps everything "generate" because generation is all it has been asked for."""
-        stub = _Replay(
-            "CLAIM 1 FROM 1: Metformin reduces all-cause mortality.\n"
-            "CLAIM 2 FROM 2: Metformin's benefit was not seen in the elderly.\n"
-            "CLAIM 3 FROM 3: Metformin's mortality benefit is dose dependent.\n"
-        )
+    def test_every_sentence_call_is_billed_to_decompose(self):
+        """Table 4 has to be able to tell a C7 row's extra calls from the generation it re-cuts;
+        `backends` stamps everything "generate" because generation is all it has been asked for.
+        There is one call per sentence, and every one of them is a cost row."""
+        stub = _PerSentence({i: f"CLAIM 1: claim {i}.\n" for i in (1, 2, 3)})
         result = decompose(
             _GENERATION, _config("atomic"), completer=stub, run_id="c7", query_id="q1"
         )
 
-        assert len(result.costs) == 1
-        assert result.costs[0].component == "decompose"
-        assert (result.costs[0].run_id, result.costs[0].query_id) == ("c7", "q1")
+        assert len(result.costs) == 3
+        assert {c.component for c in result.costs} == {"decompose"}
+        assert [c.query_id for c in result.costs] == ["q1:s1", "q1:s2", "q1:s3"]
+        assert {c.run_id for c in result.costs} == {"c7"}
         assert decompose(_GENERATION, _config("sentence")).costs == ()
 
 
-class TestChunking:
-    def test_multi_chunk_decomposition(self):
+class TestPerSentenceCalls:
+    def test_one_call_per_sentence_each_naming_its_own_target(self):
         answer = ". ".join(f"Sentence {i} asserts fact {i}" for i in range(1, 16)) + "."
-        prompts_seen = []
 
-        def chunk_completer(prompt, config, *, seed=0, run_id="", query_id=None):
-            prompts_seen.append(prompt)
-            lines = []
-            for line in prompt.splitlines():
-                if line and line[0].isdigit() and ". Sentence " in line:
-                    num = line.split(".")[0]
-                    lines.append(f"CLAIM {num} FROM {num}: sentence {num} fact.")
-            return "\n".join(lines), CostRecord(run_id=run_id, query_id=query_id, component="decompose", backend="test", input_tokens=10, output_tokens=10)
+        def completer(prompt, config, *, seed=0, run_id="", query_id=None):
+            target = _target_of(prompt)
+            return f"CLAIM 1: sentence {target} fact.", CostRecord(
+                run_id=run_id, query_id=query_id, component="decompose", backend="test",
+                input_tokens=10, output_tokens=10,
+            )
 
-        result = decompose(
-            answer,
-            _config("atomic"),
-            completer=chunk_completer,
-            max_sentences_per_chunk=5,
-            run_id="c7_test",
-            query_id="q_multi",
-        )
+        result = decompose(answer, _config("atomic"), completer=completer, query_id="q_multi")
 
-        assert len(prompts_seen) == 3
         assert len(result.claims) == 15
-        assert result.claims[0].claim_id == "c1"
-        assert result.claims[14].claim_id == "c15"
-        assert (
-            decompose_template_digest()
-            == "a23ea7903e096bad98652082365423387c69e8d266e920f1dd86912050c4151d"
-        )
+        assert (result.claims[0].claim_id, result.claims[14].claim_id) == ("c1", "c15")
+        assert result.errors == ()
+
+    def test_every_prompt_carries_the_whole_answer_so_pronouns_can_be_resolved(self):
+        """The target sentence alone cannot decontextualize "it" — the rest of the answer is the
+        only place the referent lives."""
+        stub = _PerSentence({i: f"CLAIM 1: claim {i}.\n" for i in (1, 2, 3)})
+        decompose(_GENERATION, _config("decontextualized_atomic"), completer=stub)
+
+        assert stub.targets == [1, 2, 3]
+        for prompt in stub.prompts:
+            assert "1. Metformin reduces all-cause mortality." in prompt
+            assert "3. This effect is dose dependent." in prompt
+
+    def test_a_target_outside_the_answer_is_refused_rather_than_silently_clamped(self):
+        with pytest.raises(ValueError, match="outside the answer"):
+            build_prompt(_GENERATION, Granularity.ATOMIC, target=4)
 
 
 class TestFreeze:
     def test_the_decomposer_prompt_is_pinned_ahead_of_the_sep_3_freeze(self):
-        """ADR-0009 §8 freezes the decomposer prompt Sep 3. Pinned now (2026-08-15) as a tripwire,
-        same reasoning as `test_prompts.py`'s `post_hoc_answer_template_digest` pin: an edit to
+        """ADR-0009 §8 freezes the decomposer prompt Sep 3. Pinned now as a tripwire, same
+        reasoning as `test_prompts.py`'s `post_hoc_answer_template_digest` pin: an edit to
         `DECOMPOSE_TEMPLATE`, `FORMAT_BLOCK`, `BARE_ATOMIC_RULE`, or either unit rule after this
         point must be a deliberate, dated re-pin — never a silent drift discovered in October.
 
-        Re-pinned 2026-08-16: updated FORMAT_BLOCK with explicit rules and negative examples
-        suppressing CLAIM<n>FROM<k> drift variants (CLAIM7FROM4, S-prefixes, parentheses) and
-        dropped-tail failure modes.
+        Re-pinned 2026-08-16: the decomposer now makes one call per sentence and its grammar lost
+        the `FROM <sentence>` field, which a live A4000 run showed the model both mis-spelling and,
+        worse, mis-pointing — see `decompose._DECOMPOSED_HEAD`.
         """
         assert (
             decompose_template_digest()
-            == "a23ea7903e096bad98652082365423387c69e8d266e920f1dd86912050c4151d"
+            == "4129a884c7a1b4854739ffe2e3900a1db39626db7fd1bf076d6b549027a7d737"
         )

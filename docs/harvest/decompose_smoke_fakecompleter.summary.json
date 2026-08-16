@@ -1,0 +1,72 @@
+{
+  "script": "scripts/decompose_smoke.py",
+  "purpose": "C7 live-path smoke test; not a gate run and not a sample",
+  "run_id": "decompose_smoke_fakecompleter",
+  "manifest": "decompose_smoke_fakecompleter.manifest.json",
+  "config_hash": "c2db335bb9cd",
+  "fake_completer": true,
+  "finished_at": "2026-08-16T08:02:33.700227+00:00",
+  "run_arguments": {
+    "base_url": null,
+    "n_questions": 3,
+    "contexts": "docs/harvest/parity_iter1b.records.jsonl",
+    "max_tokens": 1536,
+    "frequency_penalty": 0.0
+  },
+  "per_row": {
+    "sentence": {
+      "n_queries": 3,
+      "total_claims": 20,
+      "clean_decompose_rate": 1.0,
+      "clean_cite_rate": 1.0,
+      "median_words_per_claim": 17.0,
+      "duplicate_claim_count": 0,
+      "quote_not_found_count": 0,
+      "claim_parse_rate": 1.0,
+      "quote_located_rate": null,
+      "decompose_error_kinds": {},
+      "cite_error_kinds": {},
+      "cite_recovered_count": 0,
+      "cite_recovered_kinds": {}
+    },
+    "atomic": {
+      "n_queries": 3,
+      "total_claims": 20,
+      "clean_decompose_rate": 1.0,
+      "clean_cite_rate": 1.0,
+      "median_words_per_claim": 17.0,
+      "duplicate_claim_count": 0,
+      "quote_not_found_count": 0,
+      "claim_parse_rate": 1.0,
+      "quote_located_rate": 1.0,
+      "decompose_error_kinds": {},
+      "cite_error_kinds": {},
+      "cite_recovered_count": 0,
+      "cite_recovered_kinds": {},
+      "divergence_rate": 0.0
+    },
+    "decontextualized_atomic": {
+      "n_queries": 3,
+      "total_claims": 20,
+      "clean_decompose_rate": 1.0,
+      "clean_cite_rate": 1.0,
+      "median_words_per_claim": 17.0,
+      "duplicate_claim_count": 0,
+      "quote_not_found_count": 0,
+      "claim_parse_rate": 1.0,
+      "quote_located_rate": 1.0,
+      "decompose_error_kinds": {},
+      "cite_error_kinds": {},
+      "cite_recovered_count": 0,
+      "cite_recovered_kinds": {}
+    }
+  },
+  "monotonicity_check": {
+    "passes": true,
+    "medians": {
+      "sentence": 17.0,
+      "atomic": 17.0,
+      "decontextualized_atomic": 17.0
+    }
+  }
+}

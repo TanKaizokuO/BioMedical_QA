@@ -29,9 +29,10 @@ Three decisions that the docstring above did not settle, made here:
 1. **A claim's span is the span of the sentence it came from, and it is exact.** Atomic and
    decontextualized claims are *rewritten* text — "Metformin reduces mortality" is nowhere in "It
    reduces mortality" — so there is no honest substring to point at. The decomposer therefore works
-   from a numbered sentence list and every claim carries the index of its source sentence, whose
-   offsets are exact. `Claim.source_start/source_end` answers "which text produced this claim",
-   which is the question a decomposition post-mortem asks; it never claims to be a quotation.
+   one sentence at a time: the call names the sentence, so the claim's span is that sentence's, by
+   construction rather than by an index the model writes and can get wrong.
+   `Claim.source_start/source_end` answers "which text produced this claim", which is the question a
+   decomposition post-mortem asks; it never claims to be a quotation.
 2. **The sentences are cut out of the answer's `CLAIM` lines when it has any.** A C7 row's input is
    a `QueryRecord.raw_generation`, which carries `DECISION:` and `CITE:` lines; sentence-splitting
    those would make "DECISION: yes" a unit of the `sentence` row. Prose input (a vanilla answer, a
@@ -72,19 +73,26 @@ from .schema import Claim, CostRecord, Granularity
 #: offsets are what a claim's span is measured in.
 _CLAIM_HEAD = re.compile(r"^[ \t]*CLAIM[ \t]+\d+[ \t]*:[ \t]*", re.IGNORECASE | re.MULTILINE)
 
-#: Maximum number of sentences sent to the model per `decompose()` LLM call. Long answers (>4
-#: sentences) cause an 8B model under frequency penalty to suffer format collapse (syntax drift and
-#: dropped sentences). Chunking sentences into batches of at most 4 avoids long generation outputs
-#: and guarantees complete coverage.
-MAX_SENTENCES_PER_CHUNK = 4
+#: The decomposer's own output header: `CLAIM <n>`. The number is parsed and then **ignored** — ids
+#: are assigned in output order. Same lesson as `parse_response`: two live runs showed an 8B model
+#: repurposing the number it was asked to write, and reading it as an identity mis-attributed the
+#: claim.
+#:
+#: There is deliberately **no `FROM <sentence>` field any more.** It was the decomposer's single
+#: largest source of error: a live A4000 run (2026-08-16) produced `CLAIM7FROM4`, `FROM S4.1`,
+#: `FROM (6)` and, worse than any syntax drift, indices that pointed at the wrong sentence — the
+#: claim "CEA use is not associated with stroke mortality" arriving stamped `FROM 1`, whose sentence
+#: is about 14-fold variation. A mis-stamped index is invisible in the rates and silently corrupts
+#: `Claim.source_start/source_end`, which the decomposition post-mortem reads as ground truth. One
+#: call per sentence removes the field and the failure mode with it: the source sentence is what the
+#: call was about, so the span is exact by construction rather than by the model's bookkeeping.
+_DECOMPOSED_HEAD = re.compile(r"^CLAIM\s+(\d+)$", re.IGNORECASE)
 
-#: The decomposer's own output header: `CLAIM <n> FROM <sentence>`. The claim number is parsed and
-#: then **ignored** — ids are assigned in output order. Same lesson as `parse_response`: two live
-#: runs showed an 8B model repurposing the number it was asked to write, and reading it as an
-#: identity mis-attributed the claim.
-_DECOMPOSED_HEAD = re.compile(r"^CLAIM\s+(\d+)\s+FROM\s+(\d+)$", re.IGNORECASE)
+#: The same header after the drift an 8B model applies to it: `CLAIM1`, `- CLAIM 1`, `**CLAIM 1**`,
+#: `CLAIM S1`. Accepted so that a well-formed claim is not thrown away over its bullet, and counted
+#: as drift by the caller rather than silently normalised away.
 _LENIENT_DECOMPOSED_HEAD = re.compile(
-    r"^CLAIM\s*[\[\(]?\s*(?:S|[A-Z])?\s*(\d+(?:\.\d+)?|[A-Z])\s*[\]\)]?\s*FROM\s*[\[\(]?\s*(?:SENTENCE|S|implied by sentence)?\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?.*$",
+    r"^[-*\u2022\s]*\**\s*CLAIM\s*[\[\(]?\s*(?:S|SENTENCE)?\s*(\d+(?:\.\d+)?)?\s*[\]\)]?\s*\**$",
     re.IGNORECASE,
 )
 
@@ -95,12 +103,15 @@ BARE_ATOMIC_RULE = """Keep the answer's own wording. Do not resolve pronouns, do
 "this"/"these" with what they refer to, and do not supply a subject the sentence leaves implicit —
 copy the words as they stand, splitting only where the sentence asserts more than one thing."""
 
-DECOMPOSE_TEMPLATE = """You are splitting an answer that is already written into separate claims.
+DECOMPOSE_TEMPLATE = """You are splitting one sentence of an answer that is already written into separate claims.
 
-{question_block}Answer, one sentence per line:
+{question_block}The whole answer, one sentence per line:
 {sentences}
 
-Split the answer into claims. Every output line MUST start with 'CLAIM <n> FROM <sentence>:' where <n> is the claim number (1, 2, 3...) and <sentence> is the source sentence number. Use only what the answer says: do not add a fact the answer does not state, do not judge whether the answer is right, and do not leave a sentence out.
+Split sentence {target}, and only sentence {target}, into claims. Use only what sentence {target}
+says: do not add a fact it does not state, and do not judge whether it is right. The other
+sentences are shown for one reason only — so you can tell what a pronoun or a "this" in sentence
+{target} refers to. Never write a claim for any other sentence.
 
 {unit_rules}
 
@@ -108,17 +119,16 @@ Split the answer into claims. Every output line MUST start with 'CLAIM <n> FROM 
 
 FORMAT_BLOCK = """Reply in exactly this format and add nothing else:
 
-CLAIM 1 FROM 1: the first claim taken from sentence 1
-CLAIM 2 FROM 1: the second claim taken from sentence 2
-CLAIM 3 FROM 2: the first claim taken from sentence 2
+CLAIM 1: the first claim the sentence makes
+CLAIM 2: the second claim the sentence makes
 
-Number the CLAIM lines from 1, in order.
 Rules:
-- YOU MUST START EVERY LINE WITH "CLAIM <n> FROM <sentence>:" (for example: "CLAIM 1 FROM 1: ..."). NEVER omit "FROM <sentence>".
-- Include spaces between keywords and numbers (e.g. write "CLAIM 7 FROM 4", NEVER "CLAIM7FROM4").
-- After FROM, write ONLY the plain integer sentence number (e.g. "FROM 4", NEVER "FROM S4", "FROM S4.1", or "FROM (4)").
-- Process EVERY numbered sentence from 1 through the last sentence. Do not stop early or leave out trailing sentences.
-- A sentence that asserts one thing yields exactly one claim."""
+- Every line starts with "CLAIM <n>:", numbered from 1. Write nothing before the first CLAIM line
+  and nothing after the last one.
+- A sentence that asserts one thing yields exactly one claim: write that single line and stop.
+- Never write the same claim twice, and never restate in different words a claim you have already
+  written. Most sentences yield one or two claims; more than three is almost always repetition.
+- Stop as soon as the sentence you were asked to split has been covered."""
 
 
 #: Everything the Sep 3 decomposer freeze (ADR-0009 §8) covers, in one fixed order. Not the
@@ -223,53 +233,57 @@ def build_prompt(
     granularity: Granularity,
     question: str | None = None,
     units: list[tuple[int, int]] | None = None,
-    start_index: int = 1,
+    target: int = 1,
 ) -> str:
-    """Render the decomposer prompt for one answer (or a sentence chunk of an answer). Exposed
-    because a prompt nobody can print is a prompt nobody can review, and this one is frozen on
-    Sep 3 with the rest of the decomposer."""
+    """Render the decomposer prompt for **one sentence** of an answer. `target` is that sentence's
+    1-based position in `units`; the rest of the answer is still shown, because a decontextualizing
+    decomposer cannot resolve "it" from the target sentence alone.
+
+    Exposed because a prompt nobody can print is a prompt nobody can review, and this one is frozen
+    on Sep 3 with the rest of the decomposer."""
     if units is None:
         units = sentence_units(answer)
     if not units:
         raise ValueError("answer carries no text to decompose")
+    if not 1 <= target <= len(units):
+        raise ValueError(f"target sentence {target} is outside the answer's {len(units)} sentences")
     return DECOMPOSE_TEMPLATE.format(
         # The question is optional and, when present, is context only: "it reduces mortality" can
         # need the question to name its subject, and withholding it would push the decomposer into
-        # guessing. It is never a source of claims — the format block says so, and the sentence
-        # index a claim must carry cannot point at it.
+        # guessing. It is never a source of claims — the prompt names one target sentence, and the
+        # question is not one of the numbered lines.
         question_block=f"Question the answer responds to: {question}\n\n" if question else "",
-        sentences="\n".join(
-            f"{i}. {answer[s:e]}" for i, (s, e) in enumerate(units, start=start_index)
-        ),
+        sentences="\n".join(f"{i}. {answer[s:e]}" for i, (s, e) in enumerate(units, start=1)),
+        target=target,
         unit_rules=unit_rules(granularity),
         format_block=FORMAT_BLOCK,
     )
 
+
 def parse_decomposition(
     raw: str,
-    units: list[tuple[int, int]],
+    unit: tuple[int, int],
     granularity: Granularity,
     *,
-    unit_start_index: int = 1,
     max_claim_words: int = MAX_CLAIM_WORDS,
-    check_coverage: bool = True,
 ) -> tuple[list[Claim], list[str]]:
-    """The decomposer's line grammar → claims, plus everything that did not parse.
+    """One sentence's reply → its claims, plus everything that did not parse.
+
+    `unit` is the span of the sentence the call was about, and it is what every claim from this
+    reply points at. There is no index to resolve and none to get wrong: that is the whole reason
+    the decomposer asks for one sentence at a time (`_DECOMPOSED_HEAD`).
 
     Nothing is dropped for being wrong-shaped once it is recognisably a claim: an over-length claim
     is flagged and kept (`MAX_CLAIM_WORDS` is a non-termination detector, and truncating it would
-    hide the defect it detects), and a claim whose sentence index is unusable is kept with no span
-    rather than deleted, because deleting it would shrink the denominator of the very rate that is
-    supposed to report decomposition failure.
+    hide the defect it detects).
 
     **A repeated claim is the same defect wearing a different shape.** `MAX_CLAIM_WORDS` catches a
     non-terminating generation that grows one claim without bound (`21074975`'s 731 words,
-    `parity_iter1b.md`); a live run of this decomposer (`docs/harvest/decompose_smoke.summary.json`,
-    2026-08-15) found greedy decoding taking the *other* escape from a repetition loop — re-emitting
-    an already-written claim verbatim instead of advancing, sometimes dozens of times, with no upper
-    bound but the output cap. Exact-text repetition within one decomposition is therefore also
-    flagged (not deduplicated — collapsing it would hide the defect it was added to measure, same
-    reasoning as `MAX_CLAIM_WORDS`).
+    `parity_iter1b.md`); live runs of this decomposer found greedy decoding taking the *other*
+    escape from a repetition loop — re-emitting an already-written claim verbatim instead of
+    advancing. Exact-text repetition within one sentence's reply is therefore also flagged (not
+    deduplicated — collapsing it would hide the defect it was added to measure, same reasoning as
+    `MAX_CLAIM_WORDS`).
     """
     claims: list[Claim] = []
     errors: list[str] = []
@@ -280,30 +294,14 @@ def parse_decomposition(
         if not sep:
             continue  # prose the model wrapped around the format; not itself a claim failure
         head, text = head.strip(), text.strip()
-        matched = _DECOMPOSED_HEAD.match(head)
-        if matched is None:
-            lenient_matched = _LENIENT_DECOMPOSED_HEAD.match(head)
-            if lenient_matched is None:
-                if head.upper().startswith("CLAIM"):
-                    errors.append(f"line {lineno}: {head!r} is not 'CLAIM <n> FROM <sentence>'")
+        if _DECOMPOSED_HEAD.match(head) is None:
+            if _LENIENT_DECOMPOSED_HEAD.match(head) is None:
+                if "CLAIM" in head.upper():
+                    errors.append(f"line {lineno}: {head!r} is not 'CLAIM <n>'")
                 continue
-            index = int(float(lenient_matched.group(2)))
-        else:
-            index = int(matched.group(2))
         if not text:
             errors.append(f"line {lineno}: claim is empty")
             continue
-        span: tuple[int, int] | None = None
-        rel_global = index - unit_start_index
-        rel_chunk = index - 1
-        if 0 <= rel_global < len(units):
-            span = units[rel_global]
-        elif 0 <= rel_chunk < len(units):
-            span = units[rel_chunk]
-        else:
-            errors.append(
-                f"line {lineno}: sentence {index} does not exist (the answer has {len(units)})"
-            )
 
         words = len(text.split())
         if words > max_claim_words:
@@ -316,8 +314,8 @@ def parse_decomposition(
                 claim_id=f"c{len(claims) + 1}",
                 text=text,
                 granularity=granularity,
-                source_start=span[0] if span else None,
-                source_end=span[1] if span else None,
+                source_start=unit[0],
+                source_end=unit[1],
             )
         )
         norm = " ".join(text.split()).lower()
@@ -329,15 +327,6 @@ def parse_decomposition(
         else:
             text_seen[norm] = claims[-1].claim_id
 
-    if not claims:
-        errors.append("no CLAIM lines")
-    elif check_coverage:
-        covered = {c.source_start for c in claims}
-        missed = [i for i, (s, _) in enumerate(units, start=1) if s not in covered]
-        if missed:
-            errors.append(
-                f"sentences {missed} produced no claim — the answer was dropped, not decomposed"
-            )
     return claims, errors
 
 
@@ -351,13 +340,22 @@ def decompose(
     run_id: str = "",
     query_id: str | None = None,
     max_claim_words: int = MAX_CLAIM_WORDS,
-    max_sentences_per_chunk: int = MAX_SENTENCES_PER_CHUNK,
 ) -> Decomposition:
     """Re-cut a generated answer into claims at `config.granularity`.
 
     `answer` is one stage's text — for post-hoc, `generate.split_stages(raw)[-1]`, never the joined
     `raw_generation`. `completer` is injected for the same reason `generate.py` injects it: the box
     is copy-paste only, and a bug found against a live server costs a GPU run.
+
+    **One model call per sentence.** The earlier design sent the whole answer, then chunks of four
+    sentences, and asked the model to stamp each claim with the sentence it came from. Both
+    collapsed on the same hardware for the same reason: the longer the reply, the further greedy
+    decoding drifts, and a live A4000 run (2026-08-16) measured an 18-sentence answer coming back as
+    52 claims — repetition loops, sentence indices pointing at the wrong sentence, and dropped
+    trailing sentences. A per-sentence call bounds the reply to what one sentence can say, gives
+    every sentence its own chance to be covered, and makes the claim's span exact by construction.
+    The whole answer still appears in each prompt as context, or the decontextualized row could not
+    resolve a pronoun.
     """
     if STAGE_SEPARATOR in answer:
         raise ValueError(
@@ -386,41 +384,36 @@ def decompose(
     if not units:
         return Decomposition(tuple(), (), ("no sentences",))
 
-    chunks = [
-        units[i : i + max_sentences_per_chunk]
-        for i in range(0, len(units), max_sentences_per_chunk)
-    ]
-
     all_claims: list[Claim] = []
     costs: list[CostRecord] = []
     errors: list[str] = []
-    for chunk_idx, chunk_units in enumerate(chunks):
-        chunk_start_index = chunk_idx * max_sentences_per_chunk + 1
-        chunk_query_id = (
-            f"{query_id}:chunk{chunk_idx}" if len(chunks) > 1 and query_id else query_id
+    #: Claim text -> (claim id, source sentence index), to tell a decoding loop that spans calls
+    #: from an answer that repeats itself. They are different defects with different owners.
+    seen_across: dict[str, tuple[str, int]] = {}
+
+    for target, unit in enumerate(units, start=1):
+        sentence_query_id = (
+            f"{query_id}:s{target}" if len(units) > 1 and query_id else query_id
         )
-        prompt = build_prompt(
-            answer, granularity, question, units=chunk_units, start_index=chunk_start_index
-        )
+        prompt = build_prompt(answer, granularity, question, units=units, target=target)
         raw, cost = completer(
-            prompt, config, seed=seed, run_id=run_id, query_id=chunk_query_id
+            prompt, config, seed=seed, run_id=run_id, query_id=sentence_query_id
         )
         # Table 4 must be able to tell a C7 row's decomposition call from the generation it re-cuts;
         # `backends` stamps every call "generate" because generation is all it has ever been asked for.
         cost.component = "decompose"
         costs.append(cost)
 
-        chunk_claims, chunk_errors = parse_decomposition(
-            raw,
-            chunk_units,
-            granularity,
-            unit_start_index=chunk_start_index,
-            max_claim_words=max_claim_words,
-            check_coverage=len(chunks) == 1,
+        sentence_claims, sentence_errors = parse_decomposition(
+            raw, unit, granularity, max_claim_words=max_claim_words
         )
-        errors.extend(chunk_errors)
+        errors.extend(sentence_errors)
+        if not sentence_claims:
+            errors.append(
+                f"sentence {target} produced no claim — the answer was dropped, not decomposed"
+            )
 
-        for claim in chunk_claims:
+        for claim in sentence_claims:
             claim_id = f"c{len(all_claims) + 1}"
             all_claims.append(
                 Claim(
@@ -431,16 +424,26 @@ def decompose(
                     source_end=claim.source_end,
                 )
             )
-
-    if len(chunks) > 1:
-        if not all_claims:
-            errors.append("no CLAIM lines")
-        else:
-            covered = {c.source_start for c in all_claims if c.source_start is not None}
-            missed = [i for i, (s, _) in enumerate(units, start=1) if s not in covered]
-            if missed:
+            norm = " ".join(claim.text.split()).lower()
+            first = seen_across.get(norm)
+            if first is None:
+                seen_across[norm] = (claim_id, target)
+            elif first[1] == target:
+                pass  # already reported by `parse_decomposition`, which owns one reply
+            elif answer[units[first[1] - 1][0] : units[first[1] - 1][1]] == answer[unit[0] : unit[1]]:
+                # The answer says the same sentence twice, so the same claim twice is the honest
+                # reading of it. An upstream defect, and not the decomposer's to be charged with.
                 errors.append(
-                    f"sentences {missed} produced no claim — the answer was dropped, not decomposed"
+                    f"{claim_id}: sentence {target} repeats sentence {first[1]} verbatim in the "
+                    "answer being decomposed"
                 )
+            else:
+                errors.append(
+                    f"{claim_id}: repeats {first[0]}'s claim text verbatim across sentences "
+                    f"{first[1]} and {target} (non-terminating generation)"
+                )
+
+    if not all_claims:
+        errors.append("no CLAIM lines")
 
     return Decomposition(tuple(all_claims), tuple(costs), tuple(errors))

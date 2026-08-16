@@ -171,17 +171,31 @@ def _total(values: Iterable[float | None]) -> float | None:
     return sum(seen)  # type: ignore[arg-type]
 
 
+#: Maximum claims sent to the model in one `cite_claims` call. Measured, not chosen: a live A4000
+#: run (`docs/harvest/decompose_smoke.summary.json`, 2026-08-16) sent whole re-cut answers — 20 to
+#: 25 atomic claims — in a single call and the 8B model stopped reproducing after 4 to 7 of them,
+#: so `cite stage returned N CLAIM lines for M claims sent` fired on 8 to 9 of every 10 queries and
+#: pinned `clean_cite_rate` at exactly 0.0. Batching bounds what one reply has to copy; the cost is
+#: one extra call per five claims, which C7 pays once per row.
+MAX_CLAIMS_PER_CITE_CALL = 5
+
+
 @dataclass(frozen=True, slots=True)
 class Recitation:
     """C7's citation re-run: `decompose.py`'s claims, now carrying citations against `passages`.
 
     Mirrors `Generation`'s error handling — a claim the reply dropped is kept with no citations
     rather than discarded, so the denominator `errors` is read against never shrinks silently.
+
+    `costs` is a tuple because the re-run is batched (`MAX_CLAIMS_PER_CITE_CALL`): Table 4 has to
+    see every call the row actually paid for, not just the last one.
     """
 
     claims: tuple[Claim, ...]
-    cost: CostRecord
+    costs: tuple[CostRecord, ...]
     errors: tuple[str, ...]
+    #: Transcription drift that was read rather than rejected — see `prompts.ParsedResponse`.
+    recovered: tuple[str, ...] = ()
 
 
 def cite_claims(
@@ -195,6 +209,7 @@ def cite_claims(
     run_id: str = "",
     query_id: str | None = None,
     depth: int = CONTEXT_DEPTH,
+    max_claims_per_call: int = MAX_CLAIMS_PER_CITE_CALL,
 ) -> Recitation:
     """Attach fresh citations to an already re-cut answer — chosen as Option A over mapping the
     original citations onto the new claim boundaries (HANDOFF.md): the old citations were located
@@ -206,36 +221,63 @@ def cite_claims(
     order and never told a claim's id, so an id is not a channel this function can rely on to
     re-align a dropped or added line. A count mismatch is `errors`, not a raised exception — same
     reason `decompose.parse_decomposition` never drops a claim for being wrong-shaped.
+
+    Claims are sent in batches of `max_claims_per_call`, each batch numbered from 1, for the reason
+    `decompose.decompose` calls the model once per sentence: positional matching is only as good as
+    the model's willingness to reproduce every line, and past a handful of claims it stops. Batching
+    narrows the positional window; it does not repair a batch that still comes back short, which is
+    still counted per claim.
     """
     context = list(passages[:depth])
     if not context:
         raise ValueError(f"{query_id}: no passages to cite against; retrieval must run first")
     if not claims:
         raise ValueError("no claims to cite")
+    if max_claims_per_call < 1:
+        raise ValueError("max_claims_per_call must be at least 1")
 
-    rendered = "\n".join(f"CLAIM {i}: {c.text}" for i, c in enumerate(claims, start=1))
-    prompt = build_prompt(
-        System.POST_HOC, question, context, config.max_citations, stage="cite",
-        answer=rendered, depth=depth,
-    )
-    raw, cost = complete(prompt, config, seed=seed, run_id=run_id, query_id=query_id)
-    # Table 4 must separate this call from both the generation it re-cites and the decomposition
-    # call that produced `claims` — `backends` stamps every call "generate" because generation is
-    # all it has ever been asked for, same reasoning as `decompose.decompose`'s "decompose" stamp.
-    cost.component = "decompose_cite"
-    parsed = parse_response(raw, context, config.max_citations)
+    batches = [
+        list(claims[i : i + max_claims_per_call])
+        for i in range(0, len(claims), max_claims_per_call)
+    ]
+    cited: list[Claim] = []
+    costs: list[CostRecord] = []
+    errors: list[str] = []
+    recovered: list[str] = []
 
-    errors = list(parsed.errors)
-    if len(parsed.claims) != len(claims):
-        errors.append(
-            f"cite stage returned {len(parsed.claims)} CLAIM lines for {len(claims)} claims sent"
+    for batch_idx, batch in enumerate(batches):
+        rendered = "\n".join(f"CLAIM {i}: {c.text}" for i, c in enumerate(batch, start=1))
+        prompt = build_prompt(
+            System.POST_HOC, question, context, config.max_citations, stage="recite",
+            answer=rendered, depth=depth, claim_count=len(batch),
         )
-    cited = []
-    for i, original in enumerate(claims):
-        if i < len(parsed.claims):
-            citations = parsed.claims[i].citations
-        else:
-            citations = []
-            errors.append(f"{original.claim_id}: no matching CLAIM line in the cite-stage reply")
-        cited.append(replace(original, citations=citations))
-    return Recitation(tuple(cited), cost, tuple(errors))
+        batch_query_id = (
+            f"{query_id}:cite{batch_idx}" if len(batches) > 1 and query_id else query_id
+        )
+        raw, cost = complete(prompt, config, seed=seed, run_id=run_id, query_id=batch_query_id)
+        # Table 4 must separate this call from both the generation it re-cites and the decomposition
+        # call that produced `claims` — `backends` stamps every call "generate" because generation is
+        # all it has ever been asked for, same reasoning as `decompose.decompose`'s "decompose" stamp.
+        cost.component = "decompose_cite"
+        costs.append(cost)
+        parsed = parse_response(
+            raw, context, config.max_citations, require_decision=False
+        )
+
+        errors.extend(parsed.errors)
+        recovered.extend(parsed.recovered)
+        if len(parsed.claims) != len(batch):
+            errors.append(
+                f"cite stage returned {len(parsed.claims)} CLAIM lines for {len(batch)} claims sent"
+            )
+        for i, original in enumerate(batch):
+            if i < len(parsed.claims):
+                citations = parsed.claims[i].citations
+            else:
+                citations = []
+                errors.append(
+                    f"{original.claim_id}: no matching CLAIM line in the cite-stage reply"
+                )
+            cited.append(replace(original, citations=citations))
+
+    return Recitation(tuple(cited), tuple(costs), tuple(errors), tuple(recovered))

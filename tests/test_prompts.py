@@ -222,6 +222,62 @@ def test_locate_quote_normalizes_wrapping_quotes_and_whitespace_verbatim():
     assert passage_nl[hit_nl.char_start : hit_nl.char_end] == "reduced HbA1c\nby 1.2%"
 
 
+def test_locate_quote_recovers_a_case_drifted_quote_as_the_passages_own_text():
+    """The 8B model lower-cases a quote's first letter when the span starts mid-sentence in its
+    head. The span it names is real, so it is found — and `quoted_text` is what the passage says,
+    never what the model typed, or the offsets and the text would disagree."""
+    hit = locate_quote("reduced hba1c by 1.2%", "p1", PASSAGE_TEXT)
+
+    assert hit is not None
+    assert hit.quoted_text == "reduced HbA1c by 1.2%"
+    assert PASSAGE_TEXT[hit.char_start : hit.char_end] == hit.quoted_text
+    # Case tolerance is not licence to invent: a wrong number is still refused.
+    assert locate_quote("reduced hba1c by 1.3%", "p1", PASSAGE_TEXT) is None
+
+
+def test_a_recovered_quote_is_reported_rather_than_counted_clean():
+    raw = "DECISION: yes\nCLAIM 1: X.\nCITE: p1 || reduced hba1c by 1.2%\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert out.errors == []
+    assert any("matched only after normalising" in note for note in out.recovered)
+
+
+def test_an_id_missing_its_chunk_index_is_read_when_only_one_chunk_could_be_meant():
+    raw = "DECISION: yes\nCLAIM 1: X.\nCITE: [p1:] || Metformin reduced HbA1c by 1.2%\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert out.errors == []
+    assert out.claims[0].citations[0].passage_id == "p1"
+    assert any("read as 'p1'" in note for note in out.recovered)
+
+
+def test_an_ambiguous_document_id_stays_an_error_because_guessing_misattributes_evidence():
+    ps = [
+        RetrievedPassage(passage_id="doc:0", rank=1, score=1.0, retriever="rerank", text="Alpha."),
+        RetrievedPassage(passage_id="doc:1", rank=2, score=0.9, retriever="rerank", text="Beta."),
+    ]
+    raw = "DECISION: yes\nCLAIM 1: X.\nCITE: [doc:] || Alpha.\n"
+
+    out = parse_response(raw, ps, MAX_CITATIONS)
+
+    assert any("not in the context" in e for e in out.errors)
+    assert out.recovered == []
+
+
+def test_an_empty_claim_line_is_padding_and_is_not_a_claim():
+    """A live probe caught the model filling a short reply with bare `CLAIM n:` lines up to the
+    count it was given. Counting those as claims would let padding pass the positional match."""
+    raw = "DECISION: yes\nCLAIM 1: X.\nCLAIM 2:\nCLAIM 3:\n"
+
+    out = parse_response(raw, _passages(), MAX_CITATIONS)
+
+    assert [c.claim_id for c in out.claims] == ["c1"]
+    assert sum("is empty" in e for e in out.errors) == 2
+
+
 def test_parse_recovers_claims_citations_and_decision():
     raw = (
         "DECISION: yes\n"
