@@ -1,0 +1,89 @@
+{
+  "script": "scripts/minicheck_format_check.py",
+  "purpose": "weights-side evidence that verify.py invokes MiniCheck the way it was trained",
+  "written_at": "2026-08-16T23:03:21.144611+00:00",
+  "model": "lytang/MiniCheck-Flan-T5-Large",
+  "device": "cpu",
+  "reference_format_example": "predict: {document}</s>{claim}",
+  "retired_framing_example": "premise: {premise} hypothesis: {hypothesis}",
+  "known_answer": {
+    "pairs": [
+      {
+        "claim": "The students are preparing for an examination.",
+        "expected_supported": true,
+        "reference_format": 0.9806,
+        "retired_framing": 0.7868
+      },
+      {
+        "claim": "The students are playing football on the field.",
+        "expected_supported": false,
+        "reference_format": 0.0079,
+        "retired_framing": 0.0998
+      },
+      {
+        "claim": "Metformin lowered deaths from any cause in type 2 diabetics.",
+        "expected_supported": true,
+        "reference_format": 0.9537,
+        "retired_framing": 0.7367
+      },
+      {
+        "claim": "Metformin did not affect all-cause mortality in patients with type 2 diabetes.",
+        "expected_supported": false,
+        "reference_format": 0.0156,
+        "retired_framing": 0.1195
+      },
+      {
+        "claim": "The trial randomised 412 patients.",
+        "expected_supported": true,
+        "reference_format": 0.9486,
+        "retired_framing": 0.7418
+      },
+      {
+        "claim": "The trial randomised 1,412 patients.",
+        "expected_supported": false,
+        "reference_format": 0.0541,
+        "retired_framing": 0.2041
+      }
+    ],
+    "separation": {
+      "reference_format": 0.9351,
+      "retired_framing": 0.6139
+    },
+    "ranks_every_supported_pair_above_every_unsupported_one": {
+      "reference_format": true,
+      "retired_framing": true
+    }
+  },
+  "real_pairs": {
+    "records": "docs/harvest/parity_iter1b.records.jsonl",
+    "n_pairs": 200,
+    "reference_format": {
+      "n": 200,
+      "mean": 0.2302,
+      "median": 0.0366,
+      "min": 0.0061,
+      "max": 0.9805,
+      "frac_at_or_above": {
+        "0.3": 0.24,
+        "0.5": 0.215,
+        "0.7": 0.17
+      }
+    },
+    "retired_framing": {
+      "n": 200,
+      "mean": 0.295,
+      "median": 0.1843,
+      "min": 0.0754,
+      "max": 0.7818,
+      "frac_at_or_above": {
+        "0.3": 0.31,
+        "0.5": 0.21,
+        "0.7": 0.125
+      }
+    },
+    "spearman": 0.9719,
+    "mean_abs_difference": 0.1423,
+    "crossings_at_0.5": 5,
+    "crossings_at_0.7": 11
+  }
+}

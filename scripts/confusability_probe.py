@@ -29,6 +29,35 @@ dense index and cannot perturb the recorded retrieval numbers.
 so the distractors scored are the ones the deployed cascade actually shows the generator. Run it
 into its own ``--out``, then pair a control against *that* file — the control's ``paired_against``
 is what says which arm it belongs to.
+
+**Scores before 2026-08-17 are off-distribution and must be re-derived.**  The private
+``minicheck_score`` this script carried until then framed each pair with a standard NLI template —
+the passage labelled as a premise, the claim labelled as a hypothesis — and read the decision off a
+comparison of the sequence losses of the strings ``"1"`` and ``"0"``, truncated at 512.  It is a
+reasonable-looking framing and the checkpoint was never trained on it.  MiniCheck-Flan-T5-Large
+declares ``text-classification`` on the hub but is a ``T5ForConditionalGeneration`` with no
+classification head, so every prompt returns *a* number and a wrong prompt returns a wrong number
+without raising.  The reference (``Liyan06/MiniCheck``, ``minicheck/inference.py``) instead renders
+``"predict: " + document + <eos> + claim``, runs one decoder step from a zero decoder input id, and
+softmaxes the first-position logits at exactly two vocabulary ids — so the retired path had the
+wrong input string, the wrong decode, and the wrong readout.
+
+Every score this script produced before 2026-08-17 therefore came from a mis-invoked model.  The
+committed artifacts ``docs/harvest/confusability_probe*.json`` are reads of that mis-invocation and
+are left exactly as they are, as the record of what was run; ADR-0012's ``τ_confusable = 0.7`` was
+set on that distribution and has to be re-derived from a re-run of this script against the corrected
+path.  ``scripts/minicheck_format_check.py`` measured how far apart the two framings score on the
+A4000 and keeps the retired template deliberately for that comparison.
+
+**Scoring now routes through ``biomedqa.verify.MiniCheckVerifier``**, which is the single
+MiniCheck implementation in the package.  The probe batch-scores all
+(non-gold passage, gold sentence) pairs for a question in one ``score_pairs`` call, then takes the
+max per passage — same aggregation shape as before, measurably faster.
+
+**One intentional behavioural difference from the original.**  Truncation moves from 512 tokens
+(original hard cut on the input string) to MiniCheck's 2048 with sentence-aligned chunking at
+~500 words per chunk.  A long abstract is no longer silently cut at 512; the pair's score is the
+maximum over all chunks, matching the reference implementation.
 """
 
 from __future__ import annotations
@@ -51,8 +80,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from biomedqa.config import RetrievalConfig  # noqa: E402
 from biomedqa.data import Instance, load_splits, load_instances  # noqa: E402
 from biomedqa.retrieve import RetrievalIndex, retrieve  # noqa: E402
-
-MINICHECK_MODEL_ID = "lytang/MiniCheck-Flan-T5-Large"
+from biomedqa.verify import MiniCheckVerifier  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -68,60 +96,6 @@ def split_sentences(text: str) -> list[str]:
     """Rough sentence boundary split.  Good enough for a first distribution read."""
     parts = _SENTENCE_RE.split(text.strip())
     return [s.strip() for s in parts if s.strip()]
-
-
-# ---------------------------------------------------------------------------
-# MiniCheck wrapper
-# ---------------------------------------------------------------------------
-
-def load_minicheck(device: "torch.device"):  # type: ignore[name-defined]
-    """Return (model, tokenizer) for MiniCheck-Flan-T5-Large."""
-    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-    import torch
-
-    print(f"Loading MiniCheck from {MINICHECK_MODEL_ID} …")
-    tok = AutoTokenizer.from_pretrained(MINICHECK_MODEL_ID)
-    model = (
-        AutoModelForSeq2SeqLM.from_pretrained(MINICHECK_MODEL_ID, torch_dtype=torch.float16)
-        .to(device)
-        .eval()
-    )
-    return model, tok
-
-
-def minicheck_score(
-    model,
-    tok,
-    premise: str,
-    hypothesis: str,
-    device,
-) -> float:
-    """Return the entailment probability in [0, 1].
-
-    MiniCheck is framed as a Seq2Seq classification task where the positive class token is "1".
-    The input format is ``premise: {passage} hypothesis: {claim}`` (standard NLI framing for
-    MiniCheck-style T5 models).  We take the probability of generating "1" as the score.
-    """
-    import torch
-
-    input_text = f"premise: {premise} hypothesis: {hypothesis}"
-    inputs = tok(input_text, return_tensors="pt", truncation=True, max_length=512).to(device)
-
-    with torch.no_grad():
-        # Force-decode "1" and "0" to get their log-probabilities
-        labels_pos = tok("1", return_tensors="pt").input_ids.to(device)
-        labels_neg = tok("0", return_tensors="pt").input_ids.to(device)
-
-        logp_pos = model(**inputs, labels=labels_pos).loss.neg()
-        logp_neg = model(**inputs, labels=labels_neg).loss.neg()
-
-    # Softmax over the two classes
-    import math
-    lp = [logp_pos.item(), logp_neg.item()]
-    max_lp = max(lp)
-    exp_pos = math.exp(lp[0] - max_lp)
-    exp_neg = math.exp(lp[1] - max_lp)
-    return exp_pos / (exp_pos + exp_neg)
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +144,7 @@ def sign_test_p(wins: int, losses: int) -> float:
     return min(1.0, 2 * tail)
 
 
-def run_random_control(args, instances, index, model, tok, device) -> int:
+def run_random_control(args, instances, index, verifier: MiniCheckVerifier) -> int:
     """Score gold sentences against uniformly-drawn corpus passages, paired to a prior run.
 
     The pairing is what makes the contrast readable: for each question the control draws exactly
@@ -215,18 +189,24 @@ def run_random_control(args, instances, index, model, tok, device) -> int:
             seen.add(j)
             picked.append(j)
 
+        # Batch all (passage, sentence) pairs for this question through one score_pairs call.
+        pairs = [
+            (index.passage_texts[j], sentence)
+            for j in picked
+            for sentence in gold_sentences
+        ]
+        if not pairs:
+            continue
+        raw_scores = [vs.score for vs in verifier.score_pairs(pairs)]
+
+        # Re-aggregate: max over gold sentences per passage.
+        n_sent = len(gold_sentences)
         q_scores: list[float] = []
-        for j in picked:
-            passage_max = 0.0
-            for sentence in gold_sentences:
-                passage_max = max(
-                    passage_max,
-                    minicheck_score(model, tok, index.passage_texts[j], sentence, device),
-                )
+        for passage_idx in range(len(picked)):
+            offset = passage_idx * n_sent
+            passage_max = max(raw_scores[offset : offset + n_sent])
             q_scores.append(passage_max)
 
-        if not q_scores:
-            continue
         control_scores.extend(q_scores)
         per_question.append(
             {
@@ -285,7 +265,7 @@ def run_random_control(args, instances, index, model, tok, device) -> int:
                     "split": args.split,
                     "seed": args.seed,
                     "paired_against": str(args.random_control),
-                    "minicheck_model": MINICHECK_MODEL_ID,
+                    "minicheck_model": verifier.model_id,
                     "n_index_passages": n_index,
                 },
                 "summary": summary,
@@ -355,6 +335,12 @@ def main() -> int:
             "Off by default: ADR-0012 §2's first distribution is pre-rerank."
         ),
     )
+    ap.add_argument(
+        "--batch-size",
+        type=int,
+        default=16,
+        help="MiniCheckVerifier batch size (default: 16)",
+    )
     args = ap.parse_args()
 
     # A dropped --random-control writes the plain retrieved-side probe to a path that claims to be
@@ -375,7 +361,7 @@ def main() -> int:
         print("CUDA not available — this script must run on the A4000.", file=sys.stderr)
         return 1
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
@@ -415,12 +401,14 @@ def main() -> int:
     index = RetrievalIndex.load(args.index_dir, config)
 
     # ------------------------------------------------------------------
-    # Load MiniCheck
+    # Load MiniCheck via biomedqa.verify — the single implementation in the package
     # ------------------------------------------------------------------
-    model, tok = load_minicheck(device)
+    verifier = MiniCheckVerifier(device=device, batch_size=args.batch_size)
+    verifier.load()
+    print(f"MiniCheck loaded: {verifier.model_id}")
 
     if control:
-        return run_random_control(args, instances, index, model, tok, device)
+        return run_random_control(args, instances, index, verifier)
 
     # ------------------------------------------------------------------
     # Probe loop
@@ -460,16 +448,30 @@ def main() -> int:
             )
             continue
 
-        # Score every (non-gold passage, gold sentence) pair; take the max per passage
+        # Batch all (passage, sentence) pairs for this question through one score_pairs call, then
+        # re-aggregate: max over gold sentences per passage.  Same aggregation shape as the original
+        # one-at-a-time loop, faster because the GPU sees a whole batch at once.
+        #
+        # The empty-text filter is the original's `if not (passage.text or ""): continue`, kept
+        # verbatim: a whitespace-only passage was scored before and is scored now, so
+        # `passage_max_scores` stays the same length it was on the committed artifacts.
+        scorable = [p for p in non_gold if (p.text or "")]
+        pairs = [
+            (p.text, sentence)
+            for p in scorable
+            for sentence in gold_sentences
+        ]
+        raw_scores = [vs.score for vs in verifier.score_pairs(pairs)]
+
+        n_sent = len(gold_sentences)
         q_scores: list[float] = []
         pair_details: list[dict] = []
-        for passage in non_gold:
-            passage_text_str = passage.text or ""
-            if not passage_text_str:
-                continue
-            passage_max = 0.0
-            for sentence in gold_sentences:
-                s = minicheck_score(model, tok, passage_text_str, sentence, device)
+        for passage_idx, passage in enumerate(scorable):
+            offset = passage_idx * n_sent
+            chunk_scores = raw_scores[offset : offset + n_sent]
+            passage_max = max(chunk_scores)
+            q_scores.append(passage_max)
+            for sentence, s in zip(gold_sentences, chunk_scores):
                 pair_details.append(
                     {
                         "passage_id": passage.passage_id,
@@ -477,8 +479,6 @@ def main() -> int:
                         "score": round(s, 4),
                     }
                 )
-                passage_max = max(passage_max, s)
-            q_scores.append(passage_max)
 
         all_scores.extend(q_scores)
         per_question.append(
@@ -533,7 +533,7 @@ def main() -> int:
             "index_dir": str(args.index_dir),
             "split": args.split,
             "top_k": args.top_k,
-            "minicheck_model": MINICHECK_MODEL_ID,
+            "minicheck_model": verifier.model_id,
             "retrieval": {
                 "bm25": config.bm25,
                 "dense": config.dense,

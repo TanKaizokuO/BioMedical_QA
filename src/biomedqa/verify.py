@@ -180,8 +180,10 @@ class MiniCheckVerifier:
         tokenizer = AutoTokenizer.from_pretrained(self.model_id)
         _check_decision_tokens(tokenizer)
 
+        # `dtype=`, not `torch_dtype=`: transformers 5 deprecates the old spelling with a warning
+        # rather than an error, and a warning in a three-hour run's log is a warning nobody reads.
         dtype = torch.float16 if (self.fp16 and device.startswith("cuda")) else torch.float32
-        model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id, torch_dtype=dtype)
+        model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id, dtype=dtype)
         model.to(device).eval()
 
         self._tokenizer, self._model, self.device = tokenizer, model, device
@@ -270,7 +272,10 @@ Answer with a single integer from 0 to 100 and nothing else: the probability, in
 passage alone supports the claim. Judge support, not truth — a claim you believe is correct but
 that the passage does not state scores low. Do not explain."""
 
-_INTEGER = re.compile(r"-?\d+")
+#: The whole reply, not a number found inside it. `search` would read "I give this a 3 out of 5"
+#: as 0.03 — a confident refutation extracted from a confused answer, and Table 3's AUROC would
+#: carry it. A trailing `%` or full stop is the one liberty taken.
+_JUDGE_REPLY = re.compile(r"\s*(\d{1,3})\s*%?\.?\s*")
 
 
 def parse_judge_score(reply: str) -> float:
@@ -279,10 +284,10 @@ def parse_judge_score(reply: str) -> float:
     A judge that answers "I cannot determine this" must not become a confident 0.0 — that is a
     refutation, and it would move Table 3's AUROC in the direction of the judge looking decisive.
     """
-    match = _INTEGER.search(reply.strip())
+    match = _JUDGE_REPLY.fullmatch(reply)
     if match is None:
-        raise ValueError(f"judge returned no integer: {reply!r}")
-    value = int(match.group())
+        raise ValueError(f"judge reply is not a single percentage: {reply!r}")
+    value = int(match.group(1))
     if not 0 <= value <= 100:
         raise ValueError(f"judge returned {value}, which is not a percentage: {reply!r}")
     return value / 100.0

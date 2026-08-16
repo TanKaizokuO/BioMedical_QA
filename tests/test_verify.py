@@ -220,12 +220,28 @@ def test_an_empty_premise_still_produces_one_scoreable_chunk() -> None:
 # ---------------------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("reply", "expected"), [("87", 0.87), (" 0\n", 0.0), ("100", 1.0)])
+@pytest.mark.parametrize(
+    ("reply", "expected"),
+    [("87", 0.87), (" 0\n", 0.0), ("100", 1.0), ("62%", 0.62), ("5.", 0.05)],
+)
 def test_judge_percentages_become_probabilities(reply: str, expected: float) -> None:
     assert parse_judge_score(reply) == pytest.approx(expected)
 
 
-@pytest.mark.parametrize("reply", ["I cannot determine this.", "101", "-4", ""])
+@pytest.mark.parametrize(
+    "reply",
+    [
+        "I cannot determine this.",
+        "101",
+        "-4",
+        "",
+        # The whole reply must be the number. Reading the *first* integer out of a sentence turns
+        # a confused judge into a confident one: "3 out of 5" would score 0.03, a refutation.
+        "I give this a 3 out of 5",
+        "62 (the passage is partial)",
+        "0.85",
+    ],
+)
 def test_an_unusable_judge_reply_raises_rather_than_scoring_zero(reply: str) -> None:
     with pytest.raises(ValueError):
         parse_judge_score(reply)
