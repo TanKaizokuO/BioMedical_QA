@@ -9,16 +9,18 @@ blind.
 
 ## What this number is, and what it is not
 
-**It is the R5 early-warning read, not the G2 gate.** Two things separate it from the paper's number,
-and both are properties of the inputs, not of `scoring/citation.py`:
+**It is the R5 early-warning read, not the G2 gate.** Two things separated it from the paper's
+number when it was first computed on 2026-08-14, and one of them is now closed:
 
-1. **φ is interim.** The verifier is MiniCheck-Flan-T5-Large, and `verify.py` is W6 (Sep 7–20) — it
-   raises today. φ here is `cross-encoder/nli-deberta-v3-xsmall`, which is φ in
-   `notebooks/03_2` and `06_5` and is named in `verify.py`'s docstring as the thing MiniCheck
-   replaces. The operating point is `argmax == entailment`; nothing is thresholded on a stored score,
-   so the swap re-runs this script and nothing else. **R7 predicts an ANLI-trained model degrades on
-   biomedical text**, so treat the level as a lower bound and the joint-vs-post-hoc *contrast* as the
-   signal.
+1. **φ.** The verifier is MiniCheck-Flan-T5-Large and it is implemented — `biomedqa.verify`, since
+   2026-08-17, pulled ahead of its W6 slot precisely because this read depends on it and G2 is
+   Sep 6. `--phi minicheck` (the default) scores the pairs through it at
+   `--threshold 0.5`, MiniCheck's own binarisation. `--phi deberta-xsmall` reproduces the interim
+   read — `cross-encoder/nli-deberta-v3-xsmall` at `argmax == entailment`, φ in `notebooks/03_2`
+   and `06_5` — and exists so the 2026-08-14 artifact stays reproducible, not because it is a
+   number anyone should quote. **R7 predicts either model degrades on biomedical text**, so treat
+   the level as a lower bound and the joint-vs-post-hoc *contrast* as the signal. Nothing is
+   thresholded on a stored score: swapping φ re-runs this script and nothing else.
 2. **The records are a smoke run**, `--max-tokens 3584`, 100 dev questions, `not a gate run and not a
    sample` in its own summary. Vanilla is excluded by ADR-0010 — it cites nothing by construction.
 
@@ -51,9 +53,12 @@ from biomedqa.scoring.abstention import answered_claims  # noqa: E402
 from biomedqa.scoring.calibration import bootstrap_ci  # noqa: E402
 from biomedqa.scoring.citation import citation_f1, citation_recall  # noqa: E402
 from biomedqa.scoring.granularity import truncated_queries  # noqa: E402
+from biomedqa.verify import MINICHECK_DEFAULT_THRESHOLD, phi_from_scores  # noqa: E402
 
-#: The interim entailment primitive. Not MiniCheck — see the module docstring.
-PHI_MODEL = "cross-encoder/nli-deberta-v3-xsmall"
+#: φ implementations this script can run. `minicheck` is the real verifier (`biomedqa.verify`);
+#: `deberta-xsmall` is the interim one the 2026-08-14 artifact was computed with.
+INTERIM_PHI_MODEL = "cross-encoder/nli-deberta-v3-xsmall"
+MINICHECK_PHI_MODEL = "lytang/MiniCheck-Flan-T5-Large"
 
 #: Systems that can carry citations at all. ADR-0010 excludes vanilla from every citation table.
 SCORED = (System.JOINT, System.POST_HOC)
@@ -71,13 +76,24 @@ def _pairs_needed(records) -> list[tuple[str, str]]:
     return list(seen)
 
 
-def _entailment_map(pairs, *, batch_size: int) -> dict[tuple[str, str], bool]:
-    """`{(premise, hypothesis): entailed}` under `PHI_MODEL`, argmax over its own label set."""
+def _minicheck_scores(pairs, *, batch_size: int) -> dict[tuple[str, str], float]:
+    """`{(premise, hypothesis): support probability}` under the real verifier.
+
+    Continuous, and stored continuous: the threshold is applied once, by `phi_from_scores`, so the
+    same scored map can be re-read at another operating point without a second forward pass.
+    """
+    from biomedqa.verify import MiniCheckVerifier, score_map
+
+    return score_map(pairs, MiniCheckVerifier(batch_size=batch_size))
+
+
+def _deberta_entailment(pairs, *, batch_size: int) -> dict[tuple[str, str], bool]:
+    """`{(premise, hypothesis): entailed}` under the interim φ, argmax over its own label set."""
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(PHI_MODEL)
-    model = AutoModelForSequenceClassification.from_pretrained(PHI_MODEL)
+    tokenizer = AutoTokenizer.from_pretrained(INTERIM_PHI_MODEL)
+    model = AutoModelForSequenceClassification.from_pretrained(INTERIM_PHI_MODEL)
     model.eval()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
@@ -105,6 +121,26 @@ def _entailment_map(pairs, *, batch_size: int) -> dict[tuple[str, str], bool]:
             print(f"  φ: {min(start + batch_size, len(pairs))}/{len(pairs)}", end="\r", flush=True)
     print(" " * 40, end="\r")
     return out
+
+
+#: Operating points the contrast is re-read at once the scores exist. Free — no second forward
+#: pass — and it is the question a single-threshold read cannot answer: whether the sign of
+#: joint − post_hoc is a property of the systems or of where the cutoff happened to fall.
+THRESHOLD_SWEEP = (0.1, 0.3, 0.5, 0.7, 0.9)
+
+
+def _score_distribution(scores: dict[tuple[str, str], float]) -> dict:
+    """What the continuous φ scores look like, so a level can be read without the pairs."""
+    ordered = sorted(scores.values())
+    n = len(ordered)
+    return {
+        "n_pairs": n,
+        "mean": round(sum(ordered) / n, 4),
+        "median": round(ordered[n // 2], 4),
+        "frac_at_or_above": {
+            str(t): round(sum(s >= t for s in ordered) / n, 4) for t in THRESHOLD_SWEEP
+        },
+    }
 
 
 def _report(name: str, result: dict, ci: dict) -> None:
@@ -164,6 +200,12 @@ def main() -> int:
                          "trades interval precision for minutes")
     ap.add_argument("--max-tokens", type=int, default=None,
                     help="the run's per-call cap; enables the untruncated-basis sensitivity read")
+    ap.add_argument("--phi", choices=("minicheck", "deberta-xsmall"), default="minicheck",
+                    help="minicheck is the real verifier (biomedqa.verify); deberta-xsmall "
+                         "reproduces the interim 2026-08-14 read")
+    ap.add_argument("--threshold", type=float, default=MINICHECK_DEFAULT_THRESHOLD,
+                    help="support-probability cutoff for --phi minicheck; MiniCheck's own is 0.5, "
+                         "and G3 is what sweeps it")
     ap.add_argument("--out", type=Path, default=None, help="JSON artifact path")
     args = ap.parse_args()
 
@@ -176,17 +218,27 @@ def main() -> int:
     records = list(read_query_records(records_path(prefix)))
     by_system = {s: [r for r in records if r.system is s] for s in SCORED}
 
-    print(f"first citation-F1 · {prefix.name} · φ = {PHI_MODEL} (interim, not MiniCheck)")
+    scores: dict[tuple[str, str], float] | None = None
+    pairs = _pairs_needed(records)
+    if args.phi == "minicheck":
+        phi_model, operating_point = MINICHECK_PHI_MODEL, f"support probability >= {args.threshold}"
+        print(f"first citation-F1 · {prefix.name} · φ = {phi_model} @ {operating_point}")
+    else:
+        phi_model, operating_point = INTERIM_PHI_MODEL, "argmax == entailment"
+        print(f"first citation-F1 · {prefix.name} · φ = {phi_model} (interim, not MiniCheck)")
     print(f"parity loop closed {PARITY_LOOP_CLOSED.date} on {PARITY_LOOP_CLOSED.run}: gap "
           f"{PARITY_LOOP_CLOSED.gap:+.1%} [{PARITY_LOOP_CLOSED.interval[0]:+.1%}, "
           f"{PARITY_LOOP_CLOSED.interval[1]:+.1%}] — the blind is lifted, ADR-0009 §6")
 
-    pairs = _pairs_needed(records)
     print(f"φ pairs to score: {len(pairs)}")
-    entailed = _entailment_map(pairs, batch_size=args.batch_size)
+    if args.phi == "minicheck":
+        scores = _minicheck_scores(pairs, batch_size=args.batch_size)
+        phi = phi_from_scores(scores, args.threshold)
+    else:
+        entailed = _deberta_entailment(pairs, batch_size=args.batch_size)
 
-    def phi(premise: str, hypothesis: str) -> bool:
-        return entailed[(premise, hypothesis)]
+        def phi(premise: str, hypothesis: str) -> bool:
+            return entailed[(premise, hypothesis)]
 
     results = {s: citation_f1(by_system[s], phi) for s in SCORED}
     intervals = {}
@@ -216,6 +268,26 @@ def main() -> int:
     print("  crosses zero -> C2's direction is not established by this read"
           if paired["lower"] <= 0 <= paired["upper"] else
           "  interval excludes zero")
+
+    sweep = None
+    if scores is not None:
+        # The scores are already computed, so re-reading the contrast at other cutoffs costs only
+        # the scoring pass. A sign that flips inside the sweep is a fact about the threshold, and
+        # the point estimate at 0.5 would then be reporting an arbitrary choice as a result.
+        sweep = []
+        for cutoff in THRESHOLD_SWEEP:
+            swept = phi_from_scores(scores, cutoff)
+            arms = {s: citation_f1(by_system[s], swept) for s in SCORED}
+            sweep.append({
+                "threshold": cutoff,
+                **{s.value: {k: arms[s][k] for k in ("precision", "recall", "f1")} for s in SCORED},
+                "delta_f1": arms[System.JOINT]["f1"] - arms[System.POST_HOC]["f1"],
+            })
+        print("\nthe same contrast at other operating points (no bootstrap — point estimates)")
+        print(f"  {'τ':>5}{'joint F1':>11}{'post F1':>10}{'delta':>9}")
+        for row in sweep:
+            print(f"  {row['threshold']:>5}{row[System.JOINT.value]['f1']:>11.3f}"
+                  f"{row[System.POST_HOC.value]['f1']:>10.3f}{row['delta_f1']:>+9.3f}")
 
     length_rows = _recall_by_length(records, phi)
     print("\nper-claim recall by claim length — a granularity effect looks like a level shift here")
@@ -249,9 +321,16 @@ def main() -> int:
 
     artifact = {
         "script": "scripts/first_citation_f1.py",
-        "purpose": "ADR-0009 §6 unblinding read; interim φ, smoke-run records, not the G2 gate",
+        "purpose": "ADR-0009 §6 unblinding read on smoke-run records; not the G2 gate",
         "run": prefix.name,
-        "phi": {"model": PHI_MODEL, "operating_point": "argmax == entailment", "interim": True},
+        "phi": {
+            "model": phi_model,
+            "operating_point": operating_point,
+            "interim": args.phi != "minicheck",
+            # The continuous scores are kept so the read can be moved to another operating point
+            # without a second forward pass — the sweep G3 owns, previewed on Table 2's own pairs.
+            "score_distribution": _score_distribution(scores) if scores else None,
+        },
         "parity_termination": {
             "date": PARITY_LOOP_CLOSED.date,
             "run": PARITY_LOOP_CLOSED.run,
@@ -260,11 +339,12 @@ def main() -> int:
         },
         "per_system": {s.value: results[s] | {"f1_ci": intervals[s]} for s in SCORED},
         "paired_delta_f1": paired,
+        "threshold_sweep": sweep,
         "recall_by_claim_length": length_rows,
         "same_queries_untruncated": censored,
         "n_phi_pairs": len(pairs),
     }
-    out = args.out or prefix.with_name(f"{prefix.name}.citation_f1.json")
+    out = args.out or prefix.with_name(f"{prefix.name}.citation_f1.{args.phi}.json")
     out.write_text(json.dumps(artifact, indent=2) + "\n")
     print(f"\nwrote {out}")
     return 0
