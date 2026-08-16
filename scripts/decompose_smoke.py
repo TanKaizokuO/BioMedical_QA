@@ -147,16 +147,32 @@ def _fake_cite_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[s
     if ctx_m is None:
         raise AssertionError("canned cite completer found no bracketed passage id in the prompt")
     pid, text = ctx_m.group(1), ctx_m.group(2)
-    ans_m = re.search(r"claims to cite:\n(.*?)\n\nCopy each of these", prompt, re.S)
+    ans_m = re.search(r"claims to cite:\n(.*?)\n\n(?:Copy|For) each of these", prompt, re.S)
     if ans_m is None:
         raise AssertionError("canned cite completer could not find the reproduced claims")
-    lines: list[str] = []
-    for claim_line in ans_m.group(1).splitlines():
-        if claim_line.strip():
-            lines.append(claim_line.strip())
+    claim_lines = [l.strip() for l in ans_m.group(1).splitlines() if l.strip()]
+
+    if "Return JSON object matching schema" in prompt or kw.get("response_format") is not None:
+        obj = {
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": i,
+                    "citations": [{"passage_id": pid, "quote": text[:60].strip()}]
+                }
+                for i, _ in enumerate(claim_lines, start=1)
+            ]
+        }
+        raw_text = json.dumps(obj)
+    else:
+        lines: list[str] = []
+        for claim_line in claim_lines:
+            lines.append(claim_line)
             lines.append(f"CITE: [{pid}] || {text[:60].strip()}")
+        raw_text = "\n".join(lines)
+
     return (
-        "\n".join(lines),
+        raw_text,
         CostRecord(
             run_id=kw.get("run_id", ""), query_id=kw.get("query_id"), component="generate",
             backend=f"vllm:{config.model}", input_tokens=768, output_tokens=48, wall_s=0.0,
@@ -255,8 +271,8 @@ def main() -> int:
             "claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0,
             "duplicate_claim_count": 0, "quote_not_found_count": 0,
             "claims_unmatched": 0, "quotes_located": 0,
-            "decompose_error_kinds": Counter(), "cite_error_kinds": Counter(),
-            "cite_recovered_kinds": Counter(),
+            "decompose_error_kinds": Counter(), "decompose_recovered_kinds": Counter(),
+            "cite_error_kinds": Counter(), "cite_recovered_kinds": Counter(),
         }
         for row in ALL_ROWS
     }
@@ -280,11 +296,16 @@ def main() -> int:
             per_row[row.value]["n"] += 1
             if not decomp.errors:
                 per_row[row.value]["clean_decompose"] += 1
+            # The recovered count stops deduplication from silently inflating clean_decompose_rate.
             per_row[row.value]["duplicate_claim_count"] += sum(
-                1 for problem in decomp.errors if "claim text verbatim" in problem
+                1 for problem in (*decomp.errors, *decomp.recovered)
+                if "claim text verbatim" in problem or "repeats sentence" in problem
             )
             per_row[row.value]["decompose_error_kinds"].update(
                 _error_kind(problem) for problem in decomp.errors
+            )
+            per_row[row.value]["decompose_recovered_kinds"].update(
+                _error_kind(note) for note in decomp.recovered
             )
 
             claims = list(decomp.claims)
@@ -363,6 +384,10 @@ def main() -> int:
             ),
             # Which failure modes made the rates above what they are, most frequent first.
             "decompose_error_kinds": dict(stats["decompose_error_kinds"].most_common()),
+            # Collapsed duplicates and recoveries. Not errors (the claim text is kept or deduped),
+            # but they must stay visible: this stops dedup from silently inflating clean_decompose_rate.
+            "decompose_recovered_count": sum(stats["decompose_recovered_kinds"].values()),
+            "decompose_recovered_kinds": dict(stats["decompose_recovered_kinds"].most_common()),
             "cite_error_kinds": dict(stats["cite_error_kinds"].most_common()),
             # Read-but-drifted citation lines. Not errors (the span they name is real), but they
             # must stay visible: this is where widened parse acceptance would otherwise hide.

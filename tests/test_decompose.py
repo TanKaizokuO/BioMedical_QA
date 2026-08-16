@@ -246,11 +246,25 @@ class TestParsing:
         assert result.claims == ()
         assert "no CLAIM lines" in result.errors
 
-    def test_a_repeated_claim_is_flagged_not_deduplicated(self):
-        """The live A4000 runs found greedy decoding taking the repetition escape
-        `MAX_CLAIM_WORDS` does not cover: re-emitting an already-written claim instead of a new
-        one. It is kept, same reasoning as an over-length claim — collapsing duplicates would hide
-        the defect the flag exists to surface, and would understate `total_claims` too."""
+    def test_same_reply_x2_repeat_collapses_and_is_recovered(self):
+        """A x2 repeat within one sentence's reply collapses into its first occurrence:
+        claims stay dense (c1, c2, ...), no error is produced, and a recovered note is logged."""
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n"
+               "CLAIM 2: Metformin reduces all-cause mortality.\n",
+            2: "CLAIM 1: Metformin's benefit was not seen in the elderly.\n",
+            3: "CLAIM 1: Metformin's mortality benefit is dose dependent.\n",
+        })
+        result = decompose(_GENERATION, _config("atomic"), completer=stub)
+
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3"]
+        assert result.errors == ()
+        assert len(result.recovered) == 1
+        assert "collapsed repeat of c1's claim text verbatim" in result.recovered[0]
+
+    def test_same_reply_x3_repeat_triggers_loop_guard_error(self):
+        """A x3 repeat within one reply collapses the claims but triggers the loop guard error
+        for non-terminating generation."""
         stub = _PerSentence({
             1: "CLAIM 1: Metformin reduces all-cause mortality.\n"
                "CLAIM 2: Metformin reduces all-cause mortality.\n"
@@ -260,13 +274,15 @@ class TestParsing:
         })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
-        assert len(result.claims) == 5
-        assert sum(1 for e in result.errors if "repeats" in e and "verbatim" in e) == 2
-        assert any("c1" in e for e in result.errors)
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3"]
+        assert len(result.recovered) == 2
+        assert len(result.errors) == 1
+        assert "c1: repeats claim text verbatim 3 times in one reply" in result.errors[0]
+        assert "non-terminating generation" in result.errors[0]
 
     def test_a_claim_repeated_across_sentences_names_both_sentences(self):
-        """A loop that spans calls is still a loop, and the two sentences it straddles are what a
-        post-mortem needs. Charged to the decomposer only when the sentences actually differ."""
+        """Claims from different source sentences are both kept (c1, c2), with distinct spans.
+        The duplicate moves to recovered (Case B decontextualisation) and produces no error."""
         stub = _PerSentence({
             1: "CLAIM 1: Metformin reduces all-cause mortality.\n",
             2: "CLAIM 1: Metformin reduces all-cause mortality.\n",
@@ -274,15 +290,15 @@ class TestParsing:
         })
         result = decompose(_GENERATION, _config("atomic"), completer=stub)
 
-        assert len(result.claims) == 3
-        assert any(
-            "across sentences 1 and 2" in e and "non-terminating" in e for e in result.errors
-        )
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3"]
+        assert result.errors == ()
+        assert len(result.recovered) == 1
+        assert "c2: repeats c1's claim text verbatim across sentences 1 and 2" in result.recovered[0]
 
     def test_a_repeat_of_a_sentence_the_answer_itself_repeats_is_not_the_decomposers_fault(self):
         """14 of 100 live post-hoc answers repeat a sentence verbatim. Charging the decomposer with
         a repetition loop for faithfully re-cutting a repeated sentence would blame it for an
-        upstream defect, so the error says which one it is."""
+        upstream defect, so it is recorded in recovered without charging an error."""
         answer = "Metformin reduces mortality. Metformin reduces mortality."
         stub = _PerSentence({
             1: "CLAIM 1: Metformin reduces mortality.\n",
@@ -291,9 +307,38 @@ class TestParsing:
         result = decompose(answer, _config("atomic"), completer=stub)
 
         assert len(result.claims) == 2
-        assert any("repeats sentence 1 verbatim in the answer" in e for e in result.errors)
-        assert not any("non-terminating" in e for e in result.errors)
+        assert result.errors == ()
+        assert len(result.recovered) == 1
+        assert "c2: sentence 2 repeats sentence 1 verbatim in the answer" in result.recovered[0]
 
+    def test_cross_sentence_duplicate_spanning_3_sentences_errors(self):
+        """A duplicate claim text spanning 3 or more distinct sentences triggers the loop guard
+        and stays an errors entry."""
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            2: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            3: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+        })
+        result = decompose(_GENERATION, _config("atomic"), completer=stub)
+
+        assert [c.claim_id for c in result.claims] == ["c1", "c2", "c3"]
+        assert len(result.errors) == 1
+        assert "c3: repeats c1's claim text verbatim across 3 sentences" in result.errors[0]
+
+    def test_duplicate_claim_count_unchanged_in_magnitude(self):
+        """duplicate_claim_count in decompose_smoke matches duplicates from BOTH errors and
+        recovered, so moving a x2 duplicate to recovered does not decrease the count."""
+        stub = _PerSentence({
+            1: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+            2: "CLAIM 1: Metformin reduces all-cause mortality.\n",
+        })
+        decomp = decompose(_GENERATION, _config("atomic"), completer=stub)
+
+        count_from_both = sum(
+            1 for problem in (*decomp.errors, *decomp.recovered)
+            if "claim text verbatim" in problem or "repeats sentence" in problem
+        )
+        assert count_from_both == 1
     def test_drift_variants_are_parsed_leniently_and_logged(self):
         """Bullets, missing spaces and bold markers around the head are drift, not a broken claim:
         the line still carries exactly one claim, so throwing it away would understate the row."""

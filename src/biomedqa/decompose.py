@@ -168,7 +168,7 @@ class Decomposition:
     claims: tuple[Claim, ...]
     costs: tuple[CostRecord, ...]
     errors: tuple[str, ...]
-
+    recovered: tuple[str, ...] = ()
 
 def unit_rules(granularity: Granularity) -> str:
     """The one thing that differs between the C7 rows.
@@ -266,8 +266,8 @@ def parse_decomposition(
     granularity: Granularity,
     *,
     max_claim_words: int = MAX_CLAIM_WORDS,
-) -> tuple[list[Claim], list[str]]:
-    """One sentence's reply → its claims, plus everything that did not parse.
+) -> tuple[list[Claim], list[str], list[str]]:
+    """One sentence's reply → its claims, errors, and recovered notes.
 
     `unit` is the span of the sentence the call was about, and it is what every claim from this
     reply points at. There is no index to resolve and none to get wrong: that is the whole reason
@@ -277,17 +277,24 @@ def parse_decomposition(
     is flagged and kept (`MAX_CLAIM_WORDS` is a non-termination detector, and truncating it would
     hide the defect it detects).
 
-    **A repeated claim is the same defect wearing a different shape.** `MAX_CLAIM_WORDS` catches a
-    non-terminating generation that grows one claim without bound (`21074975`'s 731 words,
-    `parity_iter1b.md`); live runs of this decomposer found greedy decoding taking the *other*
-    escape from a repetition loop — re-emitting an already-written claim verbatim instead of
-    advancing. Exact-text repetition within one sentence's reply is therefore also flagged (not
-    deduplicated — collapsing it would hide the defect it was added to measure, same reasoning as
-    `MAX_CLAIM_WORDS`).
+    **Deduplication and loop detection** (ADR-0019 §1). An earlier design argued against
+    deduplicating exact repeats within one reply: a repeated claim can be the escape route from a
+    decoding loop (the same defect as an over-length claim under `MAX_CLAIM_WORDS`), so flagging
+    every repeat was meant to catch runaway generation (`parity_iter1b.md`). Two populations turned
+    out to be hiding under that one rule. The pre-`35db468` baseline's repeat multiplicities run
+    `{2: 157, 3: 22, 4: 5, ... 10: 1, 23: 1}` on `atomic`: a large ×2 mode, and a tail that is
+    unmistakably a loop. A loop does not stop after exactly one extra emission, and charging the ×2
+    mode as a parse failure cost a whole query per event under an all-or-nothing clean rate.
+
+    Exact repeats within one reply are therefore collapsed into their first occurrence — claims are
+    a set, so the second copy carries nothing — with dense claim ids (`c1`, `c2`, …) and a note in
+    `recovered` per collapse. The loop detector survives as a ×3 threshold: a normalised text
+    occurring three or more times in one reply also appends an `errors` entry carrying its count.
     """
     claims: list[Claim] = []
     errors: list[str] = []
-    text_seen: dict[str, str] = {}
+    recovered: list[str] = []
+    text_seen: dict[str, dict] = {}
 
     for lineno, line in enumerate(raw.splitlines(), start=1):
         head, sep, text = line.strip().partition(":")
@@ -303,31 +310,42 @@ def parse_decomposition(
             errors.append(f"line {lineno}: claim is empty")
             continue
 
+        norm = " ".join(text.split()).lower()
+        if norm in text_seen:
+            info = text_seen[norm]
+            info["count"] += 1
+            first_id = info["first_id"]
+            recovered.append(
+                f"collapsed repeat of {first_id}'s claim text verbatim ({text[:60]!r})"
+            )
+            continue
+
         words = len(text.split())
         if words > max_claim_words:
             errors.append(
                 f"c{len(claims) + 1}: {words} words exceeds the max claim length of "
                 f"{max_claim_words} (non-terminating generation)"
             )
+        claim_id = f"c{len(claims) + 1}"
         claims.append(
             Claim(
-                claim_id=f"c{len(claims) + 1}",
+                claim_id=claim_id,
                 text=text,
                 granularity=granularity,
                 source_start=unit[0],
                 source_end=unit[1],
             )
         )
-        norm = " ".join(text.split()).lower()
-        if norm in text_seen:
+        text_seen[norm] = {"first_id": claim_id, "count": 1}
+
+    for info in text_seen.values():
+        if info["count"] >= 3:
             errors.append(
-                f"{claims[-1].claim_id}: repeats {text_seen[norm]}'s claim text verbatim "
+                f"{info['first_id']}: repeats claim text verbatim {info['count']} times in one reply "
                 "(non-terminating generation)"
             )
-        else:
-            text_seen[norm] = claims[-1].claim_id
 
-    return claims, errors
+    return claims, errors, recovered
 
 
 def decompose(
@@ -379,17 +397,18 @@ def decompose(
             ),
             costs=(),
             errors=() if units else ("no sentences",),
+            recovered=(),
         )
 
     if not units:
-        return Decomposition(tuple(), (), ("no sentences",))
+        return Decomposition(tuple(), (), ("no sentences",), ())
 
     all_claims: list[Claim] = []
     costs: list[CostRecord] = []
     errors: list[str] = []
-    #: Claim text -> (claim id, source sentence index), to tell a decoding loop that spans calls
-    #: from an answer that repeats itself. They are different defects with different owners.
-    seen_across: dict[str, tuple[str, int]] = {}
+    recovered: list[str] = []
+    #: Claim text -> info tracking occurrences across distinct sentences.
+    seen_across: dict[str, dict] = {}
 
     for target, unit in enumerate(units, start=1):
         sentence_query_id = (
@@ -404,10 +423,11 @@ def decompose(
         cost.component = "decompose"
         costs.append(cost)
 
-        sentence_claims, sentence_errors = parse_decomposition(
+        sentence_claims, sentence_errors, sentence_recovered = parse_decomposition(
             raw, unit, granularity, max_claim_words=max_claim_words
         )
         errors.extend(sentence_errors)
+        recovered.extend(sentence_recovered)
         if not sentence_claims:
             errors.append(
                 f"sentence {target} produced no claim — the answer was dropped, not decomposed"
@@ -425,25 +445,46 @@ def decompose(
                 )
             )
             norm = " ".join(claim.text.split()).lower()
-            first = seen_across.get(norm)
-            if first is None:
-                seen_across[norm] = (claim_id, target)
-            elif first[1] == target:
+            info = seen_across.get(norm)
+            if info is None:
+                seen_across[norm] = {
+                    "first_id": claim_id,
+                    "first_sentence": target,
+                    "sentences": [target],
+                }
+            elif target in info["sentences"]:
                 pass  # already reported by `parse_decomposition`, which owns one reply
-            elif answer[units[first[1] - 1][0] : units[first[1] - 1][1]] == answer[unit[0] : unit[1]]:
-                # The answer says the same sentence twice, so the same claim twice is the honest
-                # reading of it. An upstream defect, and not the decomposer's to be charged with.
-                errors.append(
-                    f"{claim_id}: sentence {target} repeats sentence {first[1]} verbatim in the "
-                    "answer being decomposed"
-                )
             else:
-                errors.append(
-                    f"{claim_id}: repeats {first[0]}'s claim text verbatim across sentences "
-                    f"{first[1]} and {target} (non-terminating generation)"
-                )
+                info["sentences"].append(target)
+                sentence_count = len(info["sentences"])
+                first_id = info["first_id"]
+                first_sentence = info["first_sentence"]
+                first_unit = units[first_sentence - 1]
+                if sentence_count >= 3:
+                    errors.append(
+                        f"{claim_id}: repeats {first_id}'s claim text verbatim across "
+                        f"{sentence_count} sentences (non-terminating generation)"
+                    )
+                elif answer[first_unit[0] : first_unit[1]] == answer[unit[0] : unit[1]]:
+                    # The answer says the same sentence twice, so the same claim twice is the honest
+                    # reading of it. An upstream defect, and not the decomposer's to be charged with.
+                    recovered.append(
+                        f"{claim_id}: sentence {target} repeats sentence {first_sentence} verbatim in the "
+                        "answer being decomposed"
+                    )
+                else:
+                    # ADR-0019 §1, case B: the source sentences are *different* text, and the
+                    # decomposer canonicalised two paraphrases of one proposition to the same
+                    # decontextualised claim — "X is associated with Y" and its converse "Y
+                    # suggests X". That is `decontextualized_atomic` doing its job, so the old
+                    # rule penalised the row for succeeding. Both claims are kept: their
+                    # `source_start`/`source_end` differ, and that provenance is not redundant.
+                    recovered.append(
+                        f"{claim_id}: repeats {first_id}'s claim text verbatim across sentences "
+                        f"{first_sentence} and {target}"
+                    )
 
     if not all_claims:
         errors.append("no CLAIM lines")
 
-    return Decomposition(tuple(all_claims), tuple(costs), tuple(errors))
+    return Decomposition(tuple(all_claims), tuple(costs), tuple(errors), tuple(recovered))
