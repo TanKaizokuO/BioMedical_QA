@@ -161,15 +161,27 @@ Three controls are now in place so this class of error cannot silently recur:
 
 ## Consequences
 
-- **The G2 re-read will use MiniCheck φ, not the NLI placeholder.** The length-sensitivity question
-  named in `first_citation_f1.md` will be answered by the re-read rather than carried as an
-  unresolved confounder into the gate.
-- **ADR-0012's confusability-probe numbers are quarantined.** They must not appear in any paper
-  draft until the probe is re-run at the correct format. The setup motivation (that the uniform
-  pool contains plausible mis-citation targets) is still defensible in prose, and the format check
-  says the *ordering* it rests on is stable; the specific rates, the ratio, and τ are not.
-- **The confusability probe re-run is a W5 blocker for the setup section.** It is a CPU-side
-  scoring pass over already-retrieved passages; no index rebuild is required.
+Both of this ADR's decisions were executed the day it was written, so the consequences below are
+measured rather than anticipated.
+
+- **The G2 re-read used MiniCheck φ, and the contrast changed sign.**
+  `docs/harvest/citation_f1_minicheck.md`: on the same `parity_iter1b` records, joint 0.428
+  [0.316, 0.540] against post-hoc 0.418 [0.357, 0.472], **delta +0.011, 95% [−0.117, +0.137]**,
+  where the placeholder φ gave −0.081 [−0.157, +0.005]. The length-sensitivity hypothesis
+  `first_citation_f1.md` named is the one the evidence supports. **C2 is still not established** —
+  the interval straddles zero and is wider than the one it replaces, and the sign flips inside the
+  threshold sweep (post-hoc leads at τ ≥ 0.7). What changed is that the deficit is no longer being
+  attributed to the systems when it belonged to φ.
+- **The confusability probe was re-run and the quarantine is lifted by supersession, not by
+  reprieve.** `docs/harvest/confusability_probe_v2*.{json,md}`, all four arms, same index, same
+  split, same passages. The v1 anomaly — the random control scoring *higher* than retrieved
+  passages at ≥ 0.3 — is gone: retrieved mean 0.3073 against control 0.0938, retrieved higher on
+  **85 of 100** questions (p < 1e-6) where v1 read 62 of 100 (p = 0.012). At τ = 0.7, **40 of 100**
+  questions carry a plausible mis-citation target against **12** by chance, superseding v1's 35
+  against 8; tail enrichment 6.5×, against v1's 6.9×. τ_confusable stays at 0.7, but on a new
+  argument: the corrected distribution is bimodal (median 0.0982, p90 0.9586), so the count barely
+  moves across 0.3–0.8. **ADR-0012's direction survived; its magnitudes did not**, and the v1
+  numbers are superseded in the record rather than deleted from it.
 - **`biomedqa.verify` is the only location a MiniCheck forward pass may live.** Any future script
   that needs entailment scores calls `MiniCheckVerifier.score_pairs` or `score_map`. A second
   inference site is a policy violation regardless of how it renders the input.

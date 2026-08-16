@@ -8,6 +8,14 @@ this dry-run so the width is seen in August rather than discovered at the gate i
 Three arms, all on already-committed records. Nothing here chooses a threshold or a method; τ is
 `τ_confusable = 0.7`, fixed in W2 and recorded in `docs/harvest/confusability_probe.json`.
 
+**τ and the scores under it are quarantined (ADR-0020 §2).** The probe that produced them invoked
+MiniCheck with a prompt the checkpoint was never trained on, so `τ_confusable = 0.7` and the
+fractions this dry-run reports at it are pending the probe's re-run. That does not invalidate the
+dry-run, because its answer is a *width* — what clustering costs on a proportion micro-averaged
+over sub-units of a question — and that is a property of the resampling shape, not of the level the
+proportion happens to sit at. Re-run it if the re-scored fraction lands somewhere very different;
+do not quote its fractions as confusability numbers in the meantime.
+
 1. **Harness check — hit@5 over dev questions.** One observation per question, so the cluster *is*
    the unit and clustering must be a no-op to within Monte-Carlo noise. If this arm moves, the
    clustering code is doing something other than what it says.
