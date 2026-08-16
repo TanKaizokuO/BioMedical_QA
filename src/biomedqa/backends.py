@@ -152,7 +152,17 @@ def _vllm_complete(
         ) from exc
     wall_s = time.perf_counter() - t0
 
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        # `raise_for_status()` reports the status and the URL and drops the body, but vLLM puts the
+        # *reason* in the body — which parameter it rejected, which grammar failed to compile. A
+        # guided-decoding 400 that hides its reason cost a 45-minute n=100 run on 2026-08-16 before
+        # anyone could see what the server disliked, so the body is part of the error now.
+        detail = resp.text[:2000]
+        raise httpx.HTTPStatusError(
+            f"vLLM returned {resp.status_code} for /v1/chat/completions: {detail}",
+            request=resp.request,
+            response=resp,
+        )
     data = resp.json()
 
     text: str = data["choices"][0]["message"]["content"]

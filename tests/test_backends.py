@@ -10,8 +10,11 @@ from biomedqa.config import GenerationConfig
 
 
 class _FakeResponse:
-    def __init__(self, text: str):
+    def __init__(self, text: str, status_code: int = 200, body: str = ""):
         self._text = text
+        self.status_code = status_code
+        self.text = body
+        self.request = None
 
     def raise_for_status(self) -> None:
         return None
@@ -109,6 +112,28 @@ def test_response_format_reaches_the_request(monkeypatch):
     backends.complete("prompt", _config(), seed=0, run_id="r", query_id="q", response_format=rf)
     assert _FakeClient.last_body is not None
     assert _FakeClient.last_body.get("response_format") == rf
+
+
+def test_a_rejected_request_carries_the_servers_reason(monkeypatch):
+    """A 400 that hides its body is a 45-minute diagnosis.
+
+    The n=100 guided run died on 2026-08-16 with nothing but `Client error '400 Bad Request'` and
+    a URL. The reason was in the response body all along — the prompt was 4327 tokens against a
+    server with `--max-model-len 8192` and a 4096-token completion request. `raise_for_status()`
+    drops that body, so the backend builds the error itself.
+    """
+
+    class _RejectingClient(_FakeClient):
+        def post(self, path: str, json: dict) -> _FakeResponse:
+            return _FakeResponse(
+                "",
+                status_code=400,
+                body='{"error":{"message":"This model\'s maximum context length is 8192 tokens."}}',
+            )
+
+    monkeypatch.setattr(backends.httpx, "Client", _RejectingClient)
+    with pytest.raises(backends.httpx.HTTPStatusError, match="maximum context length is 8192"):
+        backends.complete("prompt", _config(), seed=0, run_id="r", query_id="q")
 
 
 def test_anthropic_refuses_a_penalty_it_cannot_apply():

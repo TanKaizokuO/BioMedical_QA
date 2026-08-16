@@ -16,9 +16,16 @@ BASE=http://localhost:8000/v1
 # that follows it unreproducible from any commit, which is exactly what a Gate G2 number may not be.
 SANITY_PREFIX=/home/user/sanity_out/_sanity_guided
 mkdir -p "$(dirname "$SANITY_PREFIX")"
+# `--max-tokens 2048`, not 4096. The server runs `--max-model-len 8192`, and vLLM refuses any
+# request where prompt + requested completion exceeds that. Measured 2026-08-16: the largest
+# `recite_json` prompt of the 100 queries is 17224424 at 4327 tokens, so 4327 + 4096 = 8423 and the
+# n=100 run died on it at query 24 of 100 with a bare 400. 4096 was never needed — across the
+# sanity run the largest completion any stage produced was 1298 tokens (`decompose_cite`; the
+# decompose stage peaks at 135), none truncated. 2048 leaves 58% headroom over the worst observed
+# completion and a 6144-token prompt budget against a ~4400-token worst case.
 COMMON=(--model "$MODEL" --base-url "$BASE"
         --contexts docs/harvest/parity_iter1b.records.jsonl
-        --max-tokens 4096 --frequency-penalty 0.5 --overwrite)
+        --max-tokens 2048 --frequency-penalty 0.5 --overwrite)
 stamp() { date -u +%H:%M:%S; }
 
 # The unit is `WantedBy=default.target`, so a WSL2 distro restart starts it again — and the

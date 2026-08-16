@@ -271,6 +271,7 @@ def main() -> int:
             "claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0,
             "duplicate_claim_count": 0, "quote_not_found_count": 0,
             "claims_unmatched": 0, "quotes_located": 0,
+            "call_failure_count": 0,
             "decompose_error_kinds": Counter(), "decompose_recovered_kinds": Counter(),
             "cite_error_kinds": Counter(), "cite_recovered_kinds": Counter(),
         }
@@ -287,72 +288,105 @@ def main() -> int:
         for row in ALL_ROWS:
             row_config = row_configs[row]
             row_id = f"{src.query_id}:{row.value}"
-            dkw = {"completer": decompose_completer} if decompose_completer else {}
-            decomp = decompose(
-                answer, row_config, question=src.question, seed=args.seed,
-                run_id=run_id, query_id=row_id, **dkw,
-            )
-            costs.extend(decomp.costs)
+            # A failed row MUST still increment per_row[row]['n'] and MUST NOT increment
+            # clean_decompose or clean_cite, so it lands in both clean-rate denominators as a failure.
+            # A run that drops failures from the denominator reports a rate for the queries that
+            # happened to work, silently inflating the clean-rate metrics.
             per_row[row.value]["n"] += 1
-            if not decomp.errors:
-                per_row[row.value]["clean_decompose"] += 1
-            # The recovered count stops deduplication from silently inflating clean_decompose_rate.
-            per_row[row.value]["duplicate_claim_count"] += sum(
-                1 for problem in (*decomp.errors, *decomp.recovered)
-                if "claim text verbatim" in problem or "repeats sentence" in problem
-            )
-            per_row[row.value]["decompose_error_kinds"].update(
-                _error_kind(problem) for problem in decomp.errors
-            )
-            per_row[row.value]["decompose_recovered_kinds"].update(
-                _error_kind(note) for note in decomp.recovered
-            )
 
-            claims = list(decomp.claims)
-            cite_errors: tuple[str, ...] = ()
-            if row in MODEL_ROWS and claims and src.retrieved:
-                ckw = {"complete": cite_completer} if cite_completer else {}
-                recite = cite_claims(
-                    claims, src.question, src.retrieved, row_config, seed=args.seed,
-                    run_id=run_id, query_id=row_id, **ckw,
+            decomp = None
+            try:
+                dkw = {"completer": decompose_completer} if decompose_completer else {}
+                decomp = decompose(
+                    answer, row_config, question=src.question, seed=args.seed,
+                    run_id=run_id, query_id=row_id, **dkw,
                 )
-                costs.extend(recite.costs)
-                if not recite.errors:
-                    per_row[row.value]["clean_cite"] += 1
-                per_row[row.value]["quote_not_found_count"] += sum(
-                    1 for problem in recite.errors if "quote not found verbatim" in problem
-                )
-                per_row[row.value]["cite_error_kinds"].update(
-                    _error_kind(problem) for problem in recite.errors
-                )
-                per_row[row.value]["cite_recovered_kinds"].update(
-                    _error_kind(note) for note in recite.recovered
-                )
-                cite_errors = recite.errors
-                per_row[row.value]["claims_unmatched"] += sum(
-                    1 for problem in recite.errors if "no matching CLAIM line" in problem
-                )
-                per_row[row.value]["quotes_located"] += sum(
-                    len(c.citations) for c in recite.claims
-                )
-                claims = list(recite.claims)
-            elif row is Granularity.SENTENCE:
-                per_row[row.value]["clean_cite"] += 1  # no cite call attempted for the control row
+                claims = list(decomp.claims)
+                cite_errors: tuple[str, ...] = ()
+                cite_costs: list[CostRecord] = []
+                quote_not_found = 0
+                cite_err_kinds = Counter()
+                cite_rec_kinds = Counter()
+                claims_unmatched = 0
+                quotes_located = 0
+                clean_cite_inc = 0
 
-            per_row[row.value]["claims"].extend(claims)
-            records.append(
-                QueryRecord(
-                    run_id=run_id, query_id=row_id, question=src.question, system=System.POST_HOC,
-                    seed=args.seed, retrieved=src.retrieved, gold_passage_ids=src.gold_passage_ids,
-                    claims=claims, raw_generation=src.raw_generation,
-                    final_decision=src.final_decision, gold_final_decision=src.gold_final_decision,
+                if row in MODEL_ROWS and claims and src.retrieved:
+                    ckw = {"complete": cite_completer} if cite_completer else {}
+                    recite = cite_claims(
+                        claims, src.question, src.retrieved, row_config, seed=args.seed,
+                        run_id=run_id, query_id=row_id, **ckw,
+                    )
+                    cite_costs = list(recite.costs)
+                    if not recite.errors:
+                        clean_cite_inc = 1
+                    quote_not_found = sum(
+                        1 for problem in recite.errors if "quote not found verbatim" in problem
+                    )
+                    cite_err_kinds = Counter(_error_kind(problem) for problem in recite.errors)
+                    cite_rec_kinds = Counter(_error_kind(note) for note in recite.recovered)
+                    cite_errors = recite.errors
+                    claims_unmatched = sum(
+                        1 for problem in recite.errors if "no matching CLAIM line" in problem
+                    )
+                    quotes_located = sum(
+                        len(c.citations) for c in recite.claims
+                    )
+                    claims = list(recite.claims)
+                elif row is Granularity.SENTENCE:
+                    clean_cite_inc = 1
+
+                # Model calls succeeded without httpx.HTTPError: commit to per_row stats
+                costs.extend(decomp.costs)
+                costs.extend(cite_costs)
+                if not decomp.errors:
+                    per_row[row.value]["clean_decompose"] += 1
+                per_row[row.value]["clean_cite"] += clean_cite_inc
+                per_row[row.value]["duplicate_claim_count"] += sum(
+                    1 for problem in (*decomp.errors, *decomp.recovered)
+                    if "claim text verbatim" in problem or "repeats sentence" in problem
                 )
-            )
-            print(
-                f"{src.query_id:>9s} {row.value:24s} claims={len(claims):2d} "
-                f"decompose_errors={len(decomp.errors)} cite_errors={len(cite_errors)}"
-            )
-            for problem in (*decomp.errors, *cite_errors):
+                per_row[row.value]["decompose_error_kinds"].update(
+                    _error_kind(problem) for problem in decomp.errors
+                )
+                per_row[row.value]["decompose_recovered_kinds"].update(
+                    _error_kind(note) for note in decomp.recovered
+                )
+                per_row[row.value]["quote_not_found_count"] += quote_not_found
+                per_row[row.value]["cite_error_kinds"].update(cite_err_kinds)
+                per_row[row.value]["cite_recovered_kinds"].update(cite_rec_kinds)
+                per_row[row.value]["claims_unmatched"] += claims_unmatched
+                per_row[row.value]["quotes_located"] += quotes_located
+
+                per_row[row.value]["claims"].extend(claims)
+                records.append(
+                    QueryRecord(
+                        run_id=run_id, query_id=row_id, question=src.question, system=System.POST_HOC,
+                        seed=args.seed, retrieved=src.retrieved, gold_passage_ids=src.gold_passage_ids,
+                        claims=claims, raw_generation=src.raw_generation,
+                        final_decision=src.final_decision, gold_final_decision=src.gold_final_decision,
+                    )
+                )
+                print(
+                    f"{src.query_id:>9s} {row.value:24s} claims={len(claims):2d} "
+                    f"decompose_errors={len(decomp.errors)} cite_errors={len(cite_errors)}"
+                )
+                for problem in (*decomp.errors, *cite_errors):
+                    print(f"{'':>9s}   ! {problem}")
+            except httpx.HTTPError as exc:
+                exc_type = type(exc).__name__
+                problem = f"{src.query_id}: model call failed ({exc_type})"
+                per_row[row.value]["call_failure_count"] += 1
+                per_row[row.value]["decompose_error_kinds"].update([_error_kind(problem)])
+                # The decompose calls that already returned burned GPU time whether or not the
+                # citation stage went on to fail, and Table 4 is a cost table — dropping them would
+                # under-report what the run actually spent. Costs inside the raising call itself are
+                # gone with it; `cite_claims` does not hand back the batches it finished.
+                if decomp is not None:
+                    costs.extend(decomp.costs)
+                print(
+                    f"{src.query_id:>9s} {row.value:24s} claims= 0 decompose_errors=1 cite_errors=0"
+                )
                 print(f"{'':>9s}   ! {problem}")
 
     summary = {}
@@ -367,6 +401,9 @@ def main() -> int:
             "median_words_per_claim": statistics.median(words) if words else None,
             "duplicate_claim_count": stats["duplicate_claim_count"],
             "quote_not_found_count": stats["quote_not_found_count"],
+            # A row that could not be measured at all. It is in `n_queries` above and in neither
+            # clean counter, so it depresses both clean rates rather than vanishing from them.
+            "call_failure_count": stats["call_failure_count"],
             # `clean_*_rate` above is all-or-nothing per query: one drifted quote among a query's
             # sixty citation lines fails the whole query. G2's bar is per *claim* ("≥95% valid
             # claim parse", ROADMAP §1), and citation fidelity is a separate question about the
@@ -456,6 +493,14 @@ def main() -> int:
     print(f"\nWritten to {rec_path}, {cost_path}, {sum_path}, {manifest_path(prefix)}")
     for problem in verify_run(prefix):
         print(f"  provenance: {problem}")
+    total_call_failures = {row.value: summary[row.value]["call_failure_count"] for row in ALL_ROWS}
+    if any(count > 0 for count in total_call_failures.values()):
+        print("\n" + "!" * 80)
+        print("WARNING: RUN IS INCOMPLETE — model call failures occurred during measurement:")
+        for row_name, count in total_call_failures.items():
+            if count > 0:
+                print(f"  {row_name}: {count} call failure(s)")
+        print("!" * 80)
     return 0 if monotonic or args.fake else 1
 
 

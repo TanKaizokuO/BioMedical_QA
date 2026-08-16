@@ -423,3 +423,82 @@ class TestFreeze:
             decompose_template_digest()
             == "4129a884c7a1b4854739ffe2e3900a1db39626db7fd1bf076d6b549027a7d737"
         )
+class TestSmokeScriptResilience:
+    def test_model_call_http_error_is_recorded_and_does_not_halt_run(self, tmp_path, monkeypatch, capsys):
+        import sys
+        import json
+        import httpx
+        from pathlib import Path
+
+        scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        import decompose_smoke
+
+        orig_completer = decompose_smoke._fake_decompose_completer
+
+        def failing_completer(prompt, config, **kw):
+            query_id = kw.get("query_id", "")
+            if "10375486" in query_id:
+                req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+                resp = httpx.Response(400, request=req, text="max model len exceeded")
+                raise httpx.HTTPStatusError("400 Bad Request", request=req, response=resp)
+            return orig_completer(prompt, config, **kw)
+
+        monkeypatch.setattr(decompose_smoke, "_fake_decompose_completer", failing_completer)
+
+        prefix = tmp_path / "smoke_http_err"
+        args = [
+            "decompose_smoke.py",
+            "--fake",
+            "--n", "3",
+            "--model", "fake",
+            "--out-prefix", str(prefix),
+            "--overwrite",
+        ]
+        monkeypatch.setattr(sys, "argv", args)
+
+        exit_code = decompose_smoke.main()
+
+        sum_path = Path(str(prefix) + "_fakecompleter.summary.json")
+        assert sum_path.exists()
+        summary = json.loads(sum_path.read_text())
+
+        atomic = summary["per_row"]["atomic"]
+        assert atomic["n_queries"] == 3
+        assert atomic["call_failure_count"] == 1
+        assert atomic["clean_decompose_rate"] == pytest.approx(2 / 3, abs=1e-3)
+        assert atomic["clean_cite_rate"] == pytest.approx(2 / 3, abs=1e-3)
+        assert "N: model call failed (...)" in atomic["decompose_error_kinds"]
+
+        captured = capsys.readouterr()
+        assert "WARNING: RUN IS INCOMPLETE" in captured.out
+        assert "atomic: 1 call failure(s)" in captured.out
+
+    def test_non_http_exception_propagates(self, tmp_path, monkeypatch):
+        import sys
+        from pathlib import Path
+
+        scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+        if str(scripts_dir) not in sys.path:
+            sys.path.insert(0, str(scripts_dir))
+        import decompose_smoke
+
+        def buggy_completer(prompt, config, **kw):
+            raise KeyError("buggy aggregation key")
+
+        monkeypatch.setattr(decompose_smoke, "_fake_decompose_completer", buggy_completer)
+
+        prefix = tmp_path / "smoke_key_err"
+        args = [
+            "decompose_smoke.py",
+            "--fake",
+            "--n", "3",
+            "--model", "fake",
+            "--out-prefix", str(prefix),
+            "--overwrite",
+        ]
+        monkeypatch.setattr(sys, "argv", args)
+
+        with pytest.raises(KeyError, match="buggy aggregation key"):
+            decompose_smoke.main()
