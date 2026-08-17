@@ -1,0 +1,81 @@
+{
+  "arms": {},
+  "config": {
+    "chunk": {
+      "keep_section_labels": true,
+      "max_chars": 2000,
+      "strategy": "abstract",
+      "stride_sentences": 1,
+      "window_sentences": 3
+    },
+    "config_version": "1.5.0",
+    "generation": {
+      "backend": "vllm",
+      "frequency_penalty": 0.5,
+      "granularity": "decontextualized_atomic",
+      "max_citations": 3,
+      "max_tokens": 3584,
+      "model": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+      "seeds": [
+        0
+      ],
+      "stop": [],
+      "temperature": 0.0
+    },
+    "name": "generate_fp05_n100",
+    "retrieval": {
+      "bm25": true,
+      "corpus_fingerprint": "93321598f3f1",
+      "corpus_id": "pubmed-2m-v1",
+      "dense": true,
+      "dense_encoder": "NCBI/MedCPT-Article-Encoder",
+      "pool_size": 100,
+      "query_encoder": "NCBI/MedCPT-Query-Encoder",
+      "rerank": true,
+      "reranker": "NCBI/MedCPT-Cross-Encoder",
+      "rrf": true,
+      "rrf_k": 60,
+      "title_segment": "empty",
+      "top_k": 10
+    },
+    "scoring": {
+      "abstention_rule_version": "1.0.0",
+      "bootstrap_cluster_on": "question",
+      "max_claim_words": 50,
+      "report_both_abstention_denominators": true
+    },
+    "split": "dev",
+    "verifier": {
+      "also_alignscore": false,
+      "judge_model": "claude-opus-5",
+      "model": "lytang/MiniCheck-Flan-T5-Large"
+    }
+  },
+  "config_hash": "246dfc4897fe",
+  "config_version": "1.5.0",
+  "finished_at": "2026-08-17T09:32:50.564518+00:00",
+  "git_sha": "9a7cb94fa76d4dcbb37d0e9b33e6ef9b0ba580ee",
+  "index_fingerprint": "57ab89e445f8",
+  "manifest_version": "1.0.0",
+  "models": {
+    "dense_encoder": "NCBI/MedCPT-Article-Encoder",
+    "generator": "hugging-quants/Meta-Llama-3.1-8B-Instruct-AWQ-INT4",
+    "judge": "claude-opus-5",
+    "query_encoder": "NCBI/MedCPT-Query-Encoder",
+    "reranker": "NCBI/MedCPT-Cross-Encoder",
+    "verifier": "lytang/MiniCheck-Flan-T5-Large"
+  },
+  "n_costs": 400,
+  "n_records": 300,
+  "provenance": {
+    "kind": "live"
+  },
+  "run_id": "generate_fp05_n100",
+  "schema_version": "1.0.0",
+  "seeds": [
+    0
+  ],
+  "split": "dev",
+  "split_hash": "71c46cc5b0ca",
+  "started_at": "2026-08-17T08:47:33.297204+00:00"
+}
