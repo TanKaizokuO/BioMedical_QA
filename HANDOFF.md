@@ -186,6 +186,7 @@ The `fp` sweep's 12 ids are a subset of these 100. On them, the n=100 run reprod
 - **vLLM service:** `vllm-8b.service` on the A4000, `--max-model-len 8192 --gpu-memory-utilization 0.85` (`docs/harvest/runbooks/wsl-vllm-a4000.md`). It was **not reachable from the writing host** at the end of this session (`localhost:8000` refused), so anything needing `/tokenize` or generation must re-establish it.
 - Long jobs MUST run via `systemd-run --user --unit=<name>`; sanity artifacts belong **outside** the repo (`harness.git_sha()` stamps `-dirty` on untracked files, which would make a Gate G2 manifest unreproducible).
 - Prompts are frozen; digests in the header. Any prompt edit before **Sep 3** must be justified against ADR-0009 §8, and after it invalidates the gold set.
+- **Upcoming Goals:** `Upcoming_goals.md` contains the active targets in STE. Agents MUST keep it updated as targets progress.
 
 ---
 

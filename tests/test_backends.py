@@ -115,6 +115,33 @@ def test_response_format_reaches_the_request(monkeypatch):
     assert _FakeClient.last_body.get("response_format") == rf
 
 
+def test_anthropic_response_format_uses_tool_choice(monkeypatch):
+    """Anthropic backend converts json_schema response_format to tool_choice."""
+    import sys
+    class _FakeToolUse:
+        type = "tool_use"
+        input = {"claims": []}
+    class _FakeMessage:
+        content = [_FakeToolUse()]
+        usage = type("Usage", (), {"input_tokens": 10, "output_tokens": 5})()
+    class _FakeMessages:
+        last_kw = None
+        def create(self, **kw):
+            _FakeMessages.last_kw = kw
+            return _FakeMessage()
+    class _FakeAnthropicClient:
+        messages = _FakeMessages()
+
+    fake_mod = type("FakeAnthropic", (), {"Anthropic": _FakeAnthropicClient})()
+    monkeypatch.setitem(sys.modules, "anthropic", fake_mod)
+    config = GenerationConfig(backend="anthropic", model="claude-opus-5", frequency_penalty=0.0)
+    rf = {"type": "json_schema", "json_schema": {"name": "recitation", "schema": {"properties": {}}}}
+    text, cost = backends.complete("prompt", config, seed=0, run_id="r", query_id="q", response_format=rf)
+
+    assert text == '{"claims": []}'
+    assert _FakeMessages.last_kw is not None
+    assert "tools" in _FakeMessages.last_kw
+    assert _FakeMessages.last_kw["tool_choice"] == {"type": "tool", "name": "recitation"}
 def test_a_rejected_request_carries_the_servers_reason(monkeypatch):
     """A 400 that hides its body is a 45-minute diagnosis.
 
@@ -149,3 +176,31 @@ def test_anthropic_refuses_a_penalty_it_cannot_apply():
             run_id="r",
             query_id="q",
         )
+
+
+def test_prompt_window_guard_raises_when_oversized(monkeypatch):
+    """Prompt window guard verifies prompt_tokens + max_tokens <= model_max_len before request."""
+    monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+    # Create an oversized prompt exceeding model_max_len (8192 for model="m")
+    oversized_prompt = "word " * 7000
+    cfg = GenerationConfig(backend="vllm", model="m", max_tokens=2000)
+    with pytest.raises(ValueError) as exc_info:
+        backends.complete(oversized_prompt, cfg, seed=0, run_id="r", query_id="q")
+
+    msg = str(exc_info.value)
+    assert "Prompt window exceeded" in msg
+    assert "prompt_tokens" in msg
+    assert "max_tokens" in msg
+    assert "model_max_len" in msg
+
+
+def test_prompt_window_guard_passes_through_unchanged(monkeypatch):
+    """When prompt_tokens + max_tokens <= model_max_len, request completes normally."""
+    monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+    _FakeClient.last_body = None
+    normal_prompt = "Short prompt"
+    cfg = GenerationConfig(backend="vllm", model="m", max_tokens=1536)
+    text, cost = backends.complete(normal_prompt, cfg, seed=0, run_id="r", query_id="q")
+    assert text.startswith("DECISION:")
+    assert cost.run_id == "r"
+

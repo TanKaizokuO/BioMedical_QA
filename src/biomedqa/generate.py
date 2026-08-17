@@ -54,6 +54,7 @@ from . import backends
 from .config import GenerationConfig
 from .prompts import (
     CONTEXT_DEPTH,
+    ParsedResponse,
     build_citation_response_format,
     build_prompt,
     parse_response,
@@ -136,12 +137,13 @@ def generate_one(
     costs: list[CostRecord] = []
     call_failures: list[str] = []
 
-    def call(prompt: str) -> str:
+    def call(prompt: str, response_format: dict[str, Any] | None = None) -> str:
         stage_num = len(texts) + 1
         t0 = time.perf_counter()
         try:
+            complete_kw = {"response_format": response_format} if response_format is not None else {}
             text, cost = complete(
-                prompt, config, seed=seed, run_id=run_id, query_id=query_id
+                prompt, config, seed=seed, run_id=run_id, query_id=query_id, **complete_kw
             )
         except (httpx.HTTPStatusError, httpx.TransportError) as exc:
             wall_s = time.perf_counter() - t0
@@ -173,23 +175,93 @@ def generate_one(
                 system, question, context, config.max_citations, stage="answer", depth=depth
             )
         )
-        parsed_from = call(
-            build_prompt(
-                system,
-                question,
-                context,
-                config.max_citations,
-                stage="cite",
-                answer=answer,
-                depth=depth,
+        stage1_parsed = parse_response(answer, context, config.max_citations, require_decision=False)
+        claim_count = len(stage1_parsed.claims)
+        guided_format = None
+        if config.guided_decoding and claim_count > 0 and config.backend in ("vllm", "anthropic"):
+            guided_format = build_citation_response_format(context, claim_count, config.max_citations)
+
+        if guided_format is not None:
+            batches = [
+                list(stage1_parsed.claims[i : i + MAX_CLAIMS_PER_CITE_CALL])
+                for i in range(0, claim_count, MAX_CLAIMS_PER_CITE_CALL)
+            ]
+            final_claims: list[Claim] = []
+            guided_errors: list[str] = []
+            guided_recovered: list[str] = []
+
+            for batch in batches:
+                rendered_claims = "\n".join(
+                    f"CLAIM {i+1}: {c.text}" for i, c in enumerate(batch)
+                )
+                batch_format = build_citation_response_format(
+                    context, len(batch), config.max_citations
+                )
+                prompt_stage2 = build_prompt(
+                    system,
+                    question,
+                    context,
+                    config.max_citations,
+                    stage="recite_json",
+                    answer=rendered_claims,
+                    depth=depth,
+                    claim_count=len(batch),
+                )
+                parsed_from = call(prompt_stage2, response_format=batch_format)
+                if parsed_from.startswith('"'):
+                    try:
+                        unwrapped = json.loads(parsed_from)
+                    except json.JSONDecodeError:
+                        pass
+                    else:
+                        if isinstance(unwrapped, str):
+                            parsed_from = unwrapped
+                parsed_json = parse_response(
+                    parsed_from, context, config.max_citations, require_decision=False
+                )
+                guided_errors.extend(parsed_json.errors)
+                guided_recovered.extend(parsed_json.recovered)
+
+                if len(parsed_json.claims) != len(batch):
+                    guided_errors.append(
+                        f"cite stage returned {len(parsed_json.claims)} CLAIM lines for {len(batch)} claims sent"
+                    )
+
+                for i, orig_c in enumerate(batch):
+                    if i < len(parsed_json.claims):
+                        final_claims.append(
+                            replace(orig_c, citations=parsed_json.claims[i].citations)
+                        )
+                    else:
+                        guided_errors.append(
+                            f"{orig_c.claim_id}: no matching CLAIM line in the cite-stage reply"
+                        )
+                        final_claims.append(replace(orig_c, citations=[]))
+
+            parsed = ParsedResponse(
+                decision=stage1_parsed.decision,
+                claims=final_claims,
+                errors=guided_errors,
+                recovered=guided_recovered,
             )
-        )
+        else:
+            parsed_from = call(
+                build_prompt(
+                    system,
+                    question,
+                    context,
+                    config.max_citations,
+                    stage="cite",
+                    answer=answer,
+                    depth=depth,
+                )
+            )
+            parsed = parse_response(parsed_from, context, config.max_citations)
     else:
         parsed_from = call(
             build_prompt(system, question, context, config.max_citations, depth=depth)
         )
-
-    parsed = parse_response(parsed_from, context, config.max_citations)
+        parsed = parse_response(parsed_from, context, config.max_citations)
 
     record = QueryRecord(
         run_id=run_id,

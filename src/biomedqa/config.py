@@ -126,6 +126,7 @@ class GenerationConfig:
     stop: tuple[str, ...] = ()
     seeds: tuple[int, ...] = (0, 1, 2)       # ≥3 seeds; only implementable locally (ADR-0004)
     granularity: str = "decontextualized_atomic"
+    guided_decoding: bool = False
 
 
 @dataclass(frozen=True, slots=True)

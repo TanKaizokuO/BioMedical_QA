@@ -14,6 +14,10 @@ Default five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 Single-context — one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
 
+### Status & Goals Tracking
+
+Agents MUST update `Upcoming_goals.md` as targets are completed or modified. Use ASD-STE100 Simplified Technical English and ubiquitous domain terms from `CONTEXT.md`.
+
 ## Working conventions
 
 ### Pushing

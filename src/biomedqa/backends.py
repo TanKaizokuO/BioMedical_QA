@@ -48,6 +48,49 @@ _ANTHROPIC_PRICE: dict[str, tuple[float, float]] = {
 }
 
 
+# Per-model maximum context window length mapping (tokens).
+_MODEL_MAX_LEN: dict[str, int] = {
+    "claude-": 200000,
+    "meta-llama/": 8192,
+    "hugging-quants/": 8192,
+    "Meta-Llama": 8192,
+}
+_DEFAULT_MODEL_MAX_LEN = 8192
+
+
+def _get_model_max_len(model: str) -> int:
+    """Get max context window length for model, checking env overrides and model prefix mapping."""
+    env_val = os.environ.get("VLLM_MAX_MODEL_LEN") or os.environ.get("MODEL_MAX_LEN")
+    if env_val:
+        try:
+            return int(env_val)
+        except ValueError:
+            pass
+    for prefix, length in _MODEL_MAX_LEN.items():
+        if prefix in model:
+            return length
+    return _DEFAULT_MODEL_MAX_LEN
+
+
+def _count_tokens(prompt: str) -> int:
+    """Estimate prompt token count. Uses word/character max heuristic."""
+    if not prompt:
+        return 0
+    words = len(prompt.split())
+    chars = len(prompt) // 4
+    return max(words, chars)
+
+
+def _check_prompt_window_guard(prompt: str, config: GenerationConfig) -> None:
+    """Verify prompt_tokens + max_tokens <= model_max_len immediately before API calls."""
+    prompt_tokens = _count_tokens(prompt)
+    model_max_len = _get_model_max_len(config.model)
+    if prompt_tokens + config.max_tokens > model_max_len:
+        raise ValueError(
+            f"Prompt window exceeded: prompt_tokens ({prompt_tokens}) + max_tokens ({config.max_tokens}) "
+            f"= {prompt_tokens + config.max_tokens} exceeds model_max_len ({model_max_len}) for model {config.model!r}."
+        )
+
 def _anthropic_usd(model: str, input_tokens: int, output_tokens: int) -> float | None:
     """Estimate USD cost using prefix-matched pricing table. Returns None on unknown model."""
     for prefix, (in_rate, out_rate) in _ANTHROPIC_PRICE.items():
@@ -139,6 +182,8 @@ def _vllm_complete(
     }
     if response_format is not None:
         body["response_format"] = response_format
+    _check_prompt_window_guard(prompt, config)
+
 
     t0 = time.perf_counter()
     try:
@@ -215,6 +260,21 @@ def _anthropic_complete(
     import anthropic  # local import — not all environments install the SDK
 
     client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+    _check_prompt_window_guard(prompt, config)
+
+
+    extra_kw: dict[str, Any] = {}
+    if response_format is not None:
+        if response_format.get("type") == "json_schema":
+            js = response_format.get("json_schema", {})
+            name = js.get("name", "structured_output")
+            schema = js.get("schema", {})
+            extra_kw["tools"] = [{
+                "name": name,
+                "description": "Output structured data matching the schema.",
+                "input_schema": schema,
+            }]
+            extra_kw["tool_choice"] = {"type": "tool", "name": name}
 
     t0 = time.perf_counter()
     message = client.messages.create(
@@ -223,10 +283,20 @@ def _anthropic_complete(
         # temperature / top_p / top_k deliberately omitted — Anthropic returns 400 (ADR-0004)
         messages=[{"role": "user", "content": prompt}],
         **({"stop_sequences": list(config.stop)} if config.stop else {}),
+        **extra_kw,
     )
     wall_s = time.perf_counter() - t0
 
-    text: str = message.content[0].text
+    import json
+    text: str = ""
+    for block in message.content:
+        if getattr(block, "type", None) == "tool_use":
+            text = json.dumps(getattr(block, "input", {}))
+            break
+        elif getattr(block, "type", None) == "text":
+            text += getattr(block, "text", "")
+    if not text and message.content:
+        text = getattr(message.content[0], "text", "")
 
     input_tokens: int | None = getattr(message.usage, "input_tokens", None)
     output_tokens: int | None = getattr(message.usage, "output_tokens", None)

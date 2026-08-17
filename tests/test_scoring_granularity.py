@@ -169,6 +169,23 @@ def test_stage_tokens_are_checked_against_the_records_own_totals() -> None:
     assert stages["q1"] == {"joint": 100, "post_hoc_answer": 120, "post_hoc_cite": 180,
                             "vanilla": 400}
 
+def test_stage_output_tokens_handles_null_output_tokens() -> None:
+    """Call-rejection guard (ADR-0021) emits CostRecords with output_tokens=None.
+    stage_output_tokens must treat None as 0 rather than raising TypeError."""
+    records = [
+        _record("q1", System.JOINT, [_words(5)], completion_tokens=None),
+        _record("q1", System.POST_HOC, [_words(5)], completion_tokens=None),
+        _record("q1", System.VANILLA, [_words(5)], completion_tokens=None),
+    ]
+    costs = [
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=None),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=120),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=180),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=400),
+    ]
+    stages = stage_output_tokens(records, costs)
+    assert stages["q1"] == {"joint": 0, "post_hoc_answer": 120, "post_hoc_cite": 180, "vanilla": 400}
+
 
 def test_cost_rows_in_the_wrong_order_are_refused() -> None:
     """The whole reason this function exists. `costs.jsonl` carries no system and no stage — only

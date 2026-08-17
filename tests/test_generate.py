@@ -8,11 +8,14 @@ No inspection of the generated text can reveal it after the fact, so it is asser
 
 from __future__ import annotations
 
+import json
+import math
+
 import httpx
 import pytest
 
 from biomedqa.config import GenerationConfig
-from biomedqa.generate import STAGE_SEPARATOR, generate_one, split_stages
+from biomedqa.generate import MAX_CLAIMS_PER_CITE_CALL, STAGE_SEPARATOR, generate_one, split_stages
 from biomedqa.schema import CostRecord, QueryRecord, RetrievedPassage, System
 
 _TEXT = {
@@ -52,10 +55,12 @@ class _Recorder:
     def __init__(self, *responses: str, tokens: tuple[int | None, int | None] = (100, 20)):
         self.responses = list(responses)
         self.prompts: list[str] = []
+        self.response_formats: list[dict | None] = []
         self.tokens = tokens
 
-    def __call__(self, prompt, config, *, seed, run_id, query_id):
+    def __call__(self, prompt, config, *, seed, run_id, query_id, response_format=None):
         self.prompts.append(prompt)
+        self.response_formats.append(response_format)
         text = self.responses[len(self.prompts) - 1]
         return text, CostRecord(
             run_id=run_id,
@@ -66,16 +71,15 @@ class _Recorder:
             output_tokens=self.tokens[1],
             wall_s=0.5,
         )
-
-
 def _run(system: System, *responses: str, **kwargs):
     stub = _Recorder(*responses)
+    config = kwargs.pop("config", GenerationConfig(model="stub"))
     gen = generate_one(
         "Does metformin reduce mortality?",
         _passages(),
         ["p1"],
         system=system,
-        config=GenerationConfig(model="stub"),
+        config=config,
         seed=0,
         run_id="run-1",
         query_id="21645374",
@@ -142,6 +146,129 @@ class TestPostHoc:
         assert gen.record.completion_tokens == 40
         assert gen.record.latency_s == pytest.approx(1.0)
 
+    def test_guided_decoding_passes_response_format_and_uses_recite_json(self):
+        """When guided_decoding=True, post-hoc stage 2 receives a JSON schema and recite_json template."""
+        stage1_resp = "DECISION: yes\nCLAIM 1: Metformin reduced all-cause mortality.\n"
+        stage2_json = (
+            '{"claims": [{"claim_index": 1, "citations": [{"passage_id": "p1", '
+            '"quote": "Metformin reduced all-cause mortality by 21%"}]}]}'
+        )
+        gen, stub = _run(
+            System.POST_HOC,
+            stage1_resp,
+            stage2_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+        assert len(stub.prompts) == 2
+        assert stub.response_formats[0] is None
+        assert stub.response_formats[1] is not None
+        assert stub.response_formats[1]["type"] == "json_schema"
+        assert "Return one entry per claim" in stub.prompts[1]
+        assert gen.record.claims[0].citations[0].passage_id == "p1"
+        assert gen.record.claims[0].text == "Metformin reduced all-cause mortality."
+
+    def test_guided_decoding_handles_malformed_json_without_crashing(self):
+        """Malformed JSON from guided stage is reported in errors rather than raising an exception."""
+        stage1_resp = "DECISION: yes\nCLAIM 1: Metformin reduced all-cause mortality.\n"
+        stage2_json = "NOT VALID JSON"
+        gen, stub = _run(
+            System.POST_HOC,
+            stage1_resp,
+            stage2_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+        assert len(gen.errors) > 0
+        assert any("malformed" in e or "no CLAIM" in e for e in gen.errors)
+
+    def test_guided_decoding_batches_large_claim_sets(self):
+        """When stage 1 produces > MAX_CLAIMS_PER_CITE_CALL claims, guided decoding splits stage 2 calls."""
+        stage1_resp = "DECISION: yes\n" + "\n".join(
+            f"CLAIM {i}: Metformin claim {i}." for i in range(1, 8)
+        )
+        batch0_json = json.dumps({
+            "claims": [
+                {"claim_index": i, "citations": [{"passage_id": "p1", "quote": "Metformin reduced all-cause mortality by 21%"}]}
+                for i in range(1, 6)
+            ]
+        })
+        batch1_json = json.dumps({
+            "claims": [
+                {"claim_index": i, "citations": [{"passage_id": "p2", "quote": "No difference in cardiovascular events was observed"}]}
+                for i in range(1, 3)
+            ]
+        })
+
+        gen, stub = _run(
+            System.POST_HOC,
+            stage1_resp,
+            batch0_json,
+            batch1_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+
+        expected_stage2_calls = math.ceil(7 / MAX_CLAIMS_PER_CITE_CALL)
+        assert len(stub.prompts) == 1 + expected_stage2_calls
+        assert len(gen.record.claims) == 7
+
+        # Check schemas match batch size
+        assert stub.response_formats[1]["json_schema"]["schema"]["properties"]["claims"]["minItems"] == 5
+        assert stub.response_formats[2]["json_schema"]["schema"]["properties"]["claims"]["minItems"] == 2
+
+        # Check claims order and text preserved
+        for i, claim in enumerate(gen.record.claims, start=1):
+            assert claim.claim_id == f"c{i}"
+            assert claim.text == f"Metformin claim {i}."
+
+        # Check citation grounding by batch (no cross-batch mixup)
+        for c in gen.record.claims[:5]:
+            assert len(c.citations) == 1
+            assert c.citations[0].passage_id == "p1"
+
+        for c in gen.record.claims[5:]:
+            assert len(c.citations) == 1
+            assert c.citations[0].passage_id == "p2"
+
+    def test_guided_decoding_batching_handles_short_or_malformed_batch_reply(self):
+        """A malformed/short reply in one batch reports errors for that batch's claims while sibling batch parses cleanly."""
+        stage1_resp = "DECISION: yes\n" + "\n".join(
+            f"CLAIM {i}: Metformin claim {i}." for i in range(1, 8)
+        )
+        batch0_json = json.dumps({
+            "claims": [
+                {"claim_index": i, "citations": [{"passage_id": "p1", "quote": "Metformin reduced all-cause mortality by 21%"}]}
+                for i in range(1, 6)
+            ]
+        })
+        # Batch 1 returns JSON with only 1 claim instead of 2
+        batch1_short_json = json.dumps({
+            "claims": [
+                {"claim_index": 1, "citations": [{"passage_id": "p2", "quote": "No difference in cardiovascular events was observed"}]}
+            ]
+        })
+
+        gen, stub = _run(
+            System.POST_HOC,
+            stage1_resp,
+            batch0_json,
+            batch1_short_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+
+        assert len(gen.record.claims) == 7
+        # Batch 0 claims (1-5) got their citations cleanly
+        for c in gen.record.claims[:5]:
+            assert len(c.citations) == 1
+            assert c.citations[0].passage_id == "p1"
+
+        # Batch 1 claim 6 got citation, claim 7 missing from reply
+        assert len(gen.record.claims[5].citations) == 1
+        assert gen.record.claims[5].citations[0].passage_id == "p2"
+
+        assert gen.record.claims[6].citations == []
+
+        # Error reported for count mismatch and missing claim
+        assert any("cite stage returned 1 CLAIM lines for 2 claims sent" in e for e in gen.errors)
+        assert any("c7: no matching CLAIM line" in e for e in gen.errors)
 
 class TestVanilla:
     def test_carries_no_citations_and_still_validates(self):

@@ -334,7 +334,10 @@ def stage_output_tokens(
                 f"{query_id}: {len(calls)} cost rows, expected {len(CALL_ORDER)} "
                 f"({', '.join(CALL_ORDER)}); call order cannot be assumed"
             )
-        stages = {name: int(call.output_tokens) for name, call in zip(CALL_ORDER, calls)}
+        stages = {
+            name: 0 if call.output_tokens is None else int(call.output_tokens)
+            for name, call in zip(CALL_ORDER, calls)
+        }
         for system, owned in STAGES_OF.items():
             record = by_key.get((query_id, system))
             if record is None or record.completion_tokens is None:

@@ -850,14 +850,24 @@ def parse_response(
     # every quote still goes through `locate_quote`, every id still has to be in the context, and a
     # failure is still an entry in `errors` rather than an exception.
     stripped = raw.strip()
-    if stripped.startswith("{") and stripped.endswith("}"):
+    if stripped.startswith("{"):
+        res_obj = None
         try:
             res_obj = json.loads(stripped)
-        except json.JSONDecodeError as exc:
-            # Not a fall-through to the line parser: a reply that opens with `{` was trying to be
-            # JSON, and letting the line grammar report `no CLAIM lines` on it would file a
-            # truncated structured reply under the wrong failure mode in the error histogram.
-            return ParsedResponse(None, [], [f"reply is malformed JSON: {exc}"], [])
+        except json.JSONDecodeError:
+            # Try appending closing braces/brackets for truncated JSON generations
+            for suffix in ("}", "]}", '"}]}', '"]}]}', '""}]}', 'null}]}', '""}]}}'):
+                try:
+                    res_obj = json.loads(stripped + suffix)
+                    break
+                except json.JSONDecodeError:
+                    pass
+        if res_obj is None:
+            try:
+                # Fallback error reporting
+                json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                return ParsedResponse(None, [], [f"reply is malformed JSON: {exc}"], [])
         claims_dict: dict[str, Claim] = {}
         order: list[str] = []
         errs: list[str] = []

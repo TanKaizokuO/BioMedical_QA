@@ -174,6 +174,38 @@ def _fake_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, C
     if len(ctx) < 2:
         raise AssertionError(f"canned completer found {len(ctx)} passages in the prompt, need 2")
     (pid1, text1), (pid2, text2) = ctx[0], ctx[1]
+
+    if kw.get("response_format") is not None or "Return JSON object" in prompt or "recite_json" in prompt:
+        return (
+            json.dumps({
+                "claims": [
+                    {
+                        "claim_index": 1,
+                        "citations": [
+                            {"passage_id": pid1, "quote": text1[:60].strip()},
+                            {"passage_id": pid2, "quote": text2[:60].strip()},
+                        ],
+                    },
+                    {
+                        "claim_index": 2,
+                        "citations": [
+                            {"passage_id": pid1, "quote": text1[:40].strip()},
+                        ],
+                    },
+                ]
+            }),
+            CostRecord(
+                run_id=kw.get("run_id", ""),
+                query_id=kw.get("query_id"),
+                component="generate",
+                backend=f"vllm:{config.model}",
+                input_tokens=1024,
+                output_tokens=32,
+                usd=None,
+                wall_s=0.0,
+            ),
+        )
+
     sep = "||"
     # Bracketed ids, exactly as the format block now teaches and as render_context prints them.
     # This is also the offline exercise of the parser's bracket-stripping path.
@@ -231,6 +263,11 @@ def main() -> int:
         ),
     )
     ap.add_argument("--out-prefix", type=Path, default=Path("docs/harvest/generate_smoke"))
+    ap.add_argument(
+        "--guided-decoding",
+        action="store_true",
+        help="Enforce guided-JSON constrained decoding for the post-hoc citation stage",
+    )
     ap.add_argument("--fake", action="store_true", help="canned completer; no network, no GPU")
     ap.add_argument(
         "--overwrite",
@@ -280,6 +317,7 @@ def main() -> int:
             "generation.model": args.model,
             "generation.max_tokens": args.max_tokens,
             "generation.frequency_penalty": args.frequency_penalty,
+            "generation.guided_decoding": args.guided_decoding,
             "generation.seeds": (args.seed,),
             "retrieval.top_k": args.depth,
         },
