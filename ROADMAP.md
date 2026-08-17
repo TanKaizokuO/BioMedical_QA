@@ -156,7 +156,7 @@
 
 ## 4. Key Deadlines & Standing Constraints
 
-1. **Annotator Backstop:** Confirm annotator availability by **Thu Aug 20, 2026**.
+1. **Annotator Backstop:** Confirm annotator availability by **Thu Aug 20, 2026** *(Confirmed Aug 17, 2026: all 3 annotators committed for the 10–16 h window)*.
 2. **Decomposer Freeze:** **Thu Sep 3, 2026** (Changing decomposition prompt after this date invalidates the gold set).
 3. **Annotation Window:** **Sep 7 – Sep 20, 2026** (Pilot W6, Main pass W7). All labeling ends Sun Sep 20.
 4. **Code Freeze:** **Sun Sep 27, 2026** (Tag `v1.0.0-freeze`).
