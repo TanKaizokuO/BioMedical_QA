@@ -312,3 +312,13 @@ disclosed defect rate rather than left to be found only in a code comment.
 
 **If the prompt is ever fixed**, it is a dated, budgeted re-run with the parity gate recomputed
 against the new prompts, per §4 — not a quiet edit to a frozen template.
+
+## Third amendment, 2026-08-17 — runaway claim pathology closed on score/split/decode sides, prompts remain frozen
+
+**Discharge of the deferred 731-word claim defect.** The Second amendment decided the 731-word claim "stays a scoring-side guard, not a prompt edit" and left `_claim_rules()` frozen. This defect is now fully discharged across three non-prompt layers (ADR-0021, `docs/harvest/generate_fp_sweep.md`):
+
+1. **Parser guard strengthened (nested extension chains):** `prompts.RUNAWAY_CHAIN_MIN = 3` and `prompts.runaway_chains` detect nested prefix-extension chains ($N+1$ extends $N$), charging chains $\ge 3$ to `errors` in both `parse_response` and `decompose.parse_decomposition`.
+2. **Decomposer splitter hole closed (`sentence_units` punctuation-bound splitting):** `decompose._split_run_on` splits sentence units exceeding `MAX_CLAIM_WORDS = 50` at explicit punctuation boundaries (`;` or `,` + whitespace). Units lacking marked boundaries remain whole and flagged. On `parity_iter1b`, the 731-word claim is cleanly split into 18 pieces, reducing over-length claims to 0 for `joint` and `post_hoc` while preserving content invariants (0 lost/duplicated non-whitespace characters across all 300 records).
+3. **Generator-side root cause addressed (sampling frequency penalty):** `GenerationConfig.frequency_penalty` default is raised from `0.0` to `0.5` (`CONFIG_VERSION` 1.5.0). Live A4000 sampling sweeps confirm `joint` over-length claims drop to 0, longest claim falls 731w $\rightarrow$ 27w, `quote_not_found` falls $8 \rightarrow 0$, and window-overflow HTTP 400 call rejections vanish.
+
+**Strict adherence to prompt freeze.** Still no prompt edit was performed, and `_claim_rules()` remains frozen. Prompt text, `prompts.PARITY_LOOP_CLOSED`, and `decompose.decompose_template_digest()` are unchanged.

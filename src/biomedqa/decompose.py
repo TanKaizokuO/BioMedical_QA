@@ -65,7 +65,14 @@ from . import backends
 from .chunk import sentence_spans
 from .config import GenerationConfig
 from .generate import STAGE_SEPARATOR, Completer
-from .prompts import ATOMICITY_RULE, DECONTEXTUALIZATION_RULE, MAX_CLAIM_WORDS
+from .prompts import (
+    ATOMICITY_RULE,
+    DECONTEXTUALIZATION_RULE,
+    MAX_CLAIM_WORDS,
+    RUNAWAY_CHAIN_MIN,
+    claim_stem,
+    runaway_chains,
+)
 from .schema import Claim, CostRecord, Granularity
 
 #: A `CLAIM` header in generated text, as `parse_response` reads it: the head is case-insensitive
@@ -203,7 +210,52 @@ def answer_spans(answer: str) -> list[tuple[int, int]]:
     return spans
 
 
-def sentence_units(answer: str) -> list[tuple[int, int]]:
+_RUN_ON_CUT = re.compile(r"(?:;|,)\s+")
+
+
+def _split_run_on(
+    answer: str, start: int, end: int, max_words: int
+) -> list[tuple[int, int]]:
+    """Split a run-on sentence span `[start, end)` exceeding `max_words` at comma/semicolon boundaries.
+
+    Across `docs/harvest/parity_iter1b.records.jsonl` only 27 of 3592 units exceed 50 words
+    (joint 20, post_hoc 3, vanilla 4), so legitimate sentences are untouched; the 731-word unit
+    becomes 18 pieces of at most 50 words; corpus-wide exactly 1 piece remains over 50 words
+    (a clause with no internal punctuation), and it stays flagged rather than force-split.
+    """
+    cut_points = [
+        m.end()
+        for m in _RUN_ON_CUT.finditer(answer, start, end)
+        if start < m.end() < end
+    ]
+    if not cut_points:
+        return [(start, end)]
+
+    bounds = [start] + cut_points + [end]
+    pieces: list[tuple[int, int]] = []
+    p_start = bounds[0]
+    p_end = bounds[1]
+
+    for next_end in bounds[2:]:
+        if len(answer[p_start:next_end].split()) <= max_words:
+            p_end = next_end
+        else:
+            tight = _tighten(answer, p_start, p_end)
+            if tight[1] > tight[0]:
+                pieces.append(tight)
+            p_start = p_end
+            p_end = next_end
+
+    tight = _tighten(answer, p_start, p_end)
+    if tight[1] > tight[0]:
+        pieces.append(tight)
+
+    return pieces
+
+
+def sentence_units(
+    answer: str, *, max_words: int = MAX_CLAIM_WORDS
+) -> list[tuple[int, int]]:
     """The numbered sentences the decomposer is shown, as exact spans of `answer`.
 
     This is also the `sentence` granularity's output, which is why it is one function: the ablation
@@ -211,7 +263,14 @@ def sentence_units(answer: str) -> list[tuple[int, int]]:
     """
     units: list[tuple[int, int]] = []
     for start, end in answer_spans(answer):
-        units.extend(_tighten(answer, s, e) for s, e in sentence_spans(answer, start, end))
+        for s, e in sentence_spans(answer, start, end):
+            s, e = _tighten(answer, s, e)
+            if e <= s:
+                continue
+            if len(answer[s:e].split()) > max_words:
+                units.extend(_split_run_on(answer, s, e, max_words))
+            else:
+                units.append((s, e))
     return [(s, e) for s, e in units if e > s]
 
 
@@ -234,6 +293,8 @@ def build_prompt(
     question: str | None = None,
     units: list[tuple[int, int]] | None = None,
     target: int = 1,
+    *,
+    max_words: int = MAX_CLAIM_WORDS,
 ) -> str:
     """Render the decomposer prompt for **one sentence** of an answer. `target` is that sentence's
     1-based position in `units`; the rest of the answer is still shown, because a decontextualizing
@@ -242,7 +303,8 @@ def build_prompt(
     Exposed because a prompt nobody can print is a prompt nobody can review, and this one is frozen
     on Sep 3 with the rest of the decomposer."""
     if units is None:
-        units = sentence_units(answer)
+        # Match decompose()'s unit-splitting bound so sentence indices remain aligned.
+        units = sentence_units(answer, max_words=max_words)
     if not units:
         raise ValueError("answer carries no text to decompose")
     if not 1 <= target <= len(units):
@@ -345,6 +407,21 @@ def parse_decomposition(
                 "(non-terminating generation)"
             )
 
+    chains = runaway_chains([c.text for c in claims])
+    for start_idx, length in chains:
+        first_cid = claims[start_idx].claim_id
+        cid = claims[start_idx + length - 1].claim_id
+        if length >= RUNAWAY_CHAIN_MIN:
+            errors.append(
+                f"{cid}: extends {first_cid}'s claim text through {length} nested claims "
+                "(non-terminating generation)"
+            )
+        elif length == 2:
+            second_text = claims[start_idx + 1].text
+            recovered.append(
+                f"{cid}: extends {first_cid}'s claim text ({second_text[:60]!r})"
+            )
+
     return claims, errors, recovered
 
 
@@ -381,7 +458,7 @@ def decompose(
             "cite stage's claims are counted twice"
         )
     granularity = Granularity(config.granularity)
-    units = sentence_units(answer)
+    units = sentence_units(answer, max_words=max_claim_words)
 
     if granularity is Granularity.SENTENCE:
         return Decomposition(
@@ -414,7 +491,15 @@ def decompose(
         sentence_query_id = (
             f"{query_id}:s{target}" if len(units) > 1 and query_id else query_id
         )
-        prompt = build_prompt(answer, granularity, question, units=units, target=target)
+        # Thread max_claim_words so sentence numbering and target indices remain aligned.
+        prompt = build_prompt(
+            answer,
+            granularity,
+            question,
+            units=units,
+            target=target,
+            max_words=max_claim_words,
+        )
         raw, cost = completer(
             prompt, config, seed=seed, run_id=run_id, query_id=sentence_query_id
         )

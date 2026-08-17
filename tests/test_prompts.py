@@ -14,8 +14,10 @@ from biomedqa.prompts import (
     PARITY_LOOP_CLOSED,
     POST_HOC_ANSWER_TEMPLATE,
     PROMPT_ITERATIONS,
+    RUNAWAY_CHAIN_MIN,
     build_citation_response_format,
     build_prompt,
+    claim_stem,
     effort_is_matched,
     iteration_counts,
     locate_quote,
@@ -25,6 +27,7 @@ from biomedqa.prompts import (
     parse_response,
     post_hoc_answer_template_digest,
     render_context,
+    runaway_chains,
 )
 from biomedqa.schema import MAX_CITATIONS, RetrievedPassage, System
 
@@ -638,3 +641,89 @@ def test_malformed_json_is_reported_as_json_not_as_a_missing_claim_line():
     assert len(parsed.errors) == 1
     assert "malformed JSON" in parsed.errors[0]
     assert not any("CLAIM" in e for e in parsed.errors)
+
+
+def test_claim_stem_normalises_text_and_strips_trailing_punctuation():
+    raw1 = "  distress associated with attenuated psychotic symptoms.  \n"
+    stem1 = claim_stem(raw1)
+    assert stem1 == "distress associated with attenuated psychotic symptoms"
+
+    raw2 = "distress associated with attenuated psychotic symptoms, but the association is not significant"
+    stem2 = claim_stem(raw2)
+    assert stem2.startswith(stem1)
+
+
+def test_runaway_chains_boundary_check_rejects_word_continuation_and_accepts_punctuation():
+    texts_word_cont = ["the cat", "the cats sleep"]
+    assert runaway_chains(texts_word_cont) == []
+
+    texts_comma = ["the cat", "the cat, sleeps"]
+    assert runaway_chains(texts_comma) == [(0, 2)]
+
+
+def test_runaway_3_chain_in_parse_response_emits_error_naming_ids_and_count():
+    passages = _passages(1)
+    raw = (
+        "DECISION: yes\n"
+        "CLAIM 1: distress associated with attenuated psychotic symptoms.\n"
+        "CITE 1: p1 || Metformin reduced HbA1c\n"
+        "CLAIM 2: distress associated with attenuated psychotic symptoms, but the association is not significant.\n"
+        "CITE 2: p1 || Metformin reduced HbA1c\n"
+        "CLAIM 3: distress associated with attenuated psychotic symptoms, but the association is not significant, and distress is not a criterion.\n"
+        "CITE 3: p1 || Metformin reduced HbA1c\n"
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS)
+    assert parsed.recovered == []
+    assert len(parsed.errors) == 1
+    err = parsed.errors[0]
+    assert "c3: extends c1's claim text through 3 nested claims (non-terminating generation)" in err
+    assert "exceeds the max claim length" not in err
+
+
+def test_runaway_2_chain_in_parse_response_emits_recovered_and_no_errors():
+    passages = _passages(1)
+    raw = (
+        "DECISION: yes\n"
+        "CLAIM 1: distress associated with attenuated psychotic symptoms.\n"
+        "CITE 1: p1 || Metformin reduced HbA1c\n"
+        "CLAIM 2: distress associated with attenuated psychotic symptoms, but the association is not significant.\n"
+        "CITE 2: p1 || Metformin reduced HbA1c\n"
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS)
+    assert parsed.errors == []
+    assert len(parsed.recovered) == 1
+    rec = parsed.recovered[0]
+    assert "c2: extends c1's claim text ('distress associated with attenuated psychotic symptoms, but ')" in rec
+
+
+def test_unrelated_claims_produce_neither_error_nor_recovered():
+    passages = _passages(1)
+    raw = (
+        "DECISION: yes\n"
+        "CLAIM 1: Metformin reduced HbA1c by 1.2% over 24 weeks.\n"
+        "CITE 1: p1 || Metformin reduced HbA1c\n"
+        "CLAIM 2: No severe hypoglycaemia occurred.\n"
+        "CITE 2: p1 || No severe hypoglycaemia occurred.\n"
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS)
+    assert parsed.errors == []
+    assert parsed.recovered == []
+
+
+def test_runaway_chains_maximal_non_overlapping_and_adjacency_restricted():
+    texts_maximal = [
+        "claim alpha",
+        "claim alpha, extended once",
+        "claim alpha, extended once, extended twice",
+        "claim beta",
+        "claim beta, extended",
+    ]
+    chains = runaway_chains(texts_maximal, min_length=2)
+    assert chains == [(0, 3), (3, 2)]
+
+    texts_non_adj = [
+        "claim alpha",
+        "unrelated claim beta",
+        "claim alpha, extended once",
+    ]
+    assert runaway_chains(texts_non_adj) == []

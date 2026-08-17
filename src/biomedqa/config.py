@@ -30,9 +30,11 @@ from .prompts import MAX_CLAIM_WORDS
 #: RetrievalConfig.title_segment, which ADR-0014 §3 says is part of the index's identity and which
 #: index_fingerprint() did not previously see. 1.4.0 adds the non-termination controls:
 #: ScoringConfig.max_claim_words (the parse-side guard, a re-scorable rule) and
-#: GenerationConfig.frequency_penalty / stop (the generation-side cause). SCHEMA_VERSION is
-#: unaffected by any of them — this versions the knobs, not the records.
-CONFIG_VERSION = "1.4.0"
+#: GenerationConfig.frequency_penalty / stop (the generation-side cause). 1.5.0 sets
+#: GenerationConfig.frequency_penalty to 0.5 from the A4000 sweep, which changes every
+#: RunConfig.hash() — deliberately, because a run's decoding is part of its identity — while
+#: SCHEMA_VERSION is unaffected because this versions knobs, not records.
+CONFIG_VERSION = "1.5.0"
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,12 +111,14 @@ class GenerationConfig:
     # bypassed at temperature 0.0 — the penalty runs in `Sampler.forward` before `greedy_sample`,
     # gated on `no_penalties` (value != default), not on temperature.
     #
-    # Left at the OpenAI default of 0.0 because a positive value also reaches the verbatim quotes:
-    # they are generated tokens too, and a quote whose common words have already been emitted can be
-    # pushed off its exact wording, converting a repetition defect into a citation defect. The value
-    # is chosen by measuring both rates on the A4000 — `scripts/generate_smoke.py
-    # --frequency-penalty` — not from the desk.
-    frequency_penalty: float = 0.0
+    # Set to 0.5 based on the A4000 sweep (`docs/harvest/generate_fp_sweep.md`). The measurement
+    # brings chain and over-length claims to zero and reduces the longest joint claim from 731w to
+    # 27w, while quote_not_found falls rather than rises (joint 8 -> 0, post_hoc 92 -> 15), inverting
+    # the risk anticipated above. The value 0.5 sits on a plateau (claims/query 5.33 at 0.3 vs 5.42 at
+    # 0.5) well short of the fp=1.0 total-claims collapse in `docs/harvest/decompose_smoke_fp_sweep.md`,
+    # and matches the C7 decomposer path so the pipeline now has one value. Note that the read was
+    # n=12 on a slice enriched for the pathology, so it chose a value and did not measure a rate.
+    frequency_penalty: float = 0.5
     #: Hard textual backstop, excluded from the returned text by vLLM unless
     #: `include_stop_str_in_output` is set (which this harness never sets). Empty by default: the
     #: observed loop grows *across* CLAIM lines, so no fixed string delimits it, and a stop

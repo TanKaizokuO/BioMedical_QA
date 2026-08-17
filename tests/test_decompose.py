@@ -26,6 +26,7 @@ from biomedqa.decompose import (
     build_prompt,
     decompose,
     decompose_template_digest,
+    parse_decomposition,
     sentence_units,
     unit_rules,
 )
@@ -108,6 +109,51 @@ class TestSegmentation:
                 assert claim.text == claim.text.strip() != ""
                 checked += 1
         assert checked > 3000
+    def test_run_on_comma_splits_into_pieces_at_or_under_bound(self):
+        """A 731-word-style comma run-on splits into pieces all at or under max_words."""
+        run_on = ", ".join(f"clause {i} asserts fact {i} about condition {i}" for i in range(100)) + "."
+        units = sentence_units(run_on)
+        word_counts = [len(run_on[s:e].split()) for s, e in units]
+        assert all(w <= 50 for w in word_counts)
+        assert len(units) > 1
+
+    def test_punctuation_free_run_on_returned_as_single_unbounded_unit(self):
+        """A punctuation-free run-on cannot be split without inventing boundaries, so it returns whole."""
+        run_on = " ".join(f"word{i}" for i in range(100)) + "."
+        units = sentence_units(run_on)
+        assert len(units) == 1
+        assert len(run_on[units[0][0]:units[0][1]].split()) == 100
+
+    def test_run_on_splitting_invariants(self):
+        """Invariants: non-overlapping, strictly increasing, exact substrings with no outer whitespace,
+        and concatenated non-whitespace content equals original unit's non-whitespace content."""
+        run_on = ", ".join(f"clause {i} asserts fact {i}" for i in range(100)) + "."
+        units = sentence_units(run_on)
+
+        # Strictly increasing, non-overlapping
+        for i in range(len(units) - 1):
+            assert units[i][1] <= units[i + 1][0]
+            assert units[i][0] < units[i][1]
+
+        # Exact substring with no outer whitespace
+        for s, e in units:
+            text = run_on[s:e]
+            assert text == text.strip()
+            assert text != ""
+
+        # Concatenated non-whitespace equality (no loss or duplication)
+        pieces_non_ws = "".join(run_on[s:e].replace(" ", "").replace("\n", "").replace("\t", "") for s, e in units)
+        orig_non_ws = run_on.replace(" ", "").replace("\n", "").replace("\t", "")
+        assert pieces_non_ws == orig_non_ws
+
+    def test_short_answer_units_unchanged(self):
+        """Short sentences at or under max_words are returned byte-identical to previous behaviour."""
+        short_prose = "Metformin lowers HbA1c. It does not prevent fractures."
+        units = sentence_units(short_prose)
+        assert [short_prose[s:e] for s, e in units] == [
+            "Metformin lowers HbA1c.",
+            "It does not prevent fractures.",
+        ]
 
 
 class TestTheThreeRowsDiffer:
@@ -358,6 +404,31 @@ class TestParsing:
         assert result.errors == ()
 
 
+    def test_nested_extension_chain_charging_in_parse_decomposition(self):
+        """parse_decomposition charges a 3-chain with 1 error entry, and a 2-chain with 1 recovered entry."""
+        unit = (0, 100)
+
+        # 3-chain reply
+        raw_3 = (
+            "CLAIM 1: Metformin reduces all-cause mortality\n"
+            "CLAIM 2: Metformin reduces all-cause mortality, especially in diabetes\n"
+            "CLAIM 3: Metformin reduces all-cause mortality, especially in diabetes, and lowers HbA1c\n"
+        )
+        claims, errors, recovered = parse_decomposition(raw_3, unit, Granularity.ATOMIC)
+        assert len(claims) == 3
+        assert len(errors) == 1
+        assert "c3: extends c1's claim text through 3 nested claims (non-terminating generation)" in errors[0]
+        assert len(recovered) == 0
+
+        # 2-chain reply
+        raw_2 = (
+            "CLAIM 1: Metformin reduces all-cause mortality\n"
+            "CLAIM 2: Metformin reduces all-cause mortality, especially in diabetes\n"
+        )
+        claims2, errors2, recovered2 = parse_decomposition(raw_2, unit, Granularity.ATOMIC)
+        assert len(claims2) == 2
+        assert len(errors2) == 0
+        assert "c2: extends c1's claim text ('Metformin reduces all-cause mortality, especially in diabete')" in recovered2[0]
 class TestCost:
     def test_every_sentence_call_is_billed_to_decompose(self):
         """Table 4 has to be able to tell a C7 row's extra calls from the generation it re-cuts;

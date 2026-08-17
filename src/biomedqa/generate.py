@@ -44,8 +44,11 @@ which system, or which granularity, wrote that answer.
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
+
+import httpx
 
 from . import backends
 from .config import GenerationConfig
@@ -81,12 +84,20 @@ class Generation:
     on, chiefly the ≤3-citation cap and vanilla carrying no citations at all. Both are reported,
     neither is repaired, and neither raises: a record that breaks its contract still has to reach
     the denominator or the rate it feeds is measured on the survivors.
+
+    `recovered` captures transcription drift that was read rather than rejected — see
+    `prompts.ParsedResponse`. The field was dropped when `Generation` was constructed in `generate_one`,
+    so `parse_response`'s recovered notes — bracket-stripped ids, ids read past a dropped chunk
+    index, quotes matched only after normalising delimiters/whitespace/case, and length-2
+    nested-claim chains — never reached a smoke summary, which ADR-0019's Consequences forbid.
     """
 
     record: QueryRecord
     costs: tuple[CostRecord, ...]
     errors: tuple[str, ...]
     violations: tuple[str, ...]
+    #: Transcription drift that was read rather than rejected — see `prompts.ParsedResponse`.
+    recovered: tuple[str, ...] = ()
 
 
 def generate_one(
@@ -108,6 +119,14 @@ def generate_one(
     The record is returned whatever the model emitted — an unparseable response yields a record
     with no claims and a populated `errors`, because G2 gates on the valid-parse *rate* and a
     failure that raises is a failure that never reaches the denominator.
+
+    A rejected call (e.g. HTTPStatusError or TransportError) is recorded as a failure rather
+    than propagating a traceback. On vLLM with `--max-model-len 8192`, post-hoc's stage 2 prompt
+    embeds stage 1's answer; a runaway stage 1 generation can inflate the prompt so that
+    prompt_tokens + max_tokens exceeds 8192, triggering a 400 rejection (measured twice during
+    the live A4000 sweep on query 21074975). The fix records the failure in `call_failures`
+    and `Generation.errors` rather than clamping or retrying, because a per-query effective cap
+    cannot be expressed by the manifest's single `generation.max_tokens`.
     """
     context = list(passages[:depth])
     if not context:
@@ -115,14 +134,38 @@ def generate_one(
 
     texts: list[str] = []
     costs: list[CostRecord] = []
+    call_failures: list[str] = []
 
     def call(prompt: str) -> str:
-        text, cost = complete(
-            prompt, config, seed=seed, run_id=run_id, query_id=query_id
-        )
-        texts.append(text)
-        costs.append(cost)
-        return text
+        stage_num = len(texts) + 1
+        t0 = time.perf_counter()
+        try:
+            text, cost = complete(
+                prompt, config, seed=seed, run_id=run_id, query_id=query_id
+            )
+        except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+            wall_s = time.perf_counter() - t0
+            exc_str = str(exc)
+            if len(exc_str) > 400:
+                exc_str = exc_str[:400] + "..."
+            call_failures.append(f"call {stage_num} rejected: {exc_str}")
+            texts.append("")
+            costs.append(
+                CostRecord(
+                    run_id=run_id,
+                    query_id=query_id,
+                    component="generate",
+                    backend=f"vllm:{config.model}",
+                    input_tokens=None,
+                    output_tokens=None,
+                    wall_s=wall_s,
+                )
+            )
+            return ""
+        else:
+            texts.append(text)
+            costs.append(cost)
+            return text
 
     if system is System.POST_HOC:
         answer = call(
@@ -164,7 +207,13 @@ def generate_one(
         prompt_tokens=_total(c.input_tokens for c in costs),
         completion_tokens=_total(c.output_tokens for c in costs),
     )
-    return Generation(record, tuple(costs), tuple(parsed.errors), tuple(record.validate()))
+    return Generation(
+        record,
+        tuple(costs),
+        tuple((*call_failures, *parsed.errors)),
+        tuple(record.validate()),
+        tuple(parsed.recovered),
+    )
 
 
 def _total(values: Iterable[float | None]) -> float | None:

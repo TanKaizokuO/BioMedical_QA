@@ -269,7 +269,7 @@ def main() -> int:
     per_row: dict[str, dict] = {
         row.value: {
             "claims": [], "clean_decompose": 0, "clean_cite": 0, "n": 0,
-            "duplicate_claim_count": 0, "quote_not_found_count": 0,
+            "duplicate_claim_count": 0, "runaway_chain_claim_count": 0, "quote_not_found_count": 0,
             "claims_unmatched": 0, "quotes_located": 0,
             "call_failure_count": 0,
             "decompose_error_kinds": Counter(), "decompose_recovered_kinds": Counter(),
@@ -346,6 +346,10 @@ def main() -> int:
                     1 for problem in (*decomp.errors, *decomp.recovered)
                     if "claim text verbatim" in problem or "repeats sentence" in problem
                 )
+                per_row[row.value]["runaway_chain_claim_count"] += sum(
+                    1 for problem in decomp.errors
+                    if "nested claims (non-terminating generation)" in problem
+                )
                 per_row[row.value]["decompose_error_kinds"].update(
                     _error_kind(problem) for problem in decomp.errors
                 )
@@ -400,6 +404,7 @@ def main() -> int:
             "clean_cite_rate": round(stats["clean_cite"] / stats["n"], 4) if stats["n"] else None,
             "median_words_per_claim": statistics.median(words) if words else None,
             "duplicate_claim_count": stats["duplicate_claim_count"],
+            "runaway_chain_claim_count": stats["runaway_chain_claim_count"],
             "quote_not_found_count": stats["quote_not_found_count"],
             # A row that could not be measured at all. It is in `n_queries` above and in neither
             # clean counter, so it depresses both clean rates rather than vanishing from them.

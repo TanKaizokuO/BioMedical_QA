@@ -71,13 +71,35 @@ from biomedqa.schema import (  # noqa: E402
 )
 
 
-def load_contexts(path: Path, n: int) -> list[dict]:
-    """The first `n` questions from the committed top-10 dev contexts, in file order.
+def load_contexts(
+    path: Path, n: int = 3, query_ids: Sequence[str] | None = None
+) -> list[dict]:
+    """The dev contexts from `path`, in file order.
 
-    File order, not a sample: this is a smoke test, and a seeded subsample would imply the result
-    generalises to the dev set. It does not, and `--n 3` is not a measurement.
+    If `query_ids` is specified, selects exactly those query IDs in file order.
+    Otherwise, returns the first `n` contexts in file order.
     """
     out = []
+    if query_ids:
+        requested = list(query_ids)
+        wanted = set(requested)
+        found = set()
+        with open(path, encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                ctx = json.loads(line)
+                qid = str(ctx.get("query_id"))
+                if qid in wanted:
+                    out.append(ctx)
+                    found.add(qid)
+                    if len(found) == len(wanted):
+                        break
+        missing = [qid for qid in requested if qid not in found]
+        if missing:
+            raise SystemExit(f"query ids not found in {path}: {', '.join(missing)}")
+        return out
+
     with open(path, encoding="utf-8") as fh:
         for line in fh:
             if line.strip():
@@ -183,6 +205,16 @@ def main() -> int:
     ap.add_argument("--base-url", default="http://localhost:8000")
     ap.add_argument("--contexts", type=Path, default=Path("docs/harvest/dev_contexts_top10.jsonl"))
     ap.add_argument("--n", type=int, default=3, help="questions (default: %(default)s; a smoke test, not a sample)")
+    ap.add_argument(
+        "--query-ids",
+        type=str,
+        default=None,
+        help=(
+            "comma-separated list of query ids selecting exactly those contexts from --contexts, "
+            "in file order. Target individual records carrying runaway pathology (indices 1, 25, 48, 99) "
+            "so a targeted sweep point costs 12 questions instead of 100. Mutually exclusive with a non-default --n."
+        ),
+    )
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--depth", type=int, default=CONTEXT_DEPTH)
     ap.add_argument("--max-tokens", type=int, default=GenerationConfig().max_tokens)
@@ -228,7 +260,16 @@ def main() -> int:
         os.environ["VLLM_BASE_URL"] = args.base_url
         assert_served(args.base_url, args.model, args.timeout)
 
-    contexts = load_contexts(args.contexts, args.n)
+    if args.query_ids is not None:
+        if args.n != 3 or any(arg == "--n" or arg.startswith("--n=") for arg in sys.argv[1:]):
+            raise SystemExit(
+                f"cannot combine --query-ids and --n (passed --query-ids with --n {args.n}); choose one"
+            )
+        query_ids = [q.strip() for q in args.query_ids.split(",") if q.strip()]
+    else:
+        query_ids = None
+
+    contexts = load_contexts(args.contexts, n=args.n, query_ids=query_ids)
     # A whole RunConfig, not a bare GenerationConfig: the manifest's job is to name every knob the
     # numbers rest on, and `--depth` is a retrieval knob that the summary used to record as a loose
     # integer next to knobs from a different section.
@@ -289,17 +330,31 @@ def main() -> int:
                     "decision": rec.final_decision,
                     "errors": list(gen.errors),
                     "violations": list(gen.violations),
+                    "recovered": list(gen.recovered),
                     "latency_s": rec.latency_s,
                     "prompt_tokens": rec.prompt_tokens,
                     "completion_tokens": rec.completion_tokens,
                 }
             )
-            # The two counters the --frequency-penalty sweep is read off. They move in opposite
-            # directions: the penalty is what stops a runaway claim, and too much of it pushes a
-            # verbatim quote off its exact wording, which `locate_quote` then refuses. A value is
-            # only acceptable if the first falls while the second does not rise.
+            # The sweep counters the --frequency-penalty sweep is read off. They move in opposing
+            # directions: frequency_penalty is what stops non-terminating generation loops (measured
+            # by runaway_chain_claims and over_length_claims), but too much of it pushes a verbatim
+            # quote off its exact wording, which `locate_quote` then refuses (`quote_not_found`). A
+            # frequency_penalty value is acceptable only if runaway_chain_claims and
+            # over_length_claims fall while quote_not_found does not rise -- the penalty reaches the
+            # verbatim quotes a citation is made of, which is why repetition_penalty was rejected
+            # outright.
+            rows[-1]["call_failure_count"] = sum(
+                1 for e in gen.errors if "rejected: " in e
+            )
             rows[-1]["over_length_claims"] = sum(
                 1 for e in gen.errors if "max claim length" in e
+            )
+            rows[-1]["runaway_chain_claims"] = sum(
+                1 for e in gen.errors if "nested claims (non-terminating generation)" in e
+            )
+            rows[-1]["runaway_chain_pairs"] = sum(
+                1 for e in gen.recovered if "extends " in e
             )
             rows[-1]["quote_not_found"] = sum(
                 1 for e in gen.errors if "not found verbatim" in e
@@ -315,6 +370,8 @@ def main() -> int:
             )
             for problem in (*gen.errors, *gen.violations):
                 print(f"{'':>9s}   ! {problem}")
+            for note in gen.recovered:
+                print(f"{'':>9s}   ~ {note}")
 
     per_system = {}
     for system in System:
@@ -324,10 +381,14 @@ def main() -> int:
             "n": len(mine),
             "clean_parses": sum(1 for r in mine if not r["errors"]),
             "records_with_violations": sum(1 for r in mine if r["violations"]),
+            "call_failure_count": sum(r["call_failure_count"] for r in mine),
             "stages_seen": sorted({r["stages"] for r in mine}),
             "mean_claims": round(statistics.fmean(r["claims"] for r in mine), 2),
             "total_citations": sum(r["citations"] for r in mine),
+            "recovered_notes": sum(len(r["recovered"]) for r in mine),
             "over_length_claims": sum(r["over_length_claims"] for r in mine),
+            "runaway_chain_claims": sum(r["runaway_chain_claims"] for r in mine),
+            "runaway_chain_pairs": sum(r["runaway_chain_pairs"] for r in mine),
             "quote_not_found": sum(r["quote_not_found"] for r in mine),
             "longest_claim_words": max((r["longest_claim_words"] for r in mine), default=0),
             "median_latency_s": round(statistics.median(lat), 2) if lat else None,
@@ -338,15 +399,25 @@ def main() -> int:
         print(
             f"  {name:8s} clean_parses {s['clean_parses']}/{s['n']}  "
             f"violations {s['records_with_violations']}/{s['n']}  "
+            f"call_failures {s['call_failure_count']}/{s['n']}  "
             f"stages {s['stages_seen']}  mean_claims {s['mean_claims']}  "
+            f"runaway_chain_claims {s['runaway_chain_claims']}  "
             f"median {s['median_latency_s']}s"
         )
 
     expected = {System.JOINT.value: [1], System.POST_HOC.value: [2], System.VANILLA.value: [1]}
     stage_ok = all(per_system[k]["stages_seen"] == v for k, v in expected.items())
+    total_call_failures = sum(s["call_failure_count"] for s in per_system.values())
+    no_call_failures = total_call_failures == 0
+    clean_pass = stage_ok and no_call_failures
+
     print(
         f"\nstage-count check: {'PASSES' if stage_ok else 'FAILS'} "
         "(post_hoc must be two calls, joint and vanilla one)"
+    )
+    print(
+        f"call-failure check: {'PASSES' if no_call_failures else 'FAILS'} "
+        f"({total_call_failures} model call(s) rejected)"
     )
 
     rec_path = records_path(prefix)
@@ -369,11 +440,12 @@ def main() -> int:
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "run_arguments": {
                     "base_url": None if args.fake else args.base_url,
-                    "n_questions": args.n,
+                    "n_questions": len(contexts),
                     "contexts": str(args.contexts),
                     "max_claim_words": MAX_CLAIM_WORDS,
                 },
                 "stage_count_check": {"expected": expected, "passed": stage_ok},
+                "call_failure_check": {"total_call_failures": total_call_failures, "passed": no_call_failures},
                 "per_system": per_system,
                 "rows": rows,
             },
@@ -386,7 +458,7 @@ def main() -> int:
     print(f"\nWritten to {rec_path}, {cost_path}, {sum_path}, {manifest_path(prefix)}")
     for problem in verify_run(prefix):
         print(f"  provenance: {problem}")
-    return 0 if stage_ok else 1
+    return 0 if clean_pass else 1
 
 
 if __name__ == "__main__":

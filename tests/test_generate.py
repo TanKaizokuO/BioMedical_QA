@@ -8,11 +8,12 @@ No inspection of the generated text can reveal it after the fact, so it is asser
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from biomedqa.config import GenerationConfig
 from biomedqa.generate import STAGE_SEPARATOR, generate_one, split_stages
-from biomedqa.schema import CostRecord, RetrievedPassage, System
+from biomedqa.schema import CostRecord, QueryRecord, RetrievedPassage, System
 
 _TEXT = {
     "p1": "Metformin reduced all-cause mortality by 21% over five years in the treatment arm.",
@@ -228,3 +229,149 @@ class TestContext:
         )
         assert gen.record.prompt_tokens is None
         assert gen.record.completion_tokens is None
+
+
+class TestRecovered:
+    def test_generate_one_propagates_recovered_notes(self):
+        """Recovered notes (e.g. passage id missing its chunk index) must reach Generation."""
+        p = RetrievedPassage(
+            passage_id="p1:0", rank=1, score=1.0, retriever="rerank", text=_TEXT["p1"]
+        )
+        response = (
+            "DECISION: yes\n"
+            "CLAIM 1: Metformin reduced all-cause mortality in adults with type 2 diabetes.\n"
+            "CITE 1: p1 || Metformin reduced all-cause mortality by 21%\n"
+        )
+        stub = _Recorder(response)
+        gen = generate_one(
+            "Does metformin reduce mortality?",
+            [p],
+            ["p1:0"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="21645374",
+            complete=stub,
+        )
+        assert gen.recovered
+        assert any("cites 'p1', read as 'p1:0'" in r for r in gen.recovered)
+
+
+class TestCallFailures:
+    def test_first_call_http_status_error_yields_generation(self):
+        req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+        resp_text = (
+            "This model's maximum context length is 8192 tokens. However, you requested "
+            "3072 output tokens and your prompt contains at least 5121 input tokens, "
+            "for a total of at least 8193 tokens."
+        )
+        resp = httpx.Response(400, request=req, text=resp_text)
+        exc = httpx.HTTPStatusError(
+            f"vLLM returned 400 for /v1/chat/completions: {resp_text}",
+            request=req,
+            response=resp,
+        )
+        def failing_completer(prompt, config, *, seed, run_id, query_id):
+            raise exc
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="21074975",
+            complete=failing_completer,
+        )
+        assert isinstance(gen.record, QueryRecord)
+        assert gen.record.claims == []
+        assert len(gen.errors) > 0
+        assert any("call 1 rejected:" in e for e in gen.errors)
+        assert any("maximum context length is 8192" in e for e in gen.errors)
+        assert gen.record.prompt_tokens is None
+        assert gen.record.completion_tokens is None
+        assert isinstance(gen.record.latency_s, float)
+
+    def test_post_hoc_second_call_http_status_error_yields_two_stage_record(self):
+        req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+        resp = httpx.Response(400, request=req, text="Context length exceeded")
+        exc = httpx.HTTPStatusError("400 Bad Request", request=req, response=resp)
+
+        call_count = 0
+
+        def second_call_failing(prompt, config, *, seed, run_id, query_id):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "Metformin reduces mortality.", CostRecord(
+                    run_id=run_id,
+                    query_id=query_id,
+                    component="generate",
+                    backend="stub",
+                    input_tokens=100,
+                    output_tokens=20,
+                    wall_s=0.5,
+                )
+            raise exc
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.POST_HOC,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="21074975",
+            complete=second_call_failing,
+        )
+        assert len(split_stages(gen.record.raw_generation)) == 2
+        assert split_stages(gen.record.raw_generation)[0] == "Metformin reduces mortality."
+        assert split_stages(gen.record.raw_generation)[1] == ""
+        assert any("call 2 rejected:" in e for e in gen.errors)
+        assert gen.record.prompt_tokens is None
+        assert gen.record.completion_tokens is None
+        assert isinstance(gen.record.latency_s, float)
+
+    def test_transport_error_yields_generation(self):
+        req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+        exc = httpx.ConnectError("Connection refused", request=req)
+
+        def failing_completer(prompt, config, *, seed, run_id, query_id):
+            raise exc
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="1",
+            complete=failing_completer,
+        )
+        assert any("call 1 rejected: Connection refused" in e for e in gen.errors)
+        assert gen.record.prompt_tokens is None
+        assert gen.record.completion_tokens is None
+        assert isinstance(gen.record.latency_s, float)
+
+    def test_value_error_propagates(self):
+        def failing_completer(prompt, config, *, seed, run_id, query_id):
+            raise ValueError("programming error")
+
+        with pytest.raises(ValueError, match="programming error"):
+            generate_one(
+                "q",
+                _passages(),
+                ["p1"],
+                system=System.JOINT,
+                config=GenerationConfig(model="stub"),
+                seed=0,
+                run_id="run-1",
+                query_id="1",
+                complete=failing_completer,
+            )

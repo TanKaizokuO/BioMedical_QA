@@ -86,13 +86,14 @@ def test_stop_sequences_reach_the_request(body):
     assert body(_config(stop=("\nQUESTION:",)))["stop"] == ["\nQUESTION:"]
 
 
-def test_the_default_config_asks_for_no_penalty_and_no_stop(body):
-    """The defaults are the OpenAI no-ops, so 1.4.0 changes no token until a value is chosen on the
-    box. Sent explicitly rather than omitted: the body is a faithful image of the config, which is
+def test_the_default_config_sends_the_chosen_frequency_penalty_and_no_stop(body):
+    """The value was chosen on the A4000 (`docs/harvest/generate_fp_sweep.md`). What this test
+    now defends is that the chosen value reaches the request rather than sitting in the dataclass.
+    Sent explicitly rather than omitted: the body is a faithful image of the config, which is
     what makes a replayed request comparable to the run that produced it."""
     sent = body(_config())
 
-    assert sent["frequency_penalty"] == 0.0
+    assert sent["frequency_penalty"] == 0.5
     assert sent["stop"] == []
 
 
@@ -143,7 +144,7 @@ def test_anthropic_refuses_a_penalty_it_cannot_apply():
     with pytest.raises(ValueError, match="no Anthropic equivalent"):
         backends.complete(
             "prompt",
-            GenerationConfig(backend="anthropic", model="claude-opus-5", frequency_penalty=0.3),
+            GenerationConfig(backend="anthropic", model="claude-opus-5", frequency_penalty=0.5),
             seed=0,
             run_id="r",
             query_id="q",

@@ -80,6 +80,48 @@ DECISIONS = ("yes", "no", "maybe")
 #: `ScoringConfig.max_claim_words` defaults to it; this is the single copy.
 MAX_CLAIM_WORDS = 50
 
+def claim_stem(text: str) -> str:
+    """Whitespace-collapsed, lowercased, trailing sentence punctuation stripped."""
+    return " ".join(text.split()).lower().rstrip(" .,;:")
+
+
+#: Minimum nested-extension chain length charged as a non-terminating generation.
+#:
+#: On `docs/harvest/parity_iter1b.records.jsonl`, the chain-length distribution is joint
+#: `{2: 22, 3: 1, 10: 1, 11: 1}`, post_hoc `{2: 2, 5: 1}`, vanilla `{2: 1}` -- a large x2 mode
+#: plus a sparse loop tail, the same population split ADR-0019 §1 used to justify its x3 threshold,
+#: which is why `RUNAWAY_CHAIN_MIN` is 3 and a chain of 2 is `recovered` rather than `errors`.
+#:
+#: The guard is not redundant with `MAX_CLAIM_WORDS`: joint `17578985` c15/c16/c17 is a 3-chain at
+#: 19/26/32 words, wholly invisible to the 50-word guard, and 9 joint + 3 post_hoc chained claims
+#: are under 50 words. The detector fires on post_hoc as well as joint, so it is symmetric across
+#: the C2 arms and cannot flatter either.
+RUNAWAY_CHAIN_MIN = 3
+
+
+def runaway_chains(texts: Sequence[str], *, min_length: int = 2) -> list[tuple[int, int]]:
+    """`(start_index, length)` for each maximal run of consecutive claims where each claim's
+    `claim_stem` strictly extends its predecessor's at a non-alphanumeric boundary.
+    """
+    stems = [claim_stem(t) for t in texts]
+    chains: list[tuple[int, int]] = []
+    n = len(stems)
+    i = 0
+    while i < n - 1:
+        j = i
+        while j < n - 1:
+            a = stems[j]
+            b = stems[j + 1]
+            if len(b) > len(a) and b.startswith(a) and not b[len(a)].isalnum():
+                j += 1
+            else:
+                break
+        length = j - i + 1
+        if length >= min_length:
+            chains.append((i, length))
+        i = j + 1
+    return chains
+
 _CITATION_SEP = "||"
 
 
@@ -980,6 +1022,20 @@ def parse_response(
         if len(claims[cid].citations) > max_citations:
             errors.append(
                 f"{cid}: {len(claims[cid].citations)} citations exceeds the cap of {max_citations}"
+            )
+    claim_texts = [claims[cid].text for cid in order]
+    for start_idx, length in runaway_chains(claim_texts, min_length=2):
+        first_cid = order[start_idx]
+        cid = order[start_idx + length - 1]
+        if length >= RUNAWAY_CHAIN_MIN:
+            errors.append(
+                f"{cid}: extends {first_cid}'s claim text through {length} nested claims "
+                "(non-terminating generation)"
+            )
+        else:
+            sec_text = claims[cid].text
+            recovered.append(
+                f"{cid}: extends {first_cid}'s claim text ({sec_text[:60]!r})"
             )
     if not order:
         errors.append("no CLAIM lines")
