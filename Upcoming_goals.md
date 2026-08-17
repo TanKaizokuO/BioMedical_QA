@@ -21,8 +21,8 @@ This document lists the upcoming targets for the project. The project uses evide
 
 * ~~**Implement Guided JSON:** You must apply guided-JSON constrained decoding to the post-hoc citation stage.~~ *(Completed Aug 17, 2026 — guided JSON wired in `src/biomedqa/backends.py` and `src/biomedqa/generate.py`).*
 * ~~**Measure Output Metrics:** You must measure and record baseline vs guided-JSON metrics on $n=100$ dev queries.~~ *(Completed Aug 17, 2026 — clean parse rose from $23\%$ to $70\%$, zero `quote_not_found` errors).*
-* **Batch Guided Citation Calls:** You must batch stage-2 guided citation calls into smaller claim groups (such as 4 claims per call) to prevent output truncation from inter-token whitespace runaway.
-* **Audit and Fix Citation Recall:** You must investigate and resolve the citation recall decrease caused by guided JSON before running Gate G2.
+* ~~**Batch Guided Citation Calls:** You must batch stage-2 guided citation calls into smaller claim groups (such as 4 claims per call) to prevent output truncation from inter-token whitespace runaway.~~ *(Completed Aug 17, 2026 — stage-2 calls batched to maximum 5 claims per call, eliminating truncation and increasing valid claim parse rate to $99.2\%$).*
+* ~~**Audit and Fix Citation Recall:** You must investigate and resolve the citation recall decrease caused by guided JSON before running Gate G2.~~ *(Completed Aug 17, 2026 — batching reduced uncited claims from $42.1\%$ to $2.55\%$, recovering citation recall to $0.3620$ and Citation F1 to $0.5250$).*
 ---
 
 ## 3. Decomposer and Granularity Freeze

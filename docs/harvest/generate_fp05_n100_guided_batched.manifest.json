@@ -54,7 +54,7 @@
   },
   "config_hash": "d7716c778abd",
   "config_version": "1.5.0",
-  "finished_at": null,
+  "finished_at": "2026-08-17T15:49:47.276108+00:00",
   "git_sha": "c9a2a8e54cae617acaea2f26c477abd5f09321b0",
   "index_fingerprint": "57ab89e445f8",
   "manifest_version": "1.0.0",
@@ -66,8 +66,8 @@
     "reranker": "NCBI/MedCPT-Cross-Encoder",
     "verifier": "lytang/MiniCheck-Flan-T5-Large"
   },
-  "n_costs": null,
-  "n_records": null,
+  "n_costs": 453,
+  "n_records": 300,
   "provenance": {
     "kind": "live"
   },
