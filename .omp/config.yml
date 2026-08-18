@@ -1,13 +1,49 @@
 # .omp/config.yml - Project Configuration
 
-# Orchestrator & role mappings
+# ============================================================
+# Orchestrator
+# ============================================================
+# Opus is reserved for high-level planning, delegation,
+# conflict resolution, and final integration decisions.
 modelRoles:
-  default: anthropic/claude-opus-5    # main orchestrator session model
-  review: anthropic/claude-opus-5     # @review role
+  default: anthropic/claude-opus-5
 
-# Subagent overrides (win over agent frontmatter)
+  # Do NOT use Opus for routine code review.
+  # Gemini 3.1 Pro is sufficient for most reviews.
+  review: google-antigravity/gemini-3.1-pro
+
+# ============================================================
+# Subagent Model Overrides
+# ============================================================
+# task     -> reasoning-heavy implementation
+# sonic    -> fast/mechanical implementation
+# reviewer -> independent correctness review
+#
+# Opus should NOT be spawned as a subagent unless the
+# orchestrator explicitly determines that the issue requires
+# architectural judgment beyond Gemini 3.1 Pro.
 task:
   agentModelOverrides:
-    task: google-antigravity/gemini-3.6-flash     # code-writing subagent
-    sonic: google-antigravity/gemini-3.6-flash    # mechanical worker
-    reviewer: anthropic/claude-opus-5 # code review subagent
+    # Primary implementation/reasoning worker.
+    # Use for:
+    # - database/migration work
+    # - state/cache consistency
+    # - complex React architecture
+    # - performance work
+    # - correctness-sensitive fixes
+    # - cross-file changes
+    task: google-antigravity/gemini-3.1-pro
+
+    # Fast worker for isolated/mechanical changes.
+    # Use for:
+    # - simple bug fixes
+    # - tests
+    # - UI changes
+    # - configuration
+    # - copy changes
+    # - formatting/hygiene
+    sonic: google-antigravity/gemini-3.6-flash
+
+    # Independent review should normally be handled by Pro,
+    # not Opus. This dramatically reduces Opus token usage.
+    reviewer: google-antigravity/gemini-3.1-pro
