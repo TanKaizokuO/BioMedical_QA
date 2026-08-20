@@ -39,36 +39,37 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ## 4. Joint Attribution Arm Parse Rate
 
-**Target Date:** Immediate — code complete, measurement pending  
-**Context:** Guided-JSON decoding covered only the post-hoc citation stage. The joint attribution arm used free-text decoding. On the $n=100$ batched run (`generate_fp05_n100_guided_batched`), the joint arm gives $34/100$ clean parses and $161$ `quote_not_found` errors, against $99/100$ clean parses and $0$ errors for post-hoc citation. Gate G2 requires a valid claim parse rate of $\ge 95\%$ for both arms. An unequal decoding constraint also confounds the citation F1 contrast.
+**Target Date:** Completed — measurement done, valid parse rate below the Gate G2 bar
+**Context:** Guided-JSON decoding covered only the post-hoc citation stage. The joint attribution arm used free-text decoding. On the $n=100$ batched run (`generate_fp05_n100_guided_batched`), the joint arm gives $34/100$ clean parses and $161$ `quote_not_found` errors, against $99/100$ clean parses and $0$ errors for post-hoc citation. Gate G2 requires a valid claim parse rate of $\ge 95\%$ for both arms.
 
 * ~~**Apply Guided Decoding:** You must apply guided-JSON constrained decoding to the joint attribution arm.~~ *(Completed Aug 20, 2026 — `System.JOINT` guided branch in `src/biomedqa/generate.py`, `JOINT_JSON_TEMPLATE` in `src/biomedqa/prompts.py`, and `build_citation_response_format(..., is_joint=True)` which emits a `decision` field and a `text` field per claim).*
 * ~~**Batch Citation Calls:** You must use the same batch size of $5$ claims per call that the post-hoc citation stage uses.~~ *(Withdrawn Aug 20, 2026 — batching does not apply to the joint arm. The post-hoc arm can batch because stage 1 makes the claims and stage 2 cites them, so the claim count is known before the citation call. The joint arm makes claims and citations in one call, and the stage-count check requires the joint arm to stay at one call per query. Truncation control for the joint arm is the bounded schema (`max_claims = 30`, `max_citations = 3`) plus output-cap headroom, not batching).*
-* **Measure Output Metrics:** You must measure the joint arm clean parse rate, valid claim parse rate, and `quote_not_found` count on the $100$ dev questions. *(Blocked — needs a live A4000 run with `--guided-decoding`; the vLLM server was not reachable from the writing host).*
-* **Confirm Uniform Constraints:** You must confirm that both arms use the same decoding constraint before you run gate G2. *(Blocked on the measurement above).*
+* ~~**Measure Output Metrics:** You must measure the joint arm clean parse rate, valid claim parse rate, and `quote_not_found` count on the $100$ dev questions.~~ *(Completed Aug 20, 2026 on the A4000, run `generate_fp05_n100_guided_both` — joint arm $89/100$ clean parses, $0$ `quote_not_found`, $11$ malformed-JSON call failures. Post-hoc $99/100$ clean, vanilla $99/100$ clean. $89\%$ is under the Gate G2 $\ge 95\%$ bar).*
+* ~~**Confirm Uniform Constraints:** You must confirm that both arms use the same decoding constraint before you run gate G2.~~ *(Completed Aug 20, 2026 — both arms now use guided-JSON decoding on the same run. The remaining blocker is the joint arm's $89\%$ parse rate, not an unequal constraint).*
+* **Fix Malformed-JSON Failures:** You must investigate and reduce the $11$ malformed-JSON replies from the joint arm's guided decoder before a Gate G2 run of record, because $89\%$ is under the $\ge 95\%$ bar. *(New Aug 20, 2026 — see `docs/harvest/generate_fp05_n100_guided_both.run.log` for the failure traces, for example "reply is malformed JSON: Expecting property name enclosed in double quotes").*
 
 ---
 
 ## 5. Run Configuration Defects
 
-**Target Date:** Before Gate G2 — one of three items complete  
+**Target Date:** Completed
 **Context:** Two checks in `scripts/generate_smoke.py` and the served context window configuration did not agree with the batched citation path.
 
 * ~~**Update Stage Count Check:** You must update the stage-count check because the batched post-hoc citation arm makes $153$ stage-2 calls and the check demands two calls per record.~~ *(Completed Aug 20, 2026 — the check now demands at least two calls per post-hoc query, and exactly one for the joint and vanilla arms).*
-* **Adjust Context Window:** You must increase the served context window to $14336$ tokens, or decrease the output cap, because the largest stage-2 prompt is $4464$ tokens and only $144$ tokens of headroom remain in the $8192$ token window. *(Blocked — a server-side change on the A4000. `docs/harvest/runbooks/wsl-vllm-a4000.md` and `vllm-8b.service` still serve `--max-model-len 8192`).*
-* **Verify Window Guard:** You must confirm that the pre-flight prompt window guard rejects or shrinks a request before the server returns a $400$ error. *(Blocked — the guard has unit tests in `tests/test_backends.py`, but no live server confirmation).*
+* ~~**Adjust Context Window:** You must increase the served context window to $14336$ tokens, or decrease the output cap, because the largest stage-2 prompt is $4464$ tokens and only $144$ tokens of headroom remain in the $8192$ token window.~~ *(Completed Aug 20, 2026 — `serve_8b.sh` on the A4000 now serves `--max-model-len 14336`, confirmed live against `/v1/models`. `_MODEL_MAX_LEN` in `src/biomedqa/backends.py` raised to match, so the client-side pre-flight guard uses the same figure as the server).*
+* ~~**Verify Window Guard:** You must confirm that the pre-flight prompt window guard rejects or shrinks a request before the server returns a $400$ error.~~ *(Completed Aug 20, 2026 — the guard is a client-side check that runs before any HTTP call is constructed (`_check_prompt_window_guard` in `src/biomedqa/backends.py`), so it structurally cannot race a server-side $400$. Unit tests confirm this for both a bare oversized prompt and a stage-2 prompt sized against the new $14336$-token window. No live $400$ was provoked or needed to confirm the ordering).*
 
 ---
 
 ## 6. Joint Attribution Citation F1 Measurement
 
-**Target Date:** Before Gate G2 — diagnostic read complete, gate read pending  
-**Context:** Citation F1 for the joint attribution arm at `frequency_penalty = 0.5` is now measured on the batched run: joint $0.5344$ against post-hoc $0.5250$, delta $+0.0094$ $[-0.0536, +0.0729]$. The confidence interval includes zero, so contrast C2 is not established. The earlier read from `parity_iter1b` at `frequency_penalty = 0.0` gave delta $+0.011$ $[-0.117, +0.137]$: the penalty raised both arms by approximately $0.11$ F1 and halved the interval width, but it did not move the delta.
+**Target Date:** Completed — diagnostic read complete on both a confounded and an unconfounded run
+**Context:** Citation F1 for the joint attribution arm at `frequency_penalty = 0.5` was first measured on the batched run, where post-hoc was guided and joint was not: joint $0.5344$ against post-hoc $0.5250$, delta $+0.0094$ $[-0.0536, +0.0729]$, interval includes zero. With both arms guided (`generate_fp05_n100_guided_both`), the read is joint $0.6137$ against post-hoc $0.5055$, delta $+0.1083$ $[+0.0432, +0.1722]$, interval **excludes zero**.
 
 * ~~**Score Joint Arm Records:** You must score the joint arm records of the batched run with MiniCheck ($\phi$) at threshold $0.5$.~~ *(Completed Aug 20, 2026 — 100 paired queries, 0 dropped, 2131 $\phi$ pairs).*
 * ~~**Compute Confidence Interval:** You must compute the paired-bootstrap confidence interval for the joint minus post-hoc citation F1 delta.~~ *(Completed Aug 20, 2026 — 10000 resamples, cluster unit query, seed 0).*
 * ~~**Record Harvest Results:** You must record the result in `docs/harvest/`.~~ *(Completed Aug 20, 2026 — `docs/harvest/joint_citation_f1_fp05.md` and `docs/harvest/generate_fp05_n100_guided_batched.citation_f1.minicheck.json`).*
-* **Repeat With Both Arms Guided:** You must repeat the read after the joint arm runs under guided decoding. The present read compares a guided post-hoc arm against an unguided joint arm, so the decoding constraint confounds it, and the joint arm parses $34/100$.
+* ~~**Repeat With Both Arms Guided:** You must repeat the read after the joint arm runs under guided decoding.~~ *(Completed Aug 20, 2026 — 89 paired queries, 11 dropped (zero claims in joint arm), delta $+0.1083$ $[+0.0432, +0.1722]$, excludes zero. Recorded in `docs/harvest/joint_citation_f1_fp05_both_guided.md` and `docs/harvest/generate_fp05_n100_guided_both.citation_f1.minicheck.json`. Still a diagnostic reading, not a gate figure, because the joint arm parses $89/100$, under the $\ge 95\%$ bar).*
 
 ---
 
@@ -85,16 +86,17 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ## 8. Gate G2 Benchmark Execution
 
-**Target Date:** September 6, 2026  
-**Context:** Gate G2 tests whether joint attribution outperforms post-hoc citation on citation F1.
+**Target Date:** September 6, 2026 — blocked on two preconditions
+**Context:** Gate G2 tests whether joint attribution outperforms post-hoc citation on citation F1. The prerequisite measurements (goals 4 and 6) are done, but two of the gate's own preconditions fail on the run that produced them: the joint arm's valid claim parse rate is $89\%$, under the $\ge 95\%$ bar, and the W9 stratified robustness check (goal 11) fails on the same run.
 
-* **Complete Prerequisite Goals:** You must complete goals 4, 5, and 6 before you start this run.
-* **Execute Dev Set Run:** You must run all 100 dev questions at `frequency_penalty = 0.5` (`CONFIG_VERSION = 1.5.0`).
-* **Evaluate Citation F1:** You must compute citation precision, citation recall, and citation F1 using MiniCheck ($\phi$) at threshold $0.5$.
+* ~~**Complete Prerequisite Goals:** You must complete goals 4, 5, and 6 before you start this run.~~ *(Completed Aug 20, 2026).*
+* ~~**Execute Dev Set Run:** You must run all 100 dev questions at `frequency_penalty = 0.5` (`CONFIG_VERSION = 1.5.0`).~~ *(Completed Aug 20, 2026 — `generate_fp05_n100_guided_both`, both arms guided).*
+* ~~**Evaluate Citation F1:** You must compute citation precision, citation recall, and citation F1 using MiniCheck ($\phi$) at threshold $0.5$.~~ *(Completed Aug 20, 2026 — joint $0.6137$, post-hoc $0.5055$, delta $+0.1083$ $[+0.0432, +0.1722]$, excludes zero).*
 * **Confirm Gate Criteria:**
-  * Joint attribution must beat post-hoc citation on citation F1 (paired-bootstrap CI excluding zero).
-  * Valid claim parse rate must be $\ge 95\%$.
-* **Run Stratified Check:** You must execute the mandatory W9 stratified robustness check required by ADR-0009 §5.
+  * Joint attribution must beat post-hoc citation on citation F1 (paired-bootstrap CI excluding zero). *(Met on `generate_fp05_n100_guided_both`).*
+  * Valid claim parse rate must be $\ge 95\%$. *(Not met — joint arm reads $89/100$. See goal 4's new "Fix Malformed-JSON Failures" item).*
+* ~~**Run Stratified Check:** You must execute the mandatory W9 stratified robustness check required by ADR-0009 §5.~~ *(Completed Aug 20, 2026 on `generate_fp05_n100_guided_both` — verdict FAIL. See goal 11).*
+* **Sign Off Gate G2:** You must not sign off Gate G2 until both the $\ge 95\%$ parse-rate bar and the W9 stratified check pass on the same run. Neither passes on `generate_fp05_n100_guided_both`. *(New Aug 20, 2026).*
 
 ---
 
@@ -122,23 +124,23 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ## 11. Mandatory W9 Stratified Robustness Check
 
-**Target Date:** Before Gate G2 sign-off — run once, must repeat on the gate run  
-**Context:** ADR-0009 §5 makes this check mandatory. A passing parity result does not cancel it. The check is per run, so the Gate G2 run of record needs its own execution.
+**Target Date:** Completed on the Gate G2 run of record — verdict FAIL
+**Context:** ADR-0009 §5 makes this check mandatory. A passing parity result does not cancel it. The check is per run, so the Gate G2 run of record needs its own execution. That execution now exists, and it fails.
 
-* ~~**Run Stratified Check:** You must run the stratified robustness check on the granularity parity result.~~ *(Completed Aug 20, 2026 on `generate_fp05_n100_guided_batched` — all three schemes PASS. Compound structure: simple $+14.3\%$, compound $+11.8\%$. Claim length: five powered bands, all inside tolerance. Query claim volume: two powered bands, the $11+$ band empty).*
+* ~~**Run Stratified Check:** You must run the stratified robustness check on the granularity parity result.~~ *(Completed Aug 20, 2026 on `generate_fp05_n100_guided_batched` — all three schemes PASS. Compound structure: simple $+14.3\%$, compound $+11.8\%$. Claim length: five powered bands, all inside tolerance. Query claim volume: two powered bands, the $11+$ band empty. Superseded as the Gate G2 baseline once both arms became guided — see below).*
 * ~~**Record Check Artifacts:** You must record the result beside the gate G2 artifacts.~~ *(Completed Aug 20, 2026 — `docs/harvest/w9_stratified_parity.md`, with the limitation that the claim-length scheme bins claims by the same quantity it compares).*
-* **Repeat On The Gate Run:** You must run the check again on the Gate G2 run of record, because a stratified result does not transfer across runs.
+* ~~**Repeat On The Gate Run:** You must run the check again on the Gate G2 run of record, because a stratified result does not transfer across runs.~~ *(Completed Aug 20, 2026 on `generate_fp05_n100_guided_both` — verdict **FAIL**. Pooled gap $+21.4\%$ against $\pm 15\%$. Compound structure FAILS (simple stratum $+23.1\%$), query claim volume FAILS (both powered strata breach), claim length PASSES. Guiding the joint arm's JSON schema shortened its median claim from $15.0$ to $14.0$ words while post-hoc held at $17.0$, widening a gap that previously passed. Recorded in `docs/harvest/w9_stratified_parity_both_guided.md`).*
+* **Restore Claim-Length Parity:** You must add a claim-length floor or a prompt-level nudge to the joint arm's guided schema so its median claim length returns to parity with post-hoc, then repeat this check. *(New Aug 20, 2026 — blocks Gate G2 sign-off alongside the $89\%$ parse rate).*
 
 ---
 
 ## Priority Order
 
-1. **Goal 4:** Measure the joint arm under guided decoding on the A4000. Code is complete.
-2. **Goal 5:** Raise the served context window to $14336$ tokens and confirm the window guard against a live server.
-3. **Goal 6:** Measure joint arm citation F1 for contrast C2.
-4. **Goal 8:** Execute Gate G2 benchmark on dev set.
-5. **Goal 11:** Repeat the stratified robustness check on the Gate G2 run of record.
-6. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3.
-7. **Goal 10:** Annotate human gold set for Gate G4.
+1. **Goal 4:** Fix the joint arm's $11$ malformed-JSON call failures so the valid claim parse rate reaches $\ge 95\%$.
+2. **Goal 11:** Restore claim-length parity in the joint arm's guided schema and repeat the W9 stratified check until it passes.
+3. **Goal 8:** Re-run the Gate G2 dev-set benchmark once goals 4 and 11 both pass on the same run, then sign off.
+4. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3.
+5. **Goal 10:** Annotate human gold set for Gate G4.
 
-Goals 1, 2, 3, and 7 are complete.
+Goals 1, 2, 3, 4, 5, 6, and 7 are complete. Goal 8 (Gate G2 sign-off) and goal 11's parity
+restoration remain open.
