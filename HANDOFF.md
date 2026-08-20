@@ -102,6 +102,13 @@ writes `<prefix>.citation_f1.minicheck.json`. Covered by
   `scripts/alignscore_port.py`. **Caveat: the environment lives at `/tmp/alignscore_venv`** and dies
   with the host; the doc carries one-line rebuild commands.
 
+### 2.6 `REVIEW_REPORT.MD` (pushed from the box, `9be5907`) is superseded
+
+It reviews `generate_fp05_n100_guided`, the **pre-batching** run, and both of its blocking issues
+are now closed: the 70/100 clean-parse figure was fixed by batching (`generate_fp05_n100_guided_batched`
+reads 99/100 post-hoc), and the missing MiniCheck citation-F1 artifact now exists (§2.2). Its
+"NOT READY" verdict and its 455-test count are both stale. Do not re-litigate it — read §1 instead.
+
 ---
 
 ## 3. Open items, in priority order
