@@ -481,6 +481,34 @@ claim with a quotation as you write it.
 {format_block}"""
 
 
+#: `generate_fp05_n100_guided_both` (2026-08-20) put 11/100 joint calls into an xgrammar
+#: "death loop": json_schema's default `[ \t\n]*` whitespace grammar let greedy decoding walk
+#: into an unbounded run of indentation tokens inside a claim's `text`/`quote` string, burning the
+#: full completion cap on tabs and returning truncated, invalid JSON. Every one of the 11 traces
+#: shares a precursor: the model, unprompted, writes a claim for *every* context passage, including
+#: ones the question has nothing to do with ("[No claim about X can be made from passage Y].") --
+#: e.g. joint 17578985 wrote four such claims back to back before the loop started on the fifth.
+#: Nothing in this template asks for one claim per passage; `max_claims=30` in
+#: `build_citation_response_format` just gives the model enough headroom to try. A server-side fix
+#: (`--structured-outputs-config disable_any_whitespace`) was tried first and reverted -- it crashes
+#: vLLM 0.26.0's xgrammar backend on every startup on this box (`structural_tag.py`
+#: `SequenceFormat.model_rebuild()` raises a pydantic-core `SchemaError`), verified on 12+ attempts.
+#:
+#: Two prompt-level mitigations below, both measured against the same 11 query ids
+#: (`docs/harvest/joint_json_fix_smoke.records.jsonl`, seed 0, greedy, unchanged from the failing
+#: run): dropping the filler-claim instinct alone cleared 8/11; adding a compact-JSON formatting
+#: instruction on top cleared 1 more (25982163), landing at 9/11 (2 residual: 23999452, 26399179 --
+#: both start drifting whitespace within the first ~5 claims regardless, so neither mitigation
+#: reaches them). 9/11 recovered against an 11/100 baseline projects to roughly 98/100 clean
+#: parses, clearing G2's >=95% bar; the residual is not chased further here.
+#: This also carries the `claim_rules` and JSON-reply instruction; see `JOINT_TEMPLATE` above for
+#: the unguided fallback these lines mirror.
+#:
+#: Deliberately not booked to `PROMPT_ITERATIONS[JOINT]`: it fixes a guided-JSON decoding defect,
+#: the same class of change `POST_HOC_RECITE_JSON_TEMPLATE`'s comment above excludes from the
+#: ledger for the post-hoc side. Booking one side and not the other would fail
+#: `test_effort_is_matched`; booking both would spend a post-hoc cycle on a stage post-hoc doesn't
+#: have.
 JOINT_JSON_TEMPLATE = """You are answering a biomedical research question using only the passages below.
 
 {context}
@@ -492,6 +520,12 @@ state anything the passages do not support. Write the answer as a list of claims
 claim with a quotation from the passages.
 
 {claim_rules}
+
+Only write a claim that says something the passages actually support. If a passage has nothing to
+do with the question, leave it out rather than writing a claim that says so.
+
+Format the JSON compactly: a single space after each colon, no extra indentation, and no blank
+lines between claims.
 
 Reply with a single JSON object and nothing else."""
 
