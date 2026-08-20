@@ -494,13 +494,21 @@ claim with a quotation as you write it.
 #: vLLM 0.26.0's xgrammar backend on every startup on this box (`structural_tag.py`
 #: `SequenceFormat.model_rebuild()` raises a pydantic-core `SchemaError`), verified on 12+ attempts.
 #:
-#: Two prompt-level mitigations below, both measured against the same 11 query ids
-#: (`docs/harvest/joint_json_fix_smoke.records.jsonl`, seed 0, greedy, unchanged from the failing
-#: run): dropping the filler-claim instinct alone cleared 8/11; adding a compact-JSON formatting
-#: instruction on top cleared 1 more (25982163), landing at 9/11 (2 residual: 23999452, 26399179 --
-#: both start drifting whitespace within the first ~5 claims regardless, so neither mitigation
-#: reaches them). 9/11 recovered against an 11/100 baseline projects to roughly 98/100 clean
-#: parses, clearing G2's >=95% bar; the residual is not chased further here.
+#: Two prompt-level mitigations below reduce the loop's incidence but do not eliminate it (measured
+#: worse on the full dev set than the 11-query subset they were tuned against: 11/100 -> 15/100, a
+#: *different* 15, not a subset -- greedy decoding is chaotic near this defect, and prompt text
+#: that changes shifts which trajectories fall into it rather than uniformly reducing them). The
+#: real backstop is `generate.py`'s System.JOINT guided branch, which retries a death-loop reply up
+#: to twice at rising nonzero temperature; see its comment for the measurement. Net result on
+#: `generate_fp05_n100_guided_v4`: 97/100 clean parses, clearing G2's >=95% bar.
+#:
+#: A third instruction (length target) is unrelated to the death-loop and fixes a different
+#: measured defect: the first two mitigations, run together on the full 100, left joint's median
+#: claim length at 13 words against post-hoc's 17 (W9
+#: `docs/harvest/w9_stratified_parity_both_guided.md` gap widened from +21.4% to +30.8%). Nothing
+#: here told the model to write *short* claims; the "format compactly" instruction was about JSON
+#: whitespace, and evidently over-generalised to claim prose too. The length-target sentence names
+#: the target explicitly and says compactness is about the JSON only, not the claim.
 #: This also carries the `claim_rules` and JSON-reply instruction; see `JOINT_TEMPLATE` above for
 #: the unguided fallback these lines mirror.
 #:
@@ -524,8 +532,13 @@ claim with a quotation from the passages.
 Only write a claim that says something the passages actually support. If a passage has nothing to
 do with the question, leave it out rather than writing a claim that says so.
 
+Write each claim with enough detail to stand on its own: around fifteen to twenty words is a
+reasonable target, and a claim under ten words is usually missing a qualifying detail the passage
+gives it — the population, the comparison, or the size of the effect.
+
 Format the JSON compactly: a single space after each colon, no extra indentation, and no blank
-lines between claims.
+lines between claims. This is about the JSON's own whitespace only, not about how much a claim
+says.
 
 Reply with a single JSON object and nothing else."""
 
