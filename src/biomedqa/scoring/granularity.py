@@ -312,15 +312,17 @@ def stage_output_tokens(
 ) -> dict[str, dict[str, int]]:
     """Per-stage output tokens per query, recovered from `costs.jsonl`'s **call order**.
 
-    `costs.jsonl` has no system or stage field: it is four rows per query, in `CALL_ORDER`. That
-    assumption is checked, not trusted — each system's stage tokens must sum to that record's
-    `completion_tokens`, and a mismatch raises. If generation ever emits a different number of calls
-    per query, or in a different order, this fails loudly instead of silently attributing post-hoc's
-    cite stage to vanilla.
+    `costs.jsonl` has no system or stage field: it is positional per query (`joint`,
+    `post_hoc_answer`, one or more `post_hoc_cite` calls, and `vanilla`). That assumption is
+    checked, not trusted — each system's stage tokens must sum to that record's
+    `completion_tokens`, and a mismatch raises. If generation ever emits fewer than 4 calls per
+    query, this fails loudly. If cost records carry `output_tokens: None` (e.g., from call-rejection
+    guards), they are treated as 0 output tokens rather than raising TypeError.
     """
     per_query: dict[str, list[CostRecord]] = {}
     for c in costs:
-        per_query.setdefault(c.query_id, []).append(c)
+        if c.query_id is not None:
+            per_query.setdefault(c.query_id, []).append(c)
 
     by_key = {
         (r.query_id, r.system.value if isinstance(r.system, System) else r.system): r
@@ -329,14 +331,20 @@ def stage_output_tokens(
 
     out: dict[str, dict[str, int]] = {}
     for query_id, calls in per_query.items():
-        if len(calls) != len(CALL_ORDER):
+        if len(calls) < len(CALL_ORDER):
             raise ValueError(
-                f"{query_id}: {len(calls)} cost rows, expected {len(CALL_ORDER)} "
+                f"{query_id}: {len(calls)} cost rows, expected 4 or more "
                 f"({', '.join(CALL_ORDER)}); call order cannot be assumed"
             )
+        joint_out = 0 if calls[0].output_tokens is None else int(calls[0].output_tokens)
+        ph_ans_out = 0 if calls[1].output_tokens is None else int(calls[1].output_tokens)
+        ph_cite_out = sum(0 if c.output_tokens is None else int(c.output_tokens) for c in calls[2:-1])
+        vanilla_out = 0 if calls[-1].output_tokens is None else int(calls[-1].output_tokens)
         stages = {
-            name: 0 if call.output_tokens is None else int(call.output_tokens)
-            for name, call in zip(CALL_ORDER, calls)
+            "joint": joint_out,
+            "post_hoc_answer": ph_ans_out,
+            "post_hoc_cite": ph_cite_out,
+            "vanilla": vanilla_out,
         }
         for system, owned in STAGES_OF.items():
             record = by_key.get((query_id, system))
@@ -359,18 +367,327 @@ def truncated_queries(
     """Per system, the `query_id`s whose output hit the per-call cap — the untruncated basis's
     complement.
 
-    A record is disqualified if **any** stage that feeds it hit the cap, per `STAGES_OF`. Note the
-    cap is per *call*: comparing a post-hoc record's summed `completion_tokens` against `max_tokens`
-    finds truncation that is not there and misses truncation that is.
+    A record is disqualified if **any** call that feeds it hit the cap. Note the cap is per *call*:
+    comparing a post-hoc record's summed `completion_tokens` against `max_tokens` finds truncation
+    that is not there and misses truncation that is.
     """
-    stages = stage_output_tokens(records, costs)
-    out: dict[str, set[str]] = {system: set() for system in STAGES_OF}
-    for query_id, per_stage in stages.items():
-        for system, owned in STAGES_OF.items():
-            if any(per_stage[s] >= max_tokens for s in owned):
-                out[system].add(query_id)
+    per_query: dict[str, list[CostRecord]] = {}
+    for c in costs:
+        if c.query_id is not None:
+            per_query.setdefault(c.query_id, []).append(c)
+
+    out: dict[str, set[str]] = {system.value if isinstance(system, System) else system: set() for system in STAGES_OF}
+    for query_id, calls in per_query.items():
+        if len(calls) < len(CALL_ORDER):
+            continue
+        if any((c.output_tokens or 0) >= max_tokens for c in [calls[0]]):
+            out[System.JOINT.value].add(query_id)
+        if any((c.output_tokens or 0) >= max_tokens for c in calls[1:-1]):
+            out[System.POST_HOC.value].add(query_id)
+        if any((c.output_tokens or 0) >= max_tokens for c in [calls[-1]]):
+            out[System.VANILLA.value].add(query_id)
     return out
 
+
+@dataclass(frozen=True, slots=True)
+class StratumResult:
+    """Granularity parity outcome for a single stratum.
+
+    `underpowered` is True when `n_queries < min_queries` or an arm produced no claims within the
+    stratum. In that case, `passes` and `gap` are `None` and `reason` provides an explanation,
+    preventing under-powered strata from being silently averaged or reporting misleading medians.
+    """
+
+    stratum: str
+    n_queries: int
+    n_joint_claims: int
+    n_post_hoc_claims: int
+    joint_median_words: float | None
+    post_hoc_median_words: float | None
+    gap: float | None
+    passes: bool | None
+    underpowered: bool
+    reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class StratifiedParityGate:
+    """Outcome of a stratified robustness check under a specific scheme (ADR-0009 §5).
+
+    - Scheme pass rule (conservative choice): ALL powered strata must pass (`abs(gap) <= tolerance`).
+      Alternative reading: require a majority of powered strata to pass, or weight by claim count.
+      The conservative reading enforces that parity holds across every well-powered subgroup.
+    - Power threshold (conservative choice): `min_queries = 5`.
+      Alternative reading: `min_queries = 1` (evaluating even on single queries) or `min_queries = 20`.
+      Choice of 5 ensures stable median estimates while preventing underpowered strata from failing.
+    """
+
+    scheme: str
+    strata: tuple[StratumResult, ...]
+    tolerance: float = PARITY_TOLERANCE
+    min_queries: int = 5
+
+    @property
+    def powered_strata(self) -> tuple[StratumResult, ...]:
+        return tuple(s for s in self.strata if not s.underpowered)
+
+    @property
+    def underpowered_strata(self) -> tuple[StratumResult, ...]:
+        return tuple(s for s in self.strata if s.underpowered)
+
+    @property
+    def passes(self) -> bool:
+        powered = self.powered_strata
+        if not powered:
+            return False
+        return all(s.passes is True for s in powered)
+
+
+def compute_compound_strata(
+    records: Iterable[QueryRecord], *, min_queries: int = 5
+) -> StratifiedParityGate:
+    """Stratify by compound structure: simple claims (0 compound markers) vs compound claims (>=1 marker).
+
+    - Specified parameter: ADR-0009 §2 & `COMPOUND_MARKERS` ("and", "subordinate", "multi_comma").
+    - Conservative choice: Group all marked claims into a single 'compound' stratum alongside 'simple'.
+      Alternative reading: Stratify into 4 individual marker classes ('simple', 'and', 'subordinate',
+      'multi_comma'). Grouping into simple/compound maintains sample size while isolating verbosity.
+    """
+    records = list(records)
+    by_query: dict[str, dict[str, list[Claim]]] = {}
+    for r in records:
+        sys_name = r.system.value if isinstance(r.system, System) else r.system
+        if sys_name in (System.JOINT.value, System.POST_HOC.value):
+            by_query.setdefault(r.query_id, {})[sys_name] = r.claims
+
+    strata_data = {
+        "simple": {"joint": [], "post_hoc": [], "qids": set()},
+        "compound": {"joint": [], "post_hoc": [], "qids": set()},
+    }
+
+    for qid, arms in by_query.items():
+        if System.JOINT.value in arms and System.POST_HOC.value in arms:
+            for sys_name in (System.JOINT.value, System.POST_HOC.value):
+                for c in arms[sys_name]:
+                    st_key = "simple" if not markers_in(c.text) else "compound"
+                    w = words_in_claim(c.text)
+                    strata_data[st_key][sys_name].append(w)
+                    strata_data[st_key]["qids"].add(qid)
+
+    results: list[StratumResult] = []
+    for st_key in ("simple", "compound"):
+        d = strata_data[st_key]
+        n_q = len(d["qids"])
+        j_words = d["joint"]
+        ph_words = d["post_hoc"]
+        if n_q < min_queries or not j_words or not ph_words:
+            reason = f"too few queries ({n_q} < {min_queries})" if n_q < min_queries else "no claims in arm"
+            results.append(
+                StratumResult(
+                    stratum=st_key,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_words),
+                    n_post_hoc_claims=len(ph_words),
+                    joint_median_words=None,
+                    post_hoc_median_words=None,
+                    gap=None,
+                    passes=None,
+                    underpowered=True,
+                    reason=reason,
+                )
+            )
+        else:
+            j_med = float(statistics.median(j_words))
+            ph_med = float(statistics.median(ph_words))
+            gap = (ph_med - j_med) / j_med
+            results.append(
+                StratumResult(
+                    stratum=st_key,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_words),
+                    n_post_hoc_claims=len(ph_words),
+                    joint_median_words=j_med,
+                    post_hoc_median_words=ph_med,
+                    gap=gap,
+                    passes=abs(gap) <= PARITY_TOLERANCE,
+                    underpowered=False,
+                )
+            )
+    return StratifiedParityGate(scheme="compound_structure", strata=tuple(results), min_queries=min_queries)
+
+
+def compute_claim_length_strata(
+    records: Iterable[QueryRecord], *, min_queries: int = 5
+) -> StratifiedParityGate:
+    """Stratify by claim length bands: 1-10, 11-15, 16-20, 21-30, 31+ words.
+
+    - Specified parameter: Bands from `docs/harvest/first_citation_f1.md` / `citation_f1_minicheck.md`.
+    - Conservative choice: Fixed pre-registered length bands.
+      Alternative reading: Dynamic quantiles/tertiles fit to run data. Fixed bands prevent data-dependent
+      binning.
+    """
+    bands = [
+        ("1-10", 1, 10),
+        ("11-15", 11, 15),
+        ("16-20", 16, 20),
+        ("21-30", 21, 30),
+        ("31+", 31, 999999),
+    ]
+    records = list(records)
+    by_query: dict[str, dict[str, list[Claim]]] = {}
+    for r in records:
+        sys_name = r.system.value if isinstance(r.system, System) else r.system
+        if sys_name in (System.JOINT.value, System.POST_HOC.value):
+            by_query.setdefault(r.query_id, {})[sys_name] = r.claims
+
+    strata_data = {
+        label: {"joint": [], "post_hoc": [], "qids": set()} for label, _, _ in bands
+    }
+
+    for qid, arms in by_query.items():
+        if System.JOINT.value in arms and System.POST_HOC.value in arms:
+            for sys_name in (System.JOINT.value, System.POST_HOC.value):
+                for c in arms[sys_name]:
+                    w = words_in_claim(c.text)
+                    for label, lo, hi in bands:
+                        if lo <= w <= hi:
+                            strata_data[label][sys_name].append(w)
+                            strata_data[label]["qids"].add(qid)
+                            break
+
+    results: list[StratumResult] = []
+    for label, _, _ in bands:
+        d = strata_data[label]
+        n_q = len(d["qids"])
+        j_words = d["joint"]
+        ph_words = d["post_hoc"]
+        if n_q < min_queries or not j_words or not ph_words:
+            reason = f"too few queries ({n_q} < {min_queries})" if n_q < min_queries else "no claims in arm"
+            results.append(
+                StratumResult(
+                    stratum=label,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_words),
+                    n_post_hoc_claims=len(ph_words),
+                    joint_median_words=None,
+                    post_hoc_median_words=None,
+                    gap=None,
+                    passes=None,
+                    underpowered=True,
+                    reason=reason,
+                )
+            )
+        else:
+            j_med = float(statistics.median(j_words))
+            ph_med = float(statistics.median(ph_words))
+            gap = (ph_med - j_med) / j_med
+            results.append(
+                StratumResult(
+                    stratum=label,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_words),
+                    n_post_hoc_claims=len(ph_words),
+                    joint_median_words=j_med,
+                    post_hoc_median_words=ph_med,
+                    gap=gap,
+                    passes=abs(gap) <= PARITY_TOLERANCE,
+                    underpowered=False,
+                )
+            )
+    return StratifiedParityGate(scheme="claim_length", strata=tuple(results), min_queries=min_queries)
+
+
+def compute_query_claim_count_strata(
+    records: Iterable[QueryRecord], *, min_queries: int = 5
+) -> StratifiedParityGate:
+    """Stratify by query claim-volume bands: 1-5 claims, 6-10 claims, 11+ claims.
+
+    - Specified parameter: ADR-0009 §2 (claims/query).
+    - Conservative choice: Classify queries based on `joint` arm claim count.
+      Alternative reading: Classify queries by post_hoc claim count or average across arms. Using `joint`
+      keeps query assignment anchored to the reference system.
+    """
+    bands = [
+        ("1-5 claims", 1, 5),
+        ("6-10 claims", 6, 10),
+        ("11+ claims", 11, 999999),
+    ]
+    records = list(records)
+    by_query: dict[str, dict[str, QueryRecord]] = {}
+    for r in records:
+        sys_name = r.system.value if isinstance(r.system, System) else r.system
+        if sys_name in (System.JOINT.value, System.POST_HOC.value):
+            by_query.setdefault(r.query_id, {})[sys_name] = r
+
+    strata_data = {
+        label: {"joint_records": [], "post_hoc_records": []} for label, _, _ in bands
+    }
+
+    for qid, arms in by_query.items():
+        if System.JOINT.value in arms and System.POST_HOC.value in arms:
+            n_c = len(arms[System.JOINT.value].claims)
+            for label, lo, hi in bands:
+                if lo <= n_c <= hi:
+                    strata_data[label]["joint_records"].append(arms[System.JOINT.value])
+                    strata_data[label]["post_hoc_records"].append(arms[System.POST_HOC.value])
+                    break
+
+    results: list[StratumResult] = []
+    for label, _, _ in bands:
+        d = strata_data[label]
+        n_q = len(d["joint_records"])
+        j_claims = [words_in_claim(c.text) for r in d["joint_records"] for c in r.claims]
+        ph_claims = [words_in_claim(c.text) for r in d["post_hoc_records"] for c in r.claims]
+
+        if n_q < min_queries or not j_claims or not ph_claims:
+            reason = f"too few queries ({n_q} < {min_queries})" if n_q < min_queries else "no claims in arm"
+            results.append(
+                StratumResult(
+                    stratum=label,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_claims),
+                    n_post_hoc_claims=len(ph_claims),
+                    joint_median_words=None,
+                    post_hoc_median_words=None,
+                    gap=None,
+                    passes=None,
+                    underpowered=True,
+                    reason=reason,
+                )
+            )
+        else:
+            j_med = float(statistics.median(j_claims))
+            ph_med = float(statistics.median(ph_claims))
+            gap = (ph_med - j_med) / j_med
+            results.append(
+                StratumResult(
+                    stratum=label,
+                    n_queries=n_q,
+                    n_joint_claims=len(j_claims),
+                    n_post_hoc_claims=len(ph_claims),
+                    joint_median_words=j_med,
+                    post_hoc_median_words=ph_med,
+                    gap=gap,
+                    passes=abs(gap) <= PARITY_TOLERANCE,
+                    underpowered=False,
+                )
+            )
+    return StratifiedParityGate(scheme="query_claim_count", strata=tuple(results), min_queries=min_queries)
+
+
+def stratified_parity_check(
+    records: Iterable[QueryRecord], *, min_queries: int = 5
+) -> dict[str, StratifiedParityGate]:
+    """Run all three pre-registered stratification schemes (ADR-0009 §5).
+
+    Returns a mapping from scheme name -> StratifiedParityGate.
+    """
+    recs = list(records)
+    return {
+        "compound_structure": compute_compound_strata(recs, min_queries=min_queries),
+        "claim_length": compute_claim_length_strata(recs, min_queries=min_queries),
+        "query_claim_count": compute_query_claim_count_strata(recs, min_queries=min_queries),
+    }
 
 def markers_in(text: str) -> frozenset[str]:
     """Which `COMPOUND_MARKERS` a claim carries. Empty means the claim is *simple* by this test."""

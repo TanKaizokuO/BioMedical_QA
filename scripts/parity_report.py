@@ -76,11 +76,11 @@ def _print_basis(gate: ParityGate) -> None:
         print(_arm_row(arm))
     verdict = "PASS" if gate.passes else "FAIL"
     print(f"  gap {gate.gap:+.1%} against ±{PARITY_TOLERANCE:.0%}  ->  {verdict}")
-    if gate.requires_w9_robustness_check:
-        print("  residual gap favours C2 -> ADR-0009 §5: the W9 stratified check is MANDATORY")
+    if gate.requires_w9_robustness_check or gate.favours_c2:
+        print("  residual gap favours C2 -> ADR-0009 §5: the W9 stratified check is MANDATORY\n"
+              "  (run: uv run python scripts/w9_stratified_parity_report.py <prefix> --max-tokens <cap>)")
     elif not gate.passes:
         print("  residual gap runs against C2 -> ADR-0009 §5: note it and proceed")
-
 
 def _print_interval(records, *, basis: str, exclude=()) -> None:
     """The interval, and the resolution warning that goes with it — the medians here are 14-17 words,

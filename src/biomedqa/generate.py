@@ -257,6 +257,38 @@ def generate_one(
                 )
             )
             parsed = parse_response(parsed_from, context, config.max_citations)
+    elif system is System.JOINT:
+        guided_format = None
+        if config.guided_decoding and config.backend in ("vllm", "anthropic"):
+            guided_format = build_citation_response_format(
+                context, claim_count=None, max_citations=config.max_citations, is_joint=True
+            )
+        if guided_format is not None:
+            prompt_joint = build_prompt(
+                system,
+                question,
+                context,
+                config.max_citations,
+                stage="joint_json",
+                depth=depth,
+            )
+            parsed_from = call(prompt_joint, response_format=guided_format)
+            if parsed_from.startswith('"'):
+                try:
+                    unwrapped = json.loads(parsed_from)
+                except json.JSONDecodeError:
+                    pass
+                else:
+                    if isinstance(unwrapped, str):
+                        parsed_from = unwrapped
+            parsed = parse_response(
+                parsed_from, context, config.max_citations, require_decision=True
+            )
+        else:
+            parsed_from = call(
+                build_prompt(system, question, context, config.max_citations, depth=depth)
+            )
+            parsed = parse_response(parsed_from, context, config.max_citations)
     else:
         parsed_from = call(
             build_prompt(system, question, context, config.max_citations, depth=depth)

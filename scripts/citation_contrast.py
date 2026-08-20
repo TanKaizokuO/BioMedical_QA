@@ -236,6 +236,17 @@ def get_phi_from_cache_or_verifier(
         scored_results = verifier.score_pairs(missing)
         for pair, vscore in zip(missing, scored_results, strict=True):
             cache[pair] = vscore.score
+        # Write the enlarged cache back. Scoring 1113 pairs costs ~9 CPU-minutes; a run that
+        # discards them makes every re-read of the same contrast pay that cost again, and a
+        # re-scored pair is only bit-identical by luck of thread count and batching.
+        tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(
+            json.dumps({f"{p}|||{h}": s for (p, h), s in sorted(cache.items())}),
+            encoding="utf-8",
+        )
+        tmp.replace(cache_file)
+        print(f"Cache written: {len(cache)} pairs -> {cache_file}", flush=True)
 
     return phi_from_scores(cache, threshold)
 
@@ -340,11 +351,40 @@ def main() -> int:
     print(f"Excludes Zero:      {d_stats['excludes_zero']}")
     print(f"Resampling Details: unit=query, n_clusters={result['n_paired']}, n_boot={d_stats['n_boot']}, seed={d_stats['seed']}")
 
-    print(
-        "\nWARNING: This reading is the PRE-FIX baseline. The joint arm in this run is unguided "
-        "(34/100 clean parses, quote_not_found = 161). Guided decoding is being added to it; "
-        "the gate figure must be re-read after guided decoding is enabled."
+    joint_summary = (summary.get("per_system") or {}).get("joint") or {}
+    clean = joint_summary.get("clean_parses")
+    n_joint = joint_summary.get("n")
+    qnf = joint_summary.get("quote_not_found")
+    if clean is not None and n_joint:
+        rate = clean / n_joint
+        print(f"\nJoint arm clean parses: {clean}/{n_joint} ({rate:.0%}), quote_not_found = {qnf}")
+        if rate < 0.95:
+            # The bar is stated on the arm, not on the contrast: an arm that cannot parse cannot
+            # carry a gate figure, however the delta lands.
+            print(
+                "WARNING: the joint arm is under the Gate G2 >=95% parse bar on this run, so this "
+                "delta is a diagnostic reading and not a gate figure."
+            )
+
+    out_path = Path(f"{args.prefix}.citation_f1.minicheck.json")
+    out_path.write_text(
+        json.dumps(
+            {
+                "run_prefix": str(args.prefix),
+                "verifier": "lytang/MiniCheck-Flan-T5-Large",
+                "threshold": args.threshold,
+                "joint_clean_parses": clean,
+                "joint_quote_not_found": qnf,
+                "n_dropped_queries": len(dropped),
+                **result,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
+    print(f"Wrote {out_path}")
 
     return 0
 

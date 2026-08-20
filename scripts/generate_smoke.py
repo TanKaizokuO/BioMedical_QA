@@ -178,9 +178,11 @@ def _fake_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, C
     if kw.get("response_format") is not None or "Return JSON object" in prompt or "recite_json" in prompt:
         return (
             json.dumps({
+                "decision": "maybe",
                 "claims": [
                     {
                         "claim_index": 1,
+                        "text": "Utilisation varies beyond what population need explains.",
                         "citations": [
                             {"passage_id": pid1, "quote": text1[:60].strip()},
                             {"passage_id": pid2, "quote": text2[:60].strip()},
@@ -188,6 +190,7 @@ def _fake_completer(prompt: str, config: GenerationConfig, **kw) -> tuple[str, C
                     },
                     {
                         "claim_index": 2,
+                        "text": "The variation persists after case-mix adjustment.",
                         "citations": [
                             {"passage_id": pid1, "quote": text1[:40].strip()},
                         ],
@@ -266,7 +269,7 @@ def main() -> int:
     ap.add_argument(
         "--guided-decoding",
         action="store_true",
-        help="Enforce guided-JSON constrained decoding for the post-hoc citation stage",
+        help="Enforce guided-JSON constrained decoding for citation stages (joint and post-hoc)",
     )
     ap.add_argument("--fake", action="store_true", help="canned completer; no network, no GPU")
     ap.add_argument(
@@ -443,15 +446,19 @@ def main() -> int:
             f"median {s['median_latency_s']}s"
         )
 
-    expected = {System.JOINT.value: [1], System.POST_HOC.value: [2], System.VANILLA.value: [1]}
-    stage_ok = all(per_system[k]["stages_seen"] == v for k, v in expected.items())
+    expected = {System.JOINT.value: [1], System.POST_HOC.value: ">= 2", System.VANILLA.value: [1]}
+    joint_stages_ok = per_system[System.JOINT.value]["stages_seen"] == [1]
+    vanilla_stages_ok = per_system[System.VANILLA.value]["stages_seen"] == [1]
+    post_hoc_seen = per_system[System.POST_HOC.value]["stages_seen"]
+    post_hoc_stages_ok = bool(post_hoc_seen) and all(s >= 2 for s in post_hoc_seen)
+    stage_ok = joint_stages_ok and vanilla_stages_ok and post_hoc_stages_ok
     total_call_failures = sum(s["call_failure_count"] for s in per_system.values())
     no_call_failures = total_call_failures == 0
     clean_pass = stage_ok and no_call_failures
 
     print(
         f"\nstage-count check: {'PASSES' if stage_ok else 'FAILS'} "
-        "(post_hoc must be two calls, joint and vanilla one)"
+        "(post_hoc must be at least two calls per query, joint and vanilla one)"
     )
     print(
         f"call-failure check: {'PASSES' if no_call_failures else 'FAILS'} "

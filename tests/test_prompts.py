@@ -592,6 +592,59 @@ def test_guided_citation_schema_is_none_when_no_passage_yields_a_span():
     assert build_citation_response_format(empty, 2, MAX_CITATIONS) is None
 
 
+def test_fixed_count_citation_schema_output_unchanged_for_post_hoc():
+    """Fixed-count schema output remains unchanged byte-for-byte when claim_count is an int."""
+    fmt = build_citation_response_format(_passages(2), claim_count=2, max_citations=3)
+    assert fmt is not None
+    assert fmt["type"] == "json_schema"
+    js = fmt["json_schema"]
+    assert js["name"] == "recitation_response"
+    schema = js["schema"]
+    assert schema["required"] == ["claims"]
+    claims = schema["properties"]["claims"]
+    assert claims["minItems"] == 2
+    assert claims["maxItems"] == 2
+    assert claims["items"]["required"] == ["claim_index", "citations"]
+
+
+def test_variable_length_joint_schema_accepts_plausible_reply():
+    """Variable-length schema for joint arm covers decision + claims + citations and accepts plausible joint JSON."""
+    passages = _passages(2)
+    fmt = build_citation_response_format(passages, claim_count=None, max_citations=3, is_joint=True)
+    assert fmt is not None
+    assert fmt["type"] == "json_schema"
+    js = fmt["json_schema"]
+    assert js["name"] == "joint_response"
+    schema = js["schema"]
+    assert schema["required"] == ["decision", "claims"]
+    claims = schema["properties"]["claims"]
+    assert claims["minItems"] == 1
+    assert claims["maxItems"] == 30
+    assert claims["items"]["required"] == ["claim_index", "text", "citations"]
+
+    reply = json.dumps({
+        "decision": "yes",
+        "claims": [
+            {
+                "claim_index": 1,
+                "text": "Metformin reduces mortality in type 2 diabetes.",
+                "citations": [{"passage_id": "p1", "quote": "No severe hypoglycaemia occurred."}],
+            },
+            {
+                "claim_index": 2,
+                "text": "Metformin improves glycaemic control.",
+                "citations": [],
+            },
+        ],
+    })
+    parsed = parse_response(reply, passages, max_citations=3, require_decision=True)
+    assert parsed.decision == "yes"
+    assert len(parsed.claims) == 2
+    assert parsed.claims[0].text == "Metformin reduces mortality in type 2 diabetes."
+    assert len(parsed.claims[0].citations) == 1
+    assert parsed.claims[1].text == "Metformin improves glycaemic control."
+    assert parsed.errors == []
+
 def test_json_reply_is_parsed_with_the_same_contract_as_the_line_grammar():
     passages = _passages(2)
     raw = json.dumps(

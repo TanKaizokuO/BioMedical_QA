@@ -109,7 +109,47 @@ class TestJoint:
         assert gen.record.raw_generation == _cited_response()
         assert split_stages(gen.record.raw_generation) == (_cited_response(),)
 
+        assert split_stages(gen.record.raw_generation) == (_cited_response(),)
 
+    def test_joint_guided_path_emits_response_format(self):
+        """When guided_decoding=True, joint arm passes response_format and uses joint_json stage."""
+        joint_json = json.dumps({
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": 1,
+                    "text": "Metformin reduced all-cause mortality in adults with type 2 diabetes.",
+                    "citations": [{"passage_id": "p1", "quote": "Metformin reduced all-cause mortality by 21%"}],
+                }
+            ],
+        })
+        gen, stub = _run(
+            System.JOINT,
+            joint_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+        assert len(stub.prompts) == 1
+        assert stub.response_formats[0] is not None
+        assert stub.response_formats[0]["type"] == "json_schema"
+        assert stub.response_formats[0]["json_schema"]["name"] == "joint_response"
+        assert "Reply with a single JSON object" in stub.prompts[0]
+        assert gen.record.final_decision == "yes"
+        assert len(gen.record.claims) == 1
+        assert gen.record.claims[0].text == "Metformin reduced all-cause mortality in adults with type 2 diabetes."
+        assert len(gen.record.claims[0].citations) == 1
+
+    def test_joint_unguided_path_is_unchanged(self):
+        """When guided_decoding=False, joint arm passes no response_format and uses line grammar."""
+        gen, stub = _run(
+            System.JOINT,
+            _cited_response(),
+            config=GenerationConfig(model="stub", guided_decoding=False),
+        )
+        assert len(stub.prompts) == 1
+        assert stub.response_formats[0] is None
+        assert "Reply in exactly this format" in stub.prompts[0]
+        assert gen.record.final_decision == "yes"
+        assert len(gen.record.claims) == 2
 class TestPostHoc:
     def test_the_answer_stage_is_never_told_citations_are_coming(self):
         """The whole baseline rests on this. See the module docstring."""
@@ -502,3 +542,41 @@ class TestCallFailures:
                 query_id="1",
                 complete=failing_completer,
             )
+
+
+class TestStageCountRule:
+    def test_stage_count_rule_passes_on_batched_counts_and_fails_on_fault(self):
+        def evaluate(per_system: dict) -> bool:
+            joint_ok = per_system[System.JOINT.value]["stages_seen"] == [1]
+            vanilla_ok = per_system[System.VANILLA.value]["stages_seen"] == [1]
+            ph_seen = per_system[System.POST_HOC.value]["stages_seen"]
+            ph_ok = bool(ph_seen) and all(s >= 2 for s in ph_seen)
+            return joint_ok and vanilla_ok and ph_ok
+
+        batched_valid = {
+            "joint": {"stages_seen": [1]},
+            "vanilla": {"stages_seen": [1]},
+            "post_hoc": {"stages_seen": [2, 3, 4]},
+        }
+        assert evaluate(batched_valid) is True
+
+        post_hoc_collapsed_fault = {
+            "joint": {"stages_seen": [1]},
+            "vanilla": {"stages_seen": [1]},
+            "post_hoc": {"stages_seen": [1]},
+        }
+        assert evaluate(post_hoc_collapsed_fault) is False
+
+        vanilla_two_calls_fault = {
+            "joint": {"stages_seen": [1]},
+            "vanilla": {"stages_seen": [2]},
+            "post_hoc": {"stages_seen": [2]},
+        }
+        assert evaluate(vanilla_two_calls_fault) is False
+
+        joint_two_calls_fault = {
+            "joint": {"stages_seen": [2]},
+            "vanilla": {"stages_seen": [1]},
+            "post_hoc": {"stages_seen": [2]},
+        }
+        assert evaluate(joint_two_calls_fault) is False

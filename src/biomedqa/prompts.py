@@ -481,6 +481,20 @@ claim with a quotation as you write it.
 {format_block}"""
 
 
+JOINT_JSON_TEMPLATE = """You are answering a biomedical research question using only the passages below.
+
+{context}
+
+Question: {question}
+
+Answer the question using only what the passages say. Do not use outside knowledge, and do not
+state anything the passages do not support. Write the answer as a list of claims, and support each
+claim with a quotation from the passages.
+
+{claim_rules}
+
+Reply with a single JSON object and nothing else."""
+
 POST_HOC_ANSWER_TEMPLATE = """You are answering a biomedical research question using only the passages below.
 
 {context}
@@ -634,6 +648,10 @@ def build_prompt(
         }
 
     if system is System.JOINT:
+        if stage == "joint_json":
+            return JOINT_JSON_TEMPLATE.format(
+                context=context, question=question, claim_rules=_claim_rules()
+            )
         return JOINT_TEMPLATE.format(**rules(cite=True))
     if system is System.VANILLA:
         # Vanilla still gets the passages — it is "retrieve → generate, no attribution"
@@ -668,7 +686,13 @@ def build_prompt(
     return POST_HOC_ANSWER_TEMPLATE.format(**rules(cite=False))
 
 def build_citation_response_format(
-    passages: Sequence[RetrievedPassage], claim_count: int, max_citations: int
+    passages: Sequence[RetrievedPassage],
+    claim_count: int | None = None,
+    max_citations: int = 3,
+    *,
+    min_claims: int = 1,
+    max_claims: int = 30,
+    is_joint: bool = False,
 ) -> dict[str, Any] | None:
     """Compile the passages into the JSON schema that makes a citation verbatim by construction.
 
@@ -720,40 +744,69 @@ def build_citation_response_format(
     if not citation_schemas:
         return None
 
+    if claim_count is not None and not is_joint:
+        schema = {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "type": "array",
+                    # Exactly `claim_count` entries, because `cite_claims` matches the reply back to the
+                    # batch positionally. The count the prose asks for is the count the decoder enforces.
+                    "minItems": claim_count,
+                    "maxItems": claim_count,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "claim_index": {"type": "integer", "minimum": 1, "maximum": claim_count},
+                            # The cap is `ScoringConfig.max_citations`, not a literal: a schema with its
+                            # own idea of the cap would silently enforce a different fairness contract
+                            # than `QueryRecord.validate()` reports on.
+                            "citations": {
+                                "type": "array",
+                                "maxItems": max_citations,
+                                "items": {"anyOf": citation_schemas},
+                            },
+                        },
+                        "required": ["claim_index", "citations"],
+                    },
+                }
+            },
+            "required": ["claims"],
+        }
+        return {
+            "type": "json_schema",
+            "json_schema": {"name": "recitation_response", "schema": schema},
+        }
+
     schema = {
         "type": "object",
         "properties": {
+            "decision": {"type": "string", "enum": list(DECISIONS)},
             "claims": {
                 "type": "array",
-                # Exactly `claim_count` entries, because `cite_claims` matches the reply back to the
-                # batch positionally. The count the prose asks for is the count the decoder enforces.
-                "minItems": claim_count,
-                "maxItems": claim_count,
+                "minItems": min_claims,
+                "maxItems": max_claims,
                 "items": {
                     "type": "object",
                     "properties": {
-                        "claim_index": {"type": "integer", "minimum": 1, "maximum": claim_count},
-                        # The cap is `ScoringConfig.max_citations`, not a literal: a schema with its
-                        # own idea of the cap would silently enforce a different fairness contract
-                        # than `QueryRecord.validate()` reports on.
+                        "claim_index": {"type": "integer", "minimum": 1, "maximum": max_claims},
+                        "text": {"type": "string"},
                         "citations": {
                             "type": "array",
                             "maxItems": max_citations,
                             "items": {"anyOf": citation_schemas},
                         },
                     },
-                    "required": ["claim_index", "citations"],
+                    "required": ["claim_index", "text", "citations"],
                 },
-            }
+            },
         },
-        "required": ["claims"],
+        "required": ["decision", "claims"],
     }
-
     return {
         "type": "json_schema",
-        "json_schema": {"name": "recitation_response", "schema": schema},
+        "json_schema": {"name": "joint_response", "schema": schema},
     }
-
 def locate_quote(quote: str, passage_id: str, text: str) -> Citation | None:
     """Turn a quoted string into a span, or `None` if the model did not copy it exactly.
 
@@ -868,39 +921,46 @@ def parse_response(
                 json.loads(stripped)
             except json.JSONDecodeError as exc:
                 return ParsedResponse(None, [], [f"reply is malformed JSON: {exc}"], [])
+        decision: str | None = None
+        raw_decision = res_obj.get("decision")
+        if isinstance(raw_decision, str):
+            token = raw_decision.lower()
+            if token in DECISIONS:
+                decision = token
+            else:
+                errs.append(f"decision {raw_decision!r} is not one of {DECISIONS}")
+        elif raw_decision is not None:
+            errs.append(f"decision {raw_decision!r} is not one of {DECISIONS}")
+        elif require_decision:
+            errs.append("no DECISION line")
+
         claims_dict: dict[str, Claim] = {}
         order: list[str] = []
         errs: list[str] = []
         recov: list[str] = []
         raw_claims = res_obj.get("claims")
         if not isinstance(raw_claims, list):
-            return ParsedResponse(None, [], ["JSON reply has no 'claims' array"], [])
-        for idx in range(1, len(raw_claims) + 1):
-            cid = f"c{idx}"
-            # `text` stays empty on purpose. This stage is told the claims and returns only the
-            # evidence for them, so `cite_claims` re-attaches each original claim with
-            # `replace(original, citations=...)`; a text read back out of the reply would be a
-            # second, drifting copy of a claim `decompose.py` has already frozen.
-            claims_dict[cid] = Claim(
-                claim_id=cid,
-                text="",
-                citations=[],
-                granularity=Granularity.DECONTEXTUALIZED_ATOMIC,
-            )
-            order.append(cid)
+            return ParsedResponse(decision, [], ["JSON reply has no 'claims' array"], [])
         for pos, item in enumerate(raw_claims, start=1):
             if not isinstance(item, dict):
                 errs.append(f"claim entry {pos} is not an object")
                 continue
-            c_idx = item.get("claim_index")
+            c_idx = item.get("claim_index", pos)
             if not isinstance(c_idx, int) or not 1 <= c_idx <= len(raw_claims):
-                # Never redirected to c1. An out-of-range index sent every stray citation to the
-                # first claim once already (see the CITE-numbering iteration in PROMPT_ITERATIONS):
-                # it mis-attributes evidence and manufactures cap violations, and it does it
-                # invisibly. The entry is reported and dropped instead.
                 errs.append(f"claim entry {pos} has claim_index {c_idx!r}, which is out of range")
                 continue
             cid = f"c{c_idx}"
+            text_val = item.get("text", "")
+            if not isinstance(text_val, str):
+                text_val = str(text_val)
+            claims_dict[cid] = Claim(
+                claim_id=cid,
+                text=text_val,
+                citations=[],
+                granularity=Granularity.DECONTEXTUALIZED_ATOMIC,
+            )
+            if cid not in order:
+                order.append(cid)
             citations = item.get("citations")
             if not isinstance(citations, list):
                 errs.append(f"claim {cid} has no 'citations' array")
@@ -923,7 +983,39 @@ def parse_response(
                 if citation.quoted_text != quote.strip():
                     recov.append(f"quote in {pid} matched only after normalising")
                 claims_dict[cid].citations.append(citation)
-        return ParsedResponse(None, [claims_dict[c] for c in order], errs, recov)
+
+        for cid in order:
+            c_text = claims_dict[cid].text
+            if c_text:
+                words = len(c_text.split())
+                if words > max_claim_words:
+                    errs.append(
+                        f"{cid}: {words} words exceeds the max claim length of {max_claim_words} "
+                        "(non-terminating generation)"
+                    )
+            if len(claims_dict[cid].citations) > max_citations:
+                errs.append(
+                    f"{cid}: {len(claims_dict[cid].citations)} citations exceeds the cap of {max_citations}"
+                )
+        claim_texts = [claims_dict[cid].text for cid in order if claims_dict[cid].text]
+        if claim_texts:
+            for start_idx, length in runaway_chains(claim_texts, min_length=2):
+                first_cid = order[start_idx]
+                cid = order[start_idx + length - 1]
+                if length >= RUNAWAY_CHAIN_MIN:
+                    errs.append(
+                        f"{cid}: extends {first_cid}'s claim text through {length} nested claims "
+                        "(non-terminating generation)"
+                    )
+                else:
+                    sec_text = claims_dict[cid].text
+                    recov.append(
+                        f"{cid}: extends {first_cid}'s claim text ({sec_text[:60]!r})"
+                    )
+        if not order:
+            errs.append("no CLAIM lines")
+
+        return ParsedResponse(decision, [claims_dict[c] for c in order], errs, recov)
     decision: str | None = None
     claims: dict[str, Claim] = {}
     order: list[str] = []

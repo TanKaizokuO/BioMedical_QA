@@ -16,6 +16,7 @@ from biomedqa.schema import (
 from citation_contrast import (
     collect_phi_pairs,
     compute_citation_contrast,
+    get_phi_from_cache_or_verifier,
     load_run,
     pair_queries,
 )
@@ -252,3 +253,45 @@ def test_collect_phi_pairs():
     pairs = collect_phi_pairs([rec])
     assert len(pairs) > 0
     assert ("Metformin treats diabetes.", "Metformin treats diabetes.") in pairs
+
+
+def test_newly_scored_pairs_are_written_back_to_the_cache(tmp_path: Path, monkeypatch):
+    """Scoring is minutes of CPU per hundred pairs; a run that drops them re-pays on every read."""
+    import json as _json
+
+    import citation_contrast as cc
+
+    c1 = Claim(
+        claim_id="c1",
+        text="Metformin treats diabetes.",
+        citations=[Citation(passage_id="p1", char_start=0, char_end=26)],
+    )
+    rec = make_record("q1", System.JOINT, [c1], passage_text="Metformin treats diabetes.")
+
+    class _Score:
+        def __init__(self, score: float) -> None:
+            self.score = score
+
+    class _FakeVerifier:
+        instantiations = 0
+
+        def __init__(self, **_kw) -> None:
+            type(self).instantiations += 1
+
+        def score_pairs(self, pairs):
+            return [_Score(0.9) for _ in pairs]
+
+    monkeypatch.setattr(cc, "MiniCheckVerifier", _FakeVerifier)
+    cache_path = tmp_path / "minicheck_cache.json"
+
+    phi = get_phi_from_cache_or_verifier([rec], cache_path=cache_path, threshold=0.5)
+    assert phi("Metformin treats diabetes.", "Metformin treats diabetes.") is True
+    assert _FakeVerifier.instantiations == 1
+
+    written = _json.loads(cache_path.read_text(encoding="utf-8"))
+    assert written, "the enlarged cache must reach disk"
+    assert all("|||" in key for key in written)
+
+    # Second read is served entirely from disk: no verifier is constructed.
+    get_phi_from_cache_or_verifier([rec], cache_path=cache_path, threshold=0.5)
+    assert _FakeVerifier.instantiations == 1

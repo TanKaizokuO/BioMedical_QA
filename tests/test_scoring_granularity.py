@@ -272,6 +272,94 @@ def test_the_simple_claim_median_is_what_separates_verbosity_from_compounding() 
 
 
 # ---------------------------------------------------------------------------------------------
+# W9 Stratified Robustness Check tests (ADR-0009 §5).
+# ---------------------------------------------------------------------------------------------
+
+
+def test_stratified_parity_check_hand_built_fixture() -> None:
+    """Per-stratum computation on a small hand-built fixture with a KNOWN expected answer."""
+    # Create 5 queries where joint has 10-word simple claims and post_hoc has 11-word simple claims
+    records = []
+    for i in range(1, 6):
+        qid = f"q{i}"
+        records.append(_record(qid, System.JOINT, [_words(10)]))
+        records.append(_record(qid, System.POST_HOC, [_words(11)]))
+
+    from biomedqa.scoring.granularity import compute_compound_strata, stratified_parity_check
+
+    schemes = stratified_parity_check(records, min_queries=5)
+    gate = schemes["compound_structure"]
+
+    assert gate.passes is True
+    assert len(gate.powered_strata) == 1
+    assert len(gate.underpowered_strata) == 1  # compound stratum has 0 claims -> underpowered
+
+    simple_stratum = [s for s in gate.strata if s.stratum == "simple"][0]
+    assert not simple_stratum.underpowered
+    assert simple_stratum.n_queries == 5
+    assert simple_stratum.joint_median_words == 10.0
+    assert simple_stratum.post_hoc_median_words == 11.0
+    assert simple_stratum.gap == pytest.approx(0.10)
+    assert simple_stratum.passes is True
+
+
+def test_underpowered_stratum_is_reported_as_such() -> None:
+    """A stratum with too few queries to support a reading is reported as underpowered rather than
+    silently averaged in or raising an error."""
+    # Create 3 queries (fewer than min_queries=5)
+    records = []
+    for i in range(1, 4):
+        qid = f"q{i}"
+        records.append(_record(qid, System.JOINT, [_words(10)]))
+        records.append(_record(qid, System.POST_HOC, [_words(12)]))
+
+    from biomedqa.scoring.granularity import compute_compound_strata
+
+    gate = compute_compound_strata(records, min_queries=5)
+
+    # Both strata (simple and compound) are underpowered because n_queries=3 < 5
+    assert len(gate.powered_strata) == 0
+    assert len(gate.underpowered_strata) == 2
+    assert gate.passes is False  # No powered strata -> False
+
+    for s in gate.strata:
+        assert s.underpowered is True
+        assert s.passes is None
+        assert s.gap is None
+        assert s.joint_median_words is None
+        assert s.post_hoc_median_words is None
+        assert s.reason is not None and "too few queries" in s.reason
+
+
+def test_null_output_tokens_cost_row_does_not_raise() -> None:
+    """Call-rejection guard (ADR-0021) writes CostRecords with output_tokens=None.
+    Must not raise TypeError in stage_output_tokens, truncated_queries, or stratified check."""
+    records = [
+        _record("q1", System.JOINT, [_words(10)], completion_tokens=None),
+        _record("q1", System.POST_HOC, [_words(12)], completion_tokens=None),
+    ]
+    costs = [
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=None),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=None),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=None),
+        CostRecord(run_id="t", query_id="q1", component="generate", backend="vllm:m", output_tokens=None),
+    ]
+
+    from biomedqa.scoring.granularity import (
+        stage_output_tokens,
+        stratified_parity_check,
+        truncated_queries,
+    )
+
+    stages = stage_output_tokens(records, costs)
+    assert stages["q1"] == {"joint": 0, "post_hoc_answer": 0, "post_hoc_cite": 0, "vanilla": 0}
+
+    trunc = truncated_queries(records, costs, max_tokens=3584)
+    assert trunc == {"joint": set(), "post_hoc": set(), "vanilla": set()}
+
+    schemes = stratified_parity_check(records, min_queries=1)
+    assert "compound_structure" in schemes
+# ---------------------------------------------------------------------------------------------
 # The baseline of record. Every figure below is quoted from `docs/harvest/parity_iter0.md`.
 # ---------------------------------------------------------------------------------------------
 

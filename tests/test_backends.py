@@ -181,6 +181,7 @@ def test_anthropic_refuses_a_penalty_it_cannot_apply():
 def test_prompt_window_guard_raises_when_oversized(monkeypatch):
     """Prompt window guard verifies prompt_tokens + max_tokens <= model_max_len before request."""
     monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+    _FakeClient.last_body = None
     # Create an oversized prompt exceeding model_max_len (8192 for model="m")
     oversized_prompt = "word " * 7000
     cfg = GenerationConfig(backend="vllm", model="m", max_tokens=2000)
@@ -192,7 +193,7 @@ def test_prompt_window_guard_raises_when_oversized(monkeypatch):
     assert "prompt_tokens" in msg
     assert "max_tokens" in msg
     assert "model_max_len" in msg
-
+    assert _FakeClient.last_body is None, "Request must be refused BEFORE any HTTP call is made"
 
 def test_prompt_window_guard_passes_through_unchanged(monkeypatch):
     """When prompt_tokens + max_tokens <= model_max_len, request completes normally."""
@@ -203,4 +204,20 @@ def test_prompt_window_guard_passes_through_unchanged(monkeypatch):
     text, cost = backends.complete(normal_prompt, cfg, seed=0, run_id="r", query_id="q")
     assert text.startswith("DECISION:")
     assert cost.run_id == "r"
+
+def test_check_prompt_window_guard_refuses_oversized_stage2_prompt_pre_http(monkeypatch):
+    """Refuses prompt exceeding served window BEFORE any HTTP call is made.
+
+    On the n=100 run, largest stage-2 prompt was 4464 tokens against an 8192-token served window.
+    With max_tokens=3584, total tokens is 4464 + 3584 = 8048 tokens <= 8192 (144 tokens headroom).
+    If a stage-2 prompt grows past 4608 tokens (e.g. 4620 tokens), 4620 + 3584 = 8204 > 8192, so
+    the guard refuses the call before any HTTP request object is created/sent.
+    """
+    monkeypatch.setattr(backends.httpx, "Client", _FakeClient)
+    _FakeClient.last_body = None
+    oversized_stage2_prompt = "word " * 4620
+    cfg = GenerationConfig(backend="vllm", model="meta-llama/Meta-Llama-3-8B-Instruct-AWQ", max_tokens=3584)
+    with pytest.raises(ValueError, match="Prompt window exceeded"):
+        backends.complete(oversized_stage2_prompt, cfg, seed=0, run_id="r", query_id="q")
+    assert _FakeClient.last_body is None, "No HTTP call object constructed/sent when prompt window exceeded"
 

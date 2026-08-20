@@ -1,0 +1,55 @@
+{
+  "bootstrap_ci": {
+    "confidence": 0.95,
+    "lower": -0.05360105781390712,
+    "n_boot": 10000,
+    "n_clusters": 100,
+    "n_units": 100,
+    "point": 0.009361268616703722,
+    "resampling_unit": "query",
+    "seed": 0,
+    "upper": 0.0728680595145272,
+    "width": 0.12646911732843433
+  },
+  "delta": {
+    "confidence": 0.95,
+    "excludes_zero": false,
+    "lower": -0.05360105781390712,
+    "n_boot": 10000,
+    "point": 0.009361268616703722,
+    "seed": 0,
+    "upper": 0.0728680595145272,
+    "width": 0.12646911732843433
+  },
+  "joint": {
+    "f1": 0.5344030217339846,
+    "f1_all_claims": 0.5344030217339846,
+    "n_abstentions": 0,
+    "n_answered": 463,
+    "n_citations": 687,
+    "n_claims": 463,
+    "n_relevant_citations": 580,
+    "precision": 0.8442503639010189,
+    "recall": 0.39092872570194387,
+    "recall_all_claims": 0.39092872570194387
+  },
+  "joint_clean_parses": 34,
+  "joint_quote_not_found": 161,
+  "n_dropped_queries": 0,
+  "n_paired": 100,
+  "post_hoc": {
+    "f1": 0.5250417531172809,
+    "f1_all_claims": 0.5250417531172809,
+    "n_abstentions": 0,
+    "n_answered": 627,
+    "n_citations": 778,
+    "n_claims": 627,
+    "n_relevant_citations": 743,
+    "precision": 0.9550128534704371,
+    "recall": 0.3620414673046252,
+    "recall_all_claims": 0.3620414673046252
+  },
+  "run_prefix": "docs/harvest/generate_fp05_n100_guided_batched",
+  "threshold": 0.5,
+  "verifier": "lytang/MiniCheck-Flan-T5-Large"
+}
