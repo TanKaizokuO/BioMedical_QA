@@ -51,11 +51,11 @@ _ANTHROPIC_PRICE: dict[str, tuple[float, float]] = {
 # Per-model maximum context window length mapping (tokens).
 _MODEL_MAX_LEN: dict[str, int] = {
     "claude-": 200000,
-    "meta-llama/": 8192,
-    "hugging-quants/": 8192,
-    "Meta-Llama": 8192,
+    "meta-llama/": 14336,
+    "hugging-quants/": 14336,
+    "Meta-Llama": 14336,
 }
-_DEFAULT_MODEL_MAX_LEN = 8192
+_DEFAULT_MODEL_MAX_LEN = 14336
 
 
 def _get_model_max_len(model: str) -> int:

@@ -34,6 +34,23 @@ if sys.argv[1] == "--put":
     sftp.put(local, staged)
     sftp.close()
     cmd = f"""wsl.exe -d Ubuntu-24.04 -- bash -lc 'cp "$(wslpath "{staged}")" "{remote}"'"""
+elif sys.argv[1] == "--get":
+    # WSL guest path -> Local file, staged through Windows temp dir
+    remote, local = sys.argv[2], sys.argv[3]
+    staged = f"C:/Users/{env['SSH_USER']}/AppData/Local/Temp/_omp_get"
+    cmd = f"""wsl.exe -d Ubuntu-24.04 -- bash -lc 'cp "{remote}" "$(wslpath "{staged}")"'"""
+    stdin, stdout, stderr = client.exec_command(cmd, timeout=None, get_pty=False)
+    code = stdout.channel.recv_exit_status()
+    if code != 0:
+        err = stderr.read().decode("utf-8", "replace")
+        sys.stderr.write(err)
+        client.close()
+        raise SystemExit(code)
+    sftp = client.open_sftp()
+    sftp.get(staged, local)
+    sftp.close()
+    client.close()
+    raise SystemExit(0)
 else:
     cmd = sys.argv[1]
 stdin, stdout, stderr = client.exec_command(cmd, timeout=None, get_pty=False)
