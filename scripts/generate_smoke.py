@@ -446,8 +446,13 @@ def main() -> int:
             f"median {s['median_latency_s']}s"
         )
 
-    expected = {System.JOINT.value: [1], System.POST_HOC.value: ">= 2", System.VANILLA.value: [1]}
-    joint_stages_ok = per_system[System.JOINT.value]["stages_seen"] == [1]
+    # Joint is "at least one" rather than exactly one: `generate_one`'s death-loop escape valve
+    # (generate.py, System.JOINT guided branch) reissues the same prompt up to twice more when the
+    # first guided-JSON reply comes back truncated/invalid, so a query that needed a retry legally
+    # carries 2 or 3 stages. Vanilla never retries and stays pinned at exactly 1.
+    expected = {System.JOINT.value: ">= 1", System.POST_HOC.value: ">= 2", System.VANILLA.value: [1]}
+    joint_seen = per_system[System.JOINT.value]["stages_seen"]
+    joint_stages_ok = bool(joint_seen) and all(s >= 1 for s in joint_seen)
     vanilla_stages_ok = per_system[System.VANILLA.value]["stages_seen"] == [1]
     post_hoc_seen = per_system[System.POST_HOC.value]["stages_seen"]
     post_hoc_stages_ok = bool(post_hoc_seen) and all(s >= 2 for s in post_hoc_seen)
@@ -458,7 +463,7 @@ def main() -> int:
 
     print(
         f"\nstage-count check: {'PASSES' if stage_ok else 'FAILS'} "
-        "(post_hoc must be at least two calls per query, joint and vanilla one)"
+        "(post_hoc at least two calls, joint at least one, vanilla exactly one, per query)"
     )
     print(
         f"call-failure check: {'PASSES' if no_call_failures else 'FAILS'} "

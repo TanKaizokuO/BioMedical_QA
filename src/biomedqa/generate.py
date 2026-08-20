@@ -284,6 +284,67 @@ def generate_one(
             parsed = parse_response(
                 parsed_from, context, config.max_citations, require_decision=True
             )
+            # Escape valve for the guided-JSON whitespace death-loop (prompts.py's
+            # JOINT_JSON_TEMPLATE comment): greedy decoding (temperature 0.0) has no way out of an
+            # unbounded whitespace run once it starts, and the prompt-side mitigations only shift
+            # which queries trip it rather than eliminating the failure mode (measured: 11/100 ->
+            # 15/100 on generate_fp05_n100_guided_v3, a different 15, not a subset). A zero-claim,
+            # no-decision parse with a malformed-JSON error is that signature specifically -- not a
+            # legitimate "the model declined to answer" reply, which always carries a DECISION.
+            # Up to two retries at rising nonzero temperature perturb the trajectory off the exact
+            # token sequence that loops, without abandoning temperature 0.0 for the common case.
+            # The retry attempts are logged to `recovered` on success (this is a read-rather-than-
+            # rejected recovery, the same category `ParsedResponse.recovered` already carries for
+            # transcription drift), and to `errors` only if every retry still fails to parse --
+            # that is a genuine, measured failure and must sink `clean_parses`, not be laundered by
+            # the retry mechanism.
+            needs_retry = (
+                not parsed.claims
+                and parsed.decision is None
+                and any("malformed JSON" in e for e in parsed.errors)
+            )
+            if needs_retry:
+                original_errors = parsed.errors
+                retry_notes: list[str] = []
+                for retry_temperature in (0.3, 0.7):
+                    retry_config = replace(config, temperature=retry_temperature)
+                    retry_text, retry_cost = complete(
+                        prompt_joint, retry_config, seed=seed, run_id=run_id, query_id=query_id,
+                        response_format=guided_format,
+                    )
+                    texts.append(retry_text)
+                    costs.append(retry_cost)
+                    if retry_text.startswith('"'):
+                        try:
+                            unwrapped = json.loads(retry_text)
+                        except json.JSONDecodeError:
+                            pass
+                        else:
+                            if isinstance(unwrapped, str):
+                                retry_text = unwrapped
+                    retry_parsed = parse_response(
+                        retry_text, context, config.max_citations, require_decision=True
+                    )
+                    retry_notes.append(
+                        f"retried joint call at temperature={retry_temperature} after death-loop "
+                        "parse failure"
+                    )
+                    if retry_parsed.claims or retry_parsed.decision is not None:
+                        parsed = ParsedResponse(
+                            decision=retry_parsed.decision,
+                            claims=retry_parsed.claims,
+                            errors=retry_parsed.errors,
+                            recovered=[*retry_notes, *retry_parsed.recovered],
+                        )
+                        break
+                    retry_notes.append(f"retry at temperature={retry_temperature} also failed to parse")
+                else:
+                    parsed = ParsedResponse(
+                        decision=parsed.decision,
+                        claims=parsed.claims,
+                        errors=[*original_errors, *retry_notes],
+                        recovered=parsed.recovered,
+                    )
         else:
             parsed_from = call(
                 build_prompt(system, question, context, config.max_citations, depth=depth)

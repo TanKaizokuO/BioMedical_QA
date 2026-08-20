@@ -150,6 +150,49 @@ class TestJoint:
         assert "Reply in exactly this format" in stub.prompts[0]
         assert gen.record.final_decision == "yes"
         assert len(gen.record.claims) == 2
+    def test_joint_guided_death_loop_is_retried_and_recovered(self):
+        """A malformed-JSON, zero-claim, no-decision reply is the death-loop signature
+        (`generate.py`'s System.JOINT guided branch comment); a valid reply on the first retry
+        recovers the query rather than sinking it as an error."""
+        joint_json = json.dumps({
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": 1,
+                    "text": "Metformin reduced all-cause mortality in adults with type 2 diabetes.",
+                    "citations": [{"passage_id": "p1", "quote": "Metformin reduced all-cause mortality by 21%"}],
+                }
+            ],
+        })
+        gen, stub = _run(
+            System.JOINT,
+            "{not valid json",
+            joint_json,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+        assert len(stub.prompts) == 2
+        assert stub.prompts[0] == stub.prompts[1]  # same prompt re-sent, not a second stage
+        assert gen.errors == ()
+        assert any("retried joint call at temperature=0.3" in r for r in gen.recovered)
+        assert gen.record.final_decision == "yes"
+        assert len(gen.record.claims) == 1
+
+    def test_joint_guided_death_loop_exhausts_retries_and_reports_the_failure(self):
+        """Every attempt malformed: the query is a genuine, measured failure, not laundered."""
+        gen, stub = _run(
+            System.JOINT,
+            "{not valid json",
+            "{also not valid",
+            "{still not valid",
+            config=GenerationConfig(model="stub", guided_decoding=True),
+        )
+        assert len(stub.prompts) == 3
+        assert len(gen.record.claims) == 0
+        assert gen.record.final_decision is None
+        assert any("reply is malformed JSON" in e for e in gen.errors)
+        assert any("retried joint call at temperature=0.7" in e for e in gen.errors)
+
+
 class TestPostHoc:
     def test_the_answer_stage_is_never_told_citations_are_coming(self):
         """The whole baseline rests on this. See the module docstring."""
@@ -547,7 +590,8 @@ class TestCallFailures:
 class TestStageCountRule:
     def test_stage_count_rule_passes_on_batched_counts_and_fails_on_fault(self):
         def evaluate(per_system: dict) -> bool:
-            joint_ok = per_system[System.JOINT.value]["stages_seen"] == [1]
+            joint_seen = per_system[System.JOINT.value]["stages_seen"]
+            joint_ok = bool(joint_seen) and all(s >= 1 for s in joint_seen)
             vanilla_ok = per_system[System.VANILLA.value]["stages_seen"] == [1]
             ph_seen = per_system[System.POST_HOC.value]["stages_seen"]
             ph_ok = bool(ph_seen) and all(s >= 2 for s in ph_seen)
@@ -574,9 +618,19 @@ class TestStageCountRule:
         }
         assert evaluate(vanilla_two_calls_fault) is False
 
-        joint_two_calls_fault = {
-            "joint": {"stages_seen": [2]},
+        # Joint's death-loop retry (generate.py, System.JOINT guided branch) legitimately reissues
+        # the prompt up to twice more, so 2 or 3 stages is now a valid joint record rather than a
+        # fault -- unlike vanilla, which never retries and stays pinned at exactly 1.
+        joint_two_calls_from_retry = {
+            "joint": {"stages_seen": [1, 2]},
             "vanilla": {"stages_seen": [1]},
             "post_hoc": {"stages_seen": [2]},
         }
-        assert evaluate(joint_two_calls_fault) is False
+        assert evaluate(joint_two_calls_from_retry) is True
+
+        joint_no_records_fault = {
+            "joint": {"stages_seen": []},
+            "vanilla": {"stages_seen": [1]},
+            "post_hoc": {"stages_seen": [2]},
+        }
+        assert evaluate(joint_no_records_fault) is False
