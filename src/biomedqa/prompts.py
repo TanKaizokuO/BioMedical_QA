@@ -532,10 +532,9 @@ claim with a quotation from the passages.
 Only write a claim that says something the passages actually support. If a passage has nothing to
 do with the question, leave it out rather than writing a claim that says so.
 
-Write each claim with full detail so it stands on its own: target sixteen to twenty-two words per
-claim. Ensure each claim explicitly includes the context, study population, intervention, comparison,
-or quantitative outcome given in the passages. A claim under twelve words is usually missing
-qualifying detail.
+Write each claim with enough detail to stand on its own: target fifteen to twenty words per
+claim. Include the study population, comparison, or quantitative outcome given in the passage.
+A claim under eleven words is usually missing qualifying detail.
 
 Format the JSON compactly: a single space after each colon, no extra indentation, and no blank
 lines between claims. This is about the JSON's own whitespace only, not about how much a claim
