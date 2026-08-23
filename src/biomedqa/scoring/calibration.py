@@ -13,11 +13,20 @@ call time. Nothing upstream may binarize; that is the whole reason the sweep is 
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Callable, Hashable, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+
+from ..schema import QueryRecord, SupportLabel
+
+#: Gate G3 thresholds (ROADMAP.md, research_roadmap.md §8)
+G3_AUROC_MIN: float = 0.75
+G3_COST_RATIO_MIN: float = 10.0
+
 
 
 def auroc(scores: Sequence[float], labels: Sequence[bool]) -> float:
@@ -56,6 +65,269 @@ def auroc(scores: Sequence[float], labels: Sequence[bool]) -> float:
 
     wins = np.sum(left + 0.5 * (right - left))
     return float(wins / (n_pos * n_neg))
+def auprc(scores: Sequence[float], labels: Sequence[bool]) -> float:
+    """Area under the Precision-Recall curve (AUPRC / Average Precision).
+
+    Raises ValueError on empty inputs, unequal input lengths, or degenerate label sets.
+    """
+    if len(scores) != len(labels):
+        raise ValueError(
+            f"scores (len {len(scores)}) and labels (len {len(labels)}) must have equal length"
+        )
+    if not scores:
+        raise ValueError("Cannot compute AUPRC on empty input")
+
+    scores_arr = np.asarray(scores, dtype=float)
+    labels_arr = np.asarray(labels, dtype=bool)
+
+    n_pos = int(np.sum(labels_arr))
+    n_neg = len(labels_arr) - n_pos
+
+    if n_pos == 0 or n_neg == 0:
+        raise ValueError(
+            "Cannot compute AUPRC when all labels are positive or all labels are negative"
+        )
+
+    from sklearn.metrics import average_precision_score
+
+    return float(average_precision_score(labels_arr, scores_arr))
+
+
+def gate_g3(
+    scores: Sequence[float],
+    labels: Sequence[bool],
+    *,
+    clusters: Sequence[Hashable] | None = None,
+    cost_ratio: float | None = None,
+    n_boot: int = 10_000,
+    seed: int = 20260804,
+    n_no_majority: int = 0,
+    no_majority_rate: float | None = None,
+) -> dict[str, Any]:
+    """The G3 decision for cheap verifier evaluation (ROADMAP.md, research_roadmap.md §8).
+
+    Passing requires **both** AUROC ≥ 0.75 for unsupported claim detection **and**
+    per-claim cost reduction ≥ 10× vs the Opus judge baseline.
+
+    `clusters` takes one question id per unit (ADR-0011 §2). The interval it produces is
+    reported with its cluster count and never softens the verdict — `passes` is a function
+    of point estimates alone.
+
+    `cost_ratio` is an explicit input because cost evidence is benchmarked separately.
+    When `cost_ratio` is None, `cost_passes` is False, `passes` is False, and `reason`
+    names the missing evidence.
+
+    `n_no_majority` and `no_majority_rate` report the count and rate of multi-annotator
+    units where no strict majority existed (resolved by primary tie-break, ADR-0016).
+    """
+    if len(scores) != len(labels):
+        raise ValueError(
+            f"scores (len {len(scores)}) and labels (len {len(labels)}) must have equal length"
+        )
+
+    n = len(scores)
+    labels_arr = np.asarray(labels, dtype=bool) if n > 0 else np.array([], dtype=bool)
+    n_pos = int(np.sum(labels_arr)) if n > 0 else 0
+    n_neg = n - n_pos
+
+    reasons: list[str] = []
+    auroc_val: float = float("nan")
+
+    if n == 0:
+        reasons.append("empty_input")
+    elif n_pos == 0 or n_neg == 0:
+        reasons.append("degenerate_labels")
+    else:
+        auroc_val = auroc(scores, labels)
+
+    auroc_passes = not math.isnan(auroc_val) and auroc_val >= G3_AUROC_MIN
+    if not math.isnan(auroc_val) and auroc_val < G3_AUROC_MIN:
+        reasons.append(f"auroc_below_threshold ({auroc_val:.4f} < {G3_AUROC_MIN})")
+
+    cost_passes = (
+        cost_ratio is not None
+        and not math.isnan(cost_ratio)
+        and cost_ratio >= G3_COST_RATIO_MIN
+    )
+    if cost_ratio is None:
+        reasons.append("cost_ratio_missing")
+    elif math.isnan(cost_ratio) or cost_ratio < G3_COST_RATIO_MIN:
+        reasons.append(f"cost_ratio_below_threshold ({cost_ratio} < {G3_COST_RATIO_MIN})")
+
+    ci: dict[str, Any] | None = None
+    if clusters is not None:
+        if len(clusters) != n:
+            raise ValueError(
+                f"clusters has {len(clusters)} keys for {n} units; one key per unit or None"
+            )
+        if n > 0 and n_pos > 0 and n_neg > 0:
+            units = list(zip(scores, labels, strict=True))
+
+            def _stat(pairs: Sequence[tuple[float, bool]]) -> float:
+                s = [p[0] for p in pairs]
+                l = [p[1] for p in pairs]
+                try:
+                    return auroc(s, l)
+                except ValueError:
+                    return float("nan")
+
+            ci = bootstrap_ci(
+                units,
+                statistic=_stat,
+                clusters=clusters,
+                n_boot=n_boot,
+                seed=seed,
+            )
+
+    if no_majority_rate is None:
+        no_majority_rate = float(n_no_majority / n) if n > 0 else 0.0
+
+    passes = auroc_passes and cost_passes
+    reason_str = "; ".join(reasons) if reasons else "pass"
+    n_clusters = len(set(clusters)) if clusters is not None else None
+
+    return {
+        "auroc": auroc_val,
+        "auroc_min": G3_AUROC_MIN,
+        "auroc_passes": auroc_passes,
+        "auroc_ci": ci,
+        "n": n,
+        "n_positive": n_pos,
+        "n_negative": n_neg,
+        "n_clusters": n_clusters,
+        "n_no_majority": n_no_majority,
+        "no_majority_rate": no_majority_rate,
+        "cost_ratio": cost_ratio,
+        "cost_ratio_min": G3_COST_RATIO_MIN,
+        "cost_passes": cost_passes,
+        "passes": passes,
+        "reason": reason_str,
+    }
+
+
+@dataclass(slots=True)
+class JoinedEvalRecord:
+    """Joined verifier score and human label pair for one claim/citation unit."""
+
+    score: float
+    is_supporting: bool
+    question_id: str
+    claim_id: str
+    citation_index: int | None = None
+    raw_labels: tuple[HumanLabel, ...] = ()
+
+
+class JoinedEvalList(list[JoinedEvalRecord]):
+    """Joined evaluation records with multi-annotator diagnostic fields."""
+
+    def __init__(
+        self,
+        records: Sequence[JoinedEvalRecord] = (),
+        *,
+        n_no_majority: int = 0,
+        no_majority_rate: float = 0.0,
+    ) -> None:
+        super().__init__(records)
+        self.n_no_majority: int = n_no_majority
+        self.no_majority_rate: float = no_majority_rate
+
+
+def join_scores_and_labels(
+    records: Sequence[QueryRecord],
+    *,
+    verifier_name: str = "minicheck",
+    citation_index: int | None = None,
+    primary_annotator: str | None = None,
+) -> JoinedEvalList:
+    """Join Claim.verifier_scores and Claim.human_labels by (query_id, claim_id, citation_index).
+
+    Rejects duplicate keys, ambiguous ratings with no majority, invalid labels, and missing data.
+    Preserves question_id (QueryRecord.query_id) and binary collapse semantics.
+    Surfaces n_no_majority count and no_majority_rate on the returned JoinedEvalList (ADR-0016).
+    """
+    joined: list[JoinedEvalRecord] = []
+    n_no_majority = 0
+    for record in records:
+        qid = record.query_id
+        for claim in record.claims:
+            if not claim.citations:
+                continue  # Uncited claims are not annotation units per ADR-0016
+
+            matching_scores = [v for v in claim.verifier_scores if v.name == verifier_name]
+            if not matching_scores:
+                raise ValueError(
+                    f"Missing verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                )
+            if len(matching_scores) > 1:
+                raise ValueError(
+                    f"Duplicate verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                )
+            score = matching_scores[0].score
+
+            matching_labels = [
+                h for h in claim.human_labels if h.citation_index == citation_index
+            ]
+            if not matching_labels:
+                raise ValueError(
+                    f"Missing human label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={citation_index}"
+                )
+
+            for hl in matching_labels:
+                if not isinstance(hl.support_label, SupportLabel):
+                    raise ValueError(
+                        f"Invalid label value {hl.support_label!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                    )
+
+            annotators = [hl.annotator_id for hl in matching_labels]
+            if len(annotators) != len(set(annotators)):
+                raise ValueError(
+                    f"Duplicate annotator label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={citation_index}"
+                )
+
+            if len(matching_labels) == 1:
+                is_supp = matching_labels[0].support_label.is_supporting
+            else:
+                pos = sum(1 for hl in matching_labels if hl.support_label.is_supporting)
+                neg = len(matching_labels) - pos
+                if pos > neg:
+                    is_supp = True
+                elif neg > pos:
+                    is_supp = False
+                else:
+                    if primary_annotator is not None:
+                        prim = [
+                            hl for hl in matching_labels if hl.annotator_id == primary_annotator
+                        ]
+                        if len(prim) == 1:
+                            is_supp = prim[0].support_label.is_supporting
+                            n_no_majority += 1
+                        else:
+                            raise ValueError(
+                                f"No majority and primary annotator {primary_annotator!r} not found for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                            )
+                    else:
+                        raise ValueError(
+                            f"Ambiguous multi-annotator ratings with no majority for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                        )
+
+            joined.append(
+                JoinedEvalRecord(
+                    score=score,
+                    is_supporting=is_supp,
+                    question_id=qid,
+                    claim_id=claim.claim_id,
+                    citation_index=citation_index,
+                    raw_labels=tuple(matching_labels),
+                )
+            )
+
+    n_total = len(joined)
+    no_majority_rate = float(n_no_majority / n_total) if n_total > 0 else 0.0
+    return JoinedEvalList(
+        joined,
+        n_no_majority=n_no_majority,
+        no_majority_rate=no_majority_rate,
+    )
 
 
 def ece(scores: Sequence[float], labels: Sequence[bool], bins: int = 10) -> dict[str, Any]:

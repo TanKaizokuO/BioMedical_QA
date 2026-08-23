@@ -11,8 +11,18 @@ import math
 import numpy as np
 import pytest
 
-from biomedqa.scoring.calibration import auroc, bootstrap_ci, ece, threshold_sweep
-
+from biomedqa.schema import Citation, Claim, HumanLabel, QueryRecord, SupportLabel, System, VerifierScore
+from biomedqa.scoring.calibration import (
+    G3_AUROC_MIN,
+    G3_COST_RATIO_MIN,
+    auprc,
+    auroc,
+    bootstrap_ci,
+    ece,
+    gate_g3,
+    join_scores_and_labels,
+    threshold_sweep,
+)
 
 # --- AUROC tests ----------------------------------------------------------------------------------
 
@@ -298,3 +308,346 @@ def test_bootstrap_ci_non_mean_statistic_receives_complete_resampled_dataset():
     assert all(length == len(units) for length in received_lengths)
     assert all(t is list for t in received_types)
     assert res["point"] == 30.0
+
+# --- AUPRC & Polarity Invariance tests -------------------------------------------------------------
+
+def test_auprc_textbook():
+    scores = [0.2, 0.4, 0.7, 0.9]
+    labels = [False, False, True, True]
+    assert auprc(scores, labels) == pytest.approx(1.0)
+
+
+def test_auroc_polarity_invariance():
+    # Pins polarity invariance: MiniCheck score is support probability, label is is_supporting.
+    # Flipping both scores (1 - s) and labels (not l) leaves AUROC unchanged.
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+    orig_auroc = auroc(scores, labels)
+
+    flipped_scores = [1.0 - s for s in scores]
+    flipped_labels = [not l for l in labels]
+    flipped_auroc = auroc(flipped_scores, flipped_labels)
+
+    assert orig_auroc == pytest.approx(0.75)
+    assert flipped_auroc == pytest.approx(orig_auroc)
+
+
+# --- Gate G3 tests --------------------------------------------------------------------------------
+
+def test_gate_g3_auroc_boundary_below_0_75():
+    # AUROC = 0.74 < 0.75 => auroc_passes False, passes False
+    # pos = [0.4, 0.73], neg = [0.1, 0.5] -> pos 0.4 vs negs -> 1 win; pos 0.73 vs negs -> 2 wins
+    # wait, pos = [0.39, 0.74], neg = [0.1, 0.4] -> 0.39 vs [0.1,0.4]=1 win; 0.74 vs [0.1,0.4]=2 wins -> 3/4 = 0.75
+    # Let's construct AUROC = 0.70: pos=[0.3, 0.6], neg=[0.2, 0.5] -> 0.3 vs [0.2,0.5]=1 win; 0.6 vs [0.2,0.5]=2 wins -> 3/4=0.75
+    # pos=[0.3, 0.45], neg=[0.2, 0.5] -> 0.3 vs [0.2,0.5]=1 win; 0.45 vs [0.2,0.5]=1 win -> 2/4 = 0.5
+    # 3 pos, 3 neg: pos=[0.3, 0.5, 0.8], neg=[0.1, 0.4, 0.7]
+    # 0.3 vs [0.1,0.4,0.7]=1; 0.5 vs [0.1,0.4,0.7]=2; 0.8 vs [0.1,0.4,0.7]=3 -> 6/9 = 0.6667
+    # 5 pos, 5 neg: pos=[0.4, 0.5, 0.6, 0.8, 0.9], neg=[0.1, 0.2, 0.3, 0.7, 0.75]
+    # 0.4: 3, 0.5: 3, 0.6: 3, 0.8: 5, 0.9: 5 -> total 19/25 = 0.76
+    # pos=[0.4, 0.5, 0.55, 0.8, 0.9], neg=[0.1, 0.2, 0.3, 0.6, 0.75]
+    # 0.4: 3, 0.5: 3, 0.55: 3, 0.8: 5, 0.9: 5 -> 19/25 = 0.76
+    # pos=[0.4, 0.45, 0.55, 0.8, 0.9], neg=[0.1, 0.2, 0.3, 0.5, 0.75]
+    # 0.4: 3, 0.45: 3, 0.55: 4, 0.8: 5, 0.9: 5 -> 20/25 = 0.80
+    # pos=[0.4, 0.45, 0.46, 0.8, 0.9], neg=[0.1, 0.2, 0.3, 0.5, 0.75]
+    # 0.4: 3, 0.45: 3, 0.46: 3, 0.8: 5, 0.9: 5 -> 19/25 = 0.76
+    # pos=[0.4, 0.45, 0.46, 0.47, 0.9], neg=[0.1, 0.2, 0.3, 0.5, 0.75]
+    # 0.4: 3, 0.45: 3, 0.46: 3, 0.47: 3, 0.9: 5 -> 17/25 = 0.68
+    scores = [0.1, 0.2, 0.3, 0.5, 0.75, 0.4, 0.45, 0.46, 0.47, 0.9]
+    labels = [False, False, False, False, False, True, True, True, True, True]
+    res = gate_g3(scores, labels, cost_ratio=15.0)
+
+    assert res["auroc"] == pytest.approx(0.68)
+    assert res["auroc_passes"] is False
+    assert res["passes"] is False
+    assert "auroc_below_threshold" in res["reason"]
+
+
+def test_gate_g3_auroc_boundary_exactly_0_75():
+    # Pins exact boundary semantics (AUROC >= 0.75 per preregistration).
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+    res = gate_g3(scores, labels, cost_ratio=10.0)
+
+    assert res["auroc"] == pytest.approx(0.75)
+    assert res["auroc_passes"] is True
+    assert res["cost_passes"] is True
+    assert res["passes"] is True
+    assert res["reason"] == "pass"
+
+
+def test_gate_g3_auroc_above_0_75_requires_cost_ratio():
+    scores = [0.2, 0.4, 0.7, 0.9]
+    labels = [False, False, True, True]
+    # AUROC = 1.0 > 0.75
+    # With satisfying cost_ratio=10.0 -> passes True
+    res_pass = gate_g3(scores, labels, cost_ratio=10.0)
+    assert res_pass["auroc_passes"] is True
+    assert res_pass["cost_passes"] is True
+    assert res_pass["passes"] is True
+
+    # With unsatisfying cost_ratio=5.0 -> passes False
+    res_fail = gate_g3(scores, labels, cost_ratio=5.0)
+    assert res_fail["auroc_passes"] is True
+    assert res_fail["cost_passes"] is False
+    assert res_fail["passes"] is False
+    assert "cost_ratio_below_threshold" in res_fail["reason"]
+
+
+def test_gate_g3_missing_cost_ratio_fails():
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+    res = gate_g3(scores, labels, cost_ratio=None)
+
+    assert res["auroc_passes"] is True
+    assert res["cost_passes"] is False
+    assert res["passes"] is False
+    assert "cost_ratio_missing" in res["reason"]
+
+
+def test_gate_g3_degenerate_labels_and_empty_input():
+    # All positive
+    res_all_pos = gate_g3([0.1, 0.5, 0.9], [True, True, True], cost_ratio=10.0)
+    assert math.isnan(res_all_pos["auroc"])
+    assert res_all_pos["auroc_passes"] is False
+    assert res_all_pos["passes"] is False
+    assert "degenerate_labels" in res_all_pos["reason"]
+
+    # All negative
+    res_all_neg = gate_g3([0.1, 0.5, 0.9], [False, False, False], cost_ratio=10.0)
+    assert math.isnan(res_all_neg["auroc"])
+    assert res_all_neg["auroc_passes"] is False
+    assert res_all_neg["passes"] is False
+    assert "degenerate_labels" in res_all_neg["reason"]
+
+    # Empty input
+    res_empty = gate_g3([], [], cost_ratio=10.0)
+    assert math.isnan(res_empty["auroc"])
+    assert res_empty["auroc_passes"] is False
+    assert res_empty["passes"] is False
+    assert "empty_input" in res_empty["reason"]
+
+
+def test_gate_g3_length_mismatch_raises_value_error():
+    with pytest.raises(ValueError, match="equal length"):
+        gate_g3([0.1, 0.5], [True])
+
+
+def test_gate_g3_clustered_evaluation_path():
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+    clusters = ["q1", "q1", "q2", "q2"]
+
+    res = gate_g3(scores, labels, clusters=clusters, cost_ratio=12.0, n_boot=200, seed=42)
+
+    assert res["auroc_ci"] is not None
+    assert res["auroc_ci"]["resampling_unit"] == "question"
+    assert res["auroc_ci"]["n_clusters"] == 2
+    assert res["n_clusters"] == 2
+
+
+def test_gate_g3_determinism_and_auditable_verdict_structure():
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+    clusters = ["q1", "q1", "q2", "q2"]
+
+    res1 = gate_g3(scores, labels, clusters=clusters, cost_ratio=15.0, seed=20260804)
+    res2 = gate_g3(scores, labels, clusters=clusters, cost_ratio=15.0, seed=20260804)
+
+    # Determinism assertion: identical input produces byte-identical returned dict
+    assert res1 == res2
+
+    # Auditable verdict structure assertion: all required keys present
+    expected_keys = {
+        "auroc",
+        "auroc_min",
+        "auroc_passes",
+        "auroc_ci",
+        "n",
+        "n_positive",
+        "n_negative",
+        "n_clusters",
+        "n_no_majority",
+        "no_majority_rate",
+        "cost_ratio",
+        "cost_ratio_min",
+        "cost_passes",
+        "passes",
+        "reason",
+    }
+    assert set(res1.keys()) == expected_keys
+
+    # Thresholds echoed assertion
+    assert res1["auroc_min"] == G3_AUROC_MIN == 0.75
+    assert res1["cost_ratio_min"] == G3_COST_RATIO_MIN == 10.0
+
+
+# --- Score->Label Join tests ----------------------------------------------------------------------
+
+def _make_record(
+    query_id: str,
+    claim_id: str,
+    score: float,
+    support_label: SupportLabel,
+    annotator_id: str = "a1",
+    verifier_name: str = "minicheck",
+    citation_index: int | None = None,
+) -> QueryRecord:
+    return QueryRecord(
+        run_id="run-test",
+        query_id=query_id,
+        question="?",
+        system=System.JOINT,
+        seed=0,
+        claims=[
+            Claim(
+                claim_id=claim_id,
+                text="Claim text",
+                citations=[Citation(passage_id="p1", char_start=0, char_end=10)],
+                verifier_scores=[VerifierScore(name=verifier_name, score=score)],
+                human_labels=[
+                    HumanLabel(
+                        annotator_id=annotator_id,
+                        support_label=support_label,
+                        claim_validity=True,
+                        citation_index=citation_index,
+                    )
+                ],
+            )
+        ],
+    )
+
+
+def test_join_scores_and_labels_happy_path():
+    r1 = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED)
+    r2 = _make_record("q2", "c1", 0.2, SupportLabel.NOT_SUPPORTED)
+
+    joined = join_scores_and_labels([r1, r2])
+    assert len(joined) == 2
+    assert (joined[0].score, joined[0].is_supporting, joined[0].question_id) == (0.8, True, "q1")
+    assert (joined[1].score, joined[1].is_supporting, joined[1].question_id) == (0.2, False, "q2")
+
+
+def test_join_scores_and_labels_rejects_duplicate_verifier_scores():
+    r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED)
+    r.claims[0].verifier_scores.append(VerifierScore(name="minicheck", score=0.9))
+
+    with pytest.raises(ValueError, match="Duplicate verifier score"):
+        join_scores_and_labels([r])
+
+
+def test_join_scores_and_labels_rejects_duplicate_annotator_labels():
+    r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, annotator_id="a1")
+    r.claims[0].human_labels.append(
+        HumanLabel(annotator_id="a1", support_label=SupportLabel.PARTIAL, claim_validity=True)
+    )
+
+    with pytest.raises(ValueError, match="Duplicate annotator label"):
+        join_scores_and_labels([r])
+
+
+def test_join_scores_and_labels_detects_missing_scores_and_missing_annotations():
+    # Missing verifier score
+    r_no_score = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED)
+    r_no_score.claims[0].verifier_scores = []
+    with pytest.raises(ValueError, match="Missing verifier score"):
+        join_scores_and_labels([r_no_score])
+
+    # Missing human label
+    r_no_label = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED)
+    r_no_label.claims[0].human_labels = []
+    with pytest.raises(ValueError, match="Missing human label"):
+        join_scores_and_labels([r_no_label])
+
+
+def test_join_scores_and_labels_rejects_invalid_labels():
+    r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED)
+    r.claims[0].human_labels[0].support_label = "INVALID_LABEL"  # type: ignore
+
+    with pytest.raises(ValueError, match="Invalid label value"):
+        join_scores_and_labels([r])
+
+
+def test_join_scores_and_labels_multi_annotator_majority_and_primary_fallback():
+    r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, annotator_id="a1")
+    r.claims[0].human_labels.extend(
+        [
+            HumanLabel(annotator_id="a2", support_label=SupportLabel.PARTIAL, claim_validity=True),
+            HumanLabel(
+                annotator_id="a3", support_label=SupportLabel.NOT_SUPPORTED, claim_validity=True
+            ),
+        ]
+    )
+
+    # Majority: SUPPORTED (True) + PARTIAL (True) vs NOT_SUPPORTED (False) -> 2 vs 1 -> True
+    joined = join_scores_and_labels([r])
+    assert joined[0].is_supporting is True
+
+    # Tie case (1 True, 1 False):
+    r_tie = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, annotator_id="a1")
+    r_tie.claims[0].human_labels.append(
+        HumanLabel(
+            annotator_id="a2", support_label=SupportLabel.NOT_SUPPORTED, claim_validity=True
+        )
+    )
+
+    # Tie without primary -> raises ValueError
+    with pytest.raises(ValueError, match="Ambiguous multi-annotator ratings with no majority"):
+        join_scores_and_labels([r_tie])
+
+    # Tie with primary_annotator="a1" -> uses a1's rating (True)
+    joined_prim = join_scores_and_labels([r_tie], primary_annotator="a1")
+
+
+def test_join_scores_and_labels_no_majority_rate_and_preservation():
+    # Unit 1: 2-1 majority unit (a1 SUPPORTED, a2 PARTIAL, a3 NOT_SUPPORTED -> 2 True vs 1 False)
+    r1 = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, annotator_id="a1")
+    r1.claims[0].human_labels.extend(
+        [
+            HumanLabel(annotator_id="a2", support_label=SupportLabel.PARTIAL, claim_validity=True),
+            HumanLabel(
+                annotator_id="a3", support_label=SupportLabel.NOT_SUPPORTED, claim_validity=True
+            ),
+        ]
+    )
+
+    # Unit 2: No-majority / tie unit (a1 SUPPORTED, a2 NOT_SUPPORTED -> 1 True vs 1 False)
+    r2 = _make_record("q2", "c1", 0.3, SupportLabel.SUPPORTED, annotator_id="a1")
+    r2.claims[0].human_labels.append(
+        HumanLabel(
+            annotator_id="a2", support_label=SupportLabel.NOT_SUPPORTED, claim_validity=True
+        )
+    )
+
+    joined = join_scores_and_labels([r1, r2], primary_annotator="a1")
+
+    # 1. Verification of units & primary tie-break
+    assert len(joined) == 2
+    assert joined[0].is_supporting is True  # 2-1 majority True
+    assert joined[1].is_supporting is True  # Tie resolved by primary annotator a1 (SUPPORTED -> True)
+
+    # 2. Count and rate values are exact
+    assert joined.n_no_majority == 1
+    assert joined.no_majority_rate == pytest.approx(0.5)
+
+    # 3. Propagation into gate_g3 audit dict
+    res_g3 = gate_g3(
+        scores=[rec.score for rec in joined],
+        labels=[rec.is_supporting for rec in joined],
+        cost_ratio=10.0,
+        n_no_majority=joined.n_no_majority,
+        no_majority_rate=joined.no_majority_rate,
+    )
+    assert res_g3["n_no_majority"] == 1
+    assert res_g3["no_majority_rate"] == pytest.approx(0.5)
+
+    # 4. Raw per-annotator judgements preserved (ADR-0016 §3)
+    assert len(r1.claims[0].human_labels) == 3
+    assert r1.claims[0].human_labels[0].support_label == SupportLabel.SUPPORTED
+    assert r1.claims[0].human_labels[1].support_label == SupportLabel.PARTIAL
+    assert r1.claims[0].human_labels[2].support_label == SupportLabel.NOT_SUPPORTED
+
+    assert len(r2.claims[0].human_labels) == 2
+    assert r2.claims[0].human_labels[0].support_label == SupportLabel.SUPPORTED
+    assert r2.claims[0].human_labels[1].support_label == SupportLabel.NOT_SUPPORTED
+    assert len(joined[0].raw_labels) == 3
+    assert len(joined[1].raw_labels) == 2

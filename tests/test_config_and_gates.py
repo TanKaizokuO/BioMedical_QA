@@ -12,6 +12,7 @@ import pytest
 
 from biomedqa.config import RunConfig, canonical_hash, config_diff
 from biomedqa.schema import QueryRecord, RetrievedPassage, System
+from biomedqa.scoring.calibration import G3_AUROC_MIN, G3_COST_RATIO_MIN, gate_g3
 from biomedqa.scoring.retrieval import (
     gate_g1,
     gold_rank,
@@ -158,6 +159,30 @@ class TestGoldRankAndHits:
         gate = gate_g1(borderline, 10)
         assert gate["hit_at_k"] == pytest.approx(0.90)
         assert gate["passes"] is False, "0.90 with a Wilson lower of 0.826 must not pass"
+
+class TestGateG3:
+    def test_gate_g3_requires_both_clauses(self):
+        scores = [0.1, 0.4, 0.5, 0.8]
+        labels = [False, True, False, True]
+        # Clears AUROC (0.75 >= 0.75) but missing cost_ratio -> fails
+        res_no_cost = gate_g3(scores, labels, cost_ratio=None)
+        assert res_no_cost["auroc_passes"] is True
+        assert res_no_cost["cost_passes"] is False
+        assert res_no_cost["passes"] is False
+        assert res_no_cost["auroc_min"] == G3_AUROC_MIN == 0.75
+        assert res_no_cost["cost_ratio_min"] == G3_COST_RATIO_MIN == 10.0
+
+        # Clears both clauses -> passes
+        res_both = gate_g3(scores, labels, cost_ratio=10.0)
+        assert res_both["auroc_passes"] is True
+        assert res_both["cost_passes"] is True
+        assert res_both["passes"] is True
+        assert res_both["n_no_majority"] == 0
+        assert res_both["no_majority_rate"] == 0.0
+
+        res_no_maj = gate_g3(scores, labels, cost_ratio=10.0, n_no_majority=1, no_majority_rate=0.25)
+        assert res_no_maj["n_no_majority"] == 1
+        assert res_no_maj["no_majority_rate"] == pytest.approx(0.25)
 
 
 class TestRecallAtK:

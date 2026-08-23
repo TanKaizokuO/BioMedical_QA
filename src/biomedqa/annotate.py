@@ -33,7 +33,7 @@ import json
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
 
 from .config import canonical_hash
 from .schema import Claim, HumanLabel, QueryRecord, SupportLabel
@@ -344,3 +344,164 @@ def common_prefix(*passes: Sequence[dict]) -> list[str]:
         prefix.append(uids.pop())
         index += 1
     return prefix
+def ingest_annotations(
+    label_files: Sequence[Path | str | list[dict]] | Path | str | list[dict],
+    keyfile: Sequence[dict] | Path | str,
+    records: Sequence[QueryRecord] | None = None,
+) -> list[dict[str, Any]]:
+    """Ingest, validate, and join human annotation JSONL exports against the blinding keyfile.
+
+    Accepts existing annotation format exports (LABEL_ROW/QUESTION_ROW). Enforces uniqueness on
+    (annotator_id, unit_id, citation_index), validates all labels against SupportLabel, joins
+    metadata via unit_id, and preserves provenance (annotator_id, run_id, system, seed).
+
+    If `records` is provided, validated HumanLabels are also appended to matching Claim.human_labels.
+    """
+    if isinstance(keyfile, (str, Path)):
+        kp = Path(keyfile)
+        if not kp.exists():
+            raise ValueError(f"Keyfile not found: {kp}")
+        keyfile_rows = [
+            json.loads(line)
+            for line in kp.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    elif isinstance(keyfile, Sequence):
+        keyfile_rows = list(keyfile)
+    else:
+        raise ValueError("keyfile must be a Path, path string, or sequence of dicts")
+
+    keyfile_map: dict[str, dict] = {}
+    for row in keyfile_rows:
+        unit_id = row.get("unit_id")
+        if not unit_id:
+            raise ValueError("Keyfile row missing required field 'unit_id'")
+        if unit_id in keyfile_map:
+            raise ValueError(f"Duplicate unit_id in keyfile: {unit_id!r}")
+        keyfile_map[unit_id] = row
+
+    inputs: list[Path | str | list[dict]]
+    if isinstance(label_files, (str, Path)):
+        inputs = [label_files]
+    elif isinstance(label_files, list) and label_files and isinstance(label_files[0], dict):
+        inputs = [label_files]
+    elif isinstance(label_files, Sequence):
+        inputs = list(label_files)
+    else:
+        raise ValueError("label_files must be a Path, path string, or sequence of sources")
+
+    all_label_rows: list[dict] = []
+    for item in inputs:
+        if isinstance(item, (str, Path)):
+            p = Path(item)
+            if not p.exists():
+                raise ValueError(f"Label file not found: {p}")
+            l_rows, _ = read_labels(p)
+            all_label_rows.extend(l_rows)
+        elif isinstance(item, list):
+            l_rows = [r for r in item if r.get("type") == LABEL_ROW or "support_label" in r]
+            all_label_rows.extend(l_rows)
+        else:
+            raise ValueError(f"Invalid label_files item type: {type(item)}")
+
+    seen_keys: set[tuple[str, str, int | None]] = set()
+    ingested: list[dict[str, Any]] = []
+
+    for row in all_label_rows:
+        annotator_id = row.get("annotator_id")
+        unit_id = row.get("unit_id")
+        citation_index = row.get("citation_index")
+        support_label_str = row.get("support_label")
+        claim_validity = row.get("claim_validity")
+
+        if (
+            not annotator_id
+            or not unit_id
+            or support_label_str is None
+            or claim_validity is None
+        ):
+            raise ValueError(f"Malformed label row missing required fields: {row}")
+
+        dup_key = (str(annotator_id), str(unit_id), citation_index)
+        if dup_key in seen_keys:
+            raise ValueError(
+                f"Duplicate label for (annotator_id={annotator_id!r}, unit_id={unit_id!r}, citation_index={citation_index})"
+            )
+        seen_keys.add(dup_key)
+
+        try:
+            sl = SupportLabel(support_label_str)
+        except ValueError:
+            raise ValueError(
+                f"Invalid SupportLabel value {support_label_str!r} for unit_id={unit_id!r}"
+            )
+
+        if not isinstance(claim_validity, bool):
+            raise ValueError(
+                f"claim_validity must be bool, got {type(claim_validity)}: {claim_validity!r}"
+            )
+
+        if unit_id not in keyfile_map:
+            raise ValueError(f"Unrecognized unit_id {unit_id!r} not found in keyfile")
+
+        meta = keyfile_map[unit_id]
+        ingested_row = {
+            "annotator_id": annotator_id,
+            "unit_id": unit_id,
+            "query_id": meta["query_id"],
+            "claim_id": meta["claim_id"],
+            "citation_index": citation_index,
+            "support_label": sl,
+            "is_supporting": sl.is_supporting,
+            "claim_validity": claim_validity,
+            "run_id": meta["run_id"],
+            "system": meta["system"],
+            "seed": meta["seed"],
+            "notes": row.get("notes") or None,
+        }
+        ingested.append(ingested_row)
+
+    # Deterministic output order
+    ingested.sort(
+        key=lambda x: (
+            str(x["query_id"]),
+            str(x["claim_id"]),
+            x["citation_index"] if x["citation_index"] is not None else -1,
+            str(x["annotator_id"]),
+        )
+    )
+
+    if records is not None:
+        rec_map = {
+            (
+                r.query_id,
+                r.run_id,
+                r.system.value if hasattr(r.system, "value") else str(r.system),
+                r.seed,
+            ): r
+            for r in records
+        }
+        for item in ingested:
+            key = (item["query_id"], item["run_id"], item["system"], item["seed"])
+            if key in rec_map:
+                rec = rec_map[key]
+                for claim in rec.claims:
+                    if claim.claim_id == item["claim_id"]:
+                        existing = [
+                            h
+                            for h in claim.human_labels
+                            if h.annotator_id == item["annotator_id"]
+                            and h.citation_index == item["citation_index"]
+                        ]
+                        if not existing:
+                            claim.human_labels.append(
+                                HumanLabel(
+                                    annotator_id=item["annotator_id"],
+                                    support_label=item["support_label"],
+                                    claim_validity=item["claim_validity"],
+                                    citation_index=item["citation_index"],
+                                    notes=item["notes"],
+                                )
+                            )
+
+    return ingested

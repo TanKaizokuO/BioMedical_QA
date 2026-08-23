@@ -19,6 +19,7 @@ from biomedqa.annotate import (
     collector_token,
     common_prefix,
     human_labels,
+    ingest_annotations,
     question_order,
     render_form,
     snapshot_summary,
@@ -237,3 +238,88 @@ def test_snapshot_summary_of_an_untouched_pass_projects_nothing():
         "questions_started": 0, "questions_complete": 0, "questions_total": 250,
         "claims_labeled": 0, "active_s": 0.0, "projected_h": 0.0,
     }
+
+# --- ingest_annotations tests ---------------------------------------------------------------------
+
+def test_ingest_annotations_happy_path_and_provenance(tmp_path):
+    keyfile_rows = [
+        {
+            "unit_id": "u_1",
+            "question_uid": "q_1",
+            "order_index": 0,
+            "claim_id": "c0",
+            "query_id": "101",
+            "run_id": "r_1",
+            "system": "joint",
+            "seed": 0,
+        }
+    ]
+    kf_path = tmp_path / "keyfile.jsonl"
+    kf_path.write_text("\n".join(json.dumps(r) for r in keyfile_rows) + "\n", encoding="utf-8")
+
+    label_rows = [
+        {
+            "type": "label",
+            "annotator_id": "a1",
+            "unit_id": "u_1",
+            "citation_index": None,
+            "support_label": "SUPPORTED",
+            "claim_validity": True,
+            "notes": "Good claim",
+        }
+    ]
+    lf_path = tmp_path / "labels_a1.jsonl"
+    lf_path.write_text("\n".join(json.dumps(r) for r in label_rows) + "\n", encoding="utf-8")
+
+    rec = record("101", System.JOINT, n_claims=1)
+    rec.run_id = "r_1"
+    rec.seed = 0
+
+    ingested = ingest_annotations(lf_path, kf_path, records=[rec])
+
+    assert len(ingested) == 1
+    row = ingested[0]
+    assert row["annotator_id"] == "a1"
+    assert row["unit_id"] == "u_1"
+    assert row["query_id"] == "101"
+    assert row["claim_id"] == "c0"
+    assert row["run_id"] == "r_1"
+    assert row["system"] == "joint"
+    assert row["seed"] == 0
+
+    # Verify attached to record claim
+    c1 = rec.claims[0]
+    assert len(c1.human_labels) == 1
+    assert c1.human_labels[0].annotator_id == "a1"
+    assert c1.human_labels[0].support_label is SupportLabel.SUPPORTED
+
+
+def test_ingest_annotations_rejects_duplicates(tmp_path):
+    keyfile = [{"unit_id": "u_1", "claim_id": "c1", "query_id": "q1", "run_id": "r1", "system": "joint", "seed": 0}]
+    dup_labels = [
+        {"type": "label", "annotator_id": "a1", "unit_id": "u_1", "citation_index": None, "support_label": "SUPPORTED", "claim_validity": True},
+        {"type": "label", "annotator_id": "a1", "unit_id": "u_1", "citation_index": None, "support_label": "PARTIAL", "claim_validity": True},
+    ]
+
+    with pytest.raises(ValueError, match="Duplicate label for"):
+        ingest_annotations([dup_labels], keyfile)
+
+
+def test_ingest_annotations_rejects_invalid_label():
+    keyfile = [{"unit_id": "u_1", "claim_id": "c1", "query_id": "q1", "run_id": "r1", "system": "joint", "seed": 0}]
+    invalid_labels = [
+        {"type": "label", "annotator_id": "a1", "unit_id": "u_1", "citation_index": None, "support_label": "INVALID_LABEL_VAL", "claim_validity": True}
+    ]
+
+    with pytest.raises(ValueError, match="Invalid SupportLabel value"):
+        ingest_annotations([invalid_labels], keyfile)
+
+
+def test_ingest_annotations_rejects_unrecognized_unit_id():
+    keyfile = [{"unit_id": "u_1", "claim_id": "c1", "query_id": "q1", "run_id": "r1", "system": "joint", "seed": 0}]
+    unrecognized_labels = [
+        {"type": "label", "annotator_id": "a1", "unit_id": "u_UNKNOWN", "citation_index": None, "support_label": "SUPPORTED", "claim_validity": True}
+    ]
+
+    with pytest.raises(ValueError, match="Unrecognized unit_id"):
+        ingest_annotations([unrecognized_labels], keyfile)
