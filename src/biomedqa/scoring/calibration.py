@@ -146,12 +146,15 @@ def gate_g3(
 
     cost_passes = (
         cost_ratio is not None
-        and not math.isnan(cost_ratio)
+        and math.isfinite(cost_ratio)
+        and cost_ratio > 0
         and cost_ratio >= G3_COST_RATIO_MIN
     )
     if cost_ratio is None:
         reasons.append("cost_ratio_missing")
-    elif math.isnan(cost_ratio) or cost_ratio < G3_COST_RATIO_MIN:
+    elif not math.isfinite(cost_ratio):
+        reasons.append("verifier_cost_unpriced")
+    elif cost_ratio < G3_COST_RATIO_MIN:
         reasons.append(f"cost_ratio_below_threshold ({cost_ratio} < {G3_COST_RATIO_MIN})")
 
     ci: dict[str, Any] | None = None

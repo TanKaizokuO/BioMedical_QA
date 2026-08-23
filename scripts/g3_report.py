@@ -73,8 +73,8 @@ def file_sha256(path: Path) -> str | None:
 
 
 def sanitize_nans_for_json(obj: Any) -> Any:
-    """Recursively replace float('nan') with None so JSON serialization emits null without bare NaN."""
-    if isinstance(obj, float) and math.isnan(obj):
+    """Recursively replace non-finite floats (NaN, inf) with None for valid JSON."""
+    if isinstance(obj, float) and not math.isfinite(obj):
         return None
     if isinstance(obj, dict):
         return {k: sanitize_nans_for_json(v) for k, v in obj.items()}
@@ -172,7 +172,9 @@ def compute_verdict(
         reasons.append("missing_judge_cost_evidence")
     elif cost_ratio is None:
         reasons.append("cost_ratio_missing")
-    elif math.isnan(cost_ratio) or cost_ratio < G3_COST_RATIO_MIN:
+    elif not math.isfinite(cost_ratio):
+        reasons.append("verifier_cost_unpriced")
+    elif cost_ratio < G3_COST_RATIO_MIN:
         reasons.append(f"cost_ratio_below_threshold ({cost_ratio} < {G3_COST_RATIO_MIN})")
     elif not math.isnan(verdict.get("auroc", float("nan"))) and verdict["auroc"] < G3_AUROC_MIN:
         reasons.append(f"auroc_below_threshold ({verdict['auroc']:.4f} < {G3_AUROC_MIN})")
@@ -266,7 +268,7 @@ def build_report(
             "required_population": "All 1,257 (claim, cited span) evaluation units in gold evaluation set",
             "pricing_provenance": "Anthropic listed API rates (ADR-0004:73-79)",
             "verifier_hardware_provenance": "NVIDIA A4000 (ADR-0008, research_roadmap.md:519)",
-            "doc_reference": "docs/adr/0004-local-generator-frontier-judge.md",
+            "doc_reference": "docs/harvest/runbooks/g3_judge_run_spec.md",
         },
         "git_commit": git_sha(_REPO),
         "verifier": verifier_name,
@@ -306,6 +308,12 @@ def main() -> int:
     )
     ap.add_argument("--cost-ratio", type=float, default=None, help="Cost reduction ratio vs Opus")
     ap.add_argument("--costs", type=Path, default=None, help="Path to CostRecord JSONL file")
+    ap.add_argument(
+        "--verifier-gpu-hourly-rate",
+        type=float,
+        default=None,
+        help="Operator-supplied verifier GPU hourly rate ($/hr) for hardware-normalized cost evaluation",
+    )
     ap.add_argument("--verifier", type=str, default=None, help="Verifier score name filter")
     ap.add_argument("--out", type=Path, required=True, help="Output JSON file path")
     args = ap.parse_args()
@@ -344,6 +352,28 @@ def main() -> int:
         ours_records = [c for c in cost_records if (_get_val(c, "component") or "") != "judge"]
         n_judge_cost_records = len(judge_records)
         n_ours_cost_records = len(ours_records)
+        if args.verifier_gpu_hourly_rate is not None and args.verifier_gpu_hourly_rate > 0:
+            rate_per_sec = args.verifier_gpu_hourly_rate / 3600.0
+            priced_ours = []
+            for c in ours_records:
+                c_usd = _get_val(c, "usd")
+                c_wall = _get_val(c, "wall_s")
+                if (c_usd is None or c_usd == 0.0) and c_wall is not None and c_wall > 0:
+                    priced_ours.append(
+                        CostRecord(
+                            run_id=_get_val(c, "run_id") or "unspecified",
+                            query_id=_get_val(c, "query_id"),
+                            component=_get_val(c, "component") or "verify",
+                            backend=_get_val(c, "backend") or "unknown",
+                            input_tokens=_get_val(c, "input_tokens"),
+                            output_tokens=_get_val(c, "output_tokens"),
+                            usd=float(c_wall * rate_per_sec),
+                            wall_s=c_wall,
+                        )
+                    )
+                else:
+                    priced_ours.append(c)
+            ours_records = priced_ours
 
         if not judge_records:
             cost_ratio = None
@@ -361,6 +391,7 @@ def main() -> int:
         "records_source": cost_records_source,
         "records_sha256": cost_records_sha256,
         "hand_passed_cost_ratio": args.cost_ratio,
+        "verifier_gpu_hourly_rate": args.verifier_gpu_hourly_rate,
         "n_ours_cost_records": n_ours_cost_records,
         "n_judge_cost_records": n_judge_cost_records,
         "cost_overhead_summary": cost_overhead_summary,

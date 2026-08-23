@@ -403,6 +403,21 @@ def test_gate_g3_missing_cost_ratio_fails():
     assert res["passes"] is False
     assert "cost_ratio_missing" in res["reason"]
 
+def test_gate_g3_non_finite_cost_ratio_fails():
+    scores = [0.1, 0.4, 0.5, 0.8]
+    labels = [False, True, False, True]
+
+    res_inf = gate_g3(scores, labels, cost_ratio=float("inf"))
+    assert res_inf["auroc_passes"] is True
+    assert res_inf["cost_passes"] is False
+    assert res_inf["passes"] is False
+    assert "verifier_cost_unpriced" in res_inf["reason"]
+
+    res_nan = gate_g3(scores, labels, cost_ratio=float("nan"))
+    assert res_nan["auroc_passes"] is True
+    assert res_nan["cost_passes"] is False
+    assert res_nan["passes"] is False
+    assert "verifier_cost_unpriced" in res_nan["reason"]
 
 def test_gate_g3_degenerate_labels_and_empty_input():
     # All positive
