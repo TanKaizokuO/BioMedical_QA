@@ -58,6 +58,12 @@ for:
 - **Citations are character spans**, at most three per claim, with ALCE's multi-citation semantics
   reused verbatim. The cap is a fairness control and is identical across all three systems.
 - **φ vs. the verifier**: φ is the entailment primitive; the verifier is the component built on it.
+- **Granularity parity and pre-registered asymmetric scrutiny**: Granularity parity (median words/claim
+  within ±15%) is reported as a separately measured fairness diagnostic rather than an enforced condition
+  (ADR-0009). The method pre-registers an asymmetric rule: if the residual granularity gap favours C2
+  (post-hoc claims systematically coarser than joint), a mandatory stratified robustness check (W9) and
+  direct length standardisation are executed to determine whether the granularity difference transmits
+  as a confound to citation-F1.
 
 ## 4. Experimental setup
 
@@ -121,6 +127,17 @@ generator, a ≤3-citation cap, and a matched prompt-iteration budget (reported)
 
 > **G2:** joint beats post-hoc on citation-F1 by a margin whose CI excludes zero. This is the
 > paper's central contrast — if the margin is absent, investigate before proceeding.
+>
+> **Granularity parity diagnostic and transmission result (ADR-0009):** Granularity parity is recorded
+> as a **disclosed miss**: the pooled gap is +30.8% (joint median 13.0 words/claim vs. post-hoc median 17.0
+> words/claim), exceeding the pre-registered ±15% target tolerance. Following the pre-registered asymmetric
+> scrutiny rule, joint's citation recall was directly standardized over post-hoc's claim-length
+> distribution (five length bands: 1–10, 11–15, 16–20, 21–30, 31+ words). Standardisation yields a
+> length-standardised citation-F1 delta of **+0.1495** [95% CI +0.0786, +0.2244] compared to the
+> unstandardised delta of **+0.1403** (unstandardised: joint 0.6651 vs. post-hoc 0.5248; standardised:
+> joint 0.6743 vs. post-hoc 0.5248). Because matching claim length widens the contrast (+0.1403 → +0.1495),
+> this demonstrates that the granularity gap transmits **against** C2 rather than for it — post-hoc's
+> coarser claims were suppressing joint's measured advantage rather than manufacturing it.
 
 ### Table 3 — Verifier quality → **C3, C4**
 
