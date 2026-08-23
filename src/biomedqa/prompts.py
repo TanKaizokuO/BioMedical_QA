@@ -957,6 +957,7 @@ def parse_response(
     stripped = raw.strip()
     if stripped.startswith("{"):
         res_obj = None
+        repair_suffix: str | None = None
         try:
             res_obj = json.loads(stripped)
         except json.JSONDecodeError:
@@ -964,6 +965,7 @@ def parse_response(
             for suffix in ("}", "]}", '"}]}', '"]}]}', '""}]}', 'null}]}', '""}]}}'):
                 try:
                     res_obj = json.loads(stripped + suffix)
+                    repair_suffix = suffix
                     break
                 except json.JSONDecodeError:
                     pass
@@ -974,6 +976,14 @@ def parse_response(
             except json.JSONDecodeError as exc:
                 return ParsedResponse(None, [], [f"reply is malformed JSON: {exc}"], [])
         decision: str | None = None
+        claims_dict: dict[str, Claim] = {}
+        order: list[str] = []
+        errs: list[str] = []
+        recov: list[str] = []
+        if repair_suffix is not None:
+            recov.append(
+                f"JSON reply was truncated; recovered by appending {repair_suffix!r}"
+            )
         raw_decision = res_obj.get("decision")
         if isinstance(raw_decision, str):
             token = raw_decision.lower()
@@ -985,11 +995,6 @@ def parse_response(
             errs.append(f"decision {raw_decision!r} is not one of {DECISIONS}")
         elif require_decision:
             errs.append("no DECISION line")
-
-        claims_dict: dict[str, Claim] = {}
-        order: list[str] = []
-        errs: list[str] = []
-        recov: list[str] = []
         raw_claims = res_obj.get("claims")
         if not isinstance(raw_claims, list):
             return ParsedResponse(decision, [], ["JSON reply has no 'claims' array"], [])

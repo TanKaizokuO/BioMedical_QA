@@ -695,7 +695,78 @@ def test_malformed_json_is_reported_as_json_not_as_a_missing_claim_line():
     assert "malformed JSON" in parsed.errors[0]
     assert not any("CLAIM" in e for e in parsed.errors)
 
+def test_json_reply_invalid_decision_string_returns_parse_failure():
+    raw = json.dumps({"decision": "unknown", "claims": []})
+    parsed = parse_response(raw, _passages(2), MAX_CITATIONS)
 
+    assert parsed.decision is None
+    assert parsed.claims == []
+    assert any("decision 'unknown' is not one of" in e for e in parsed.errors)
+
+
+def test_json_reply_missing_decision_returns_parse_failure():
+    raw = json.dumps({"claims": []})
+    parsed = parse_response(raw, _passages(2), MAX_CITATIONS, require_decision=True)
+
+    assert parsed.decision is None
+    assert parsed.claims == []
+    assert any("no DECISION line" in e for e in parsed.errors)
+
+
+def test_json_reply_non_string_decision_returns_parse_failure():
+    raw = json.dumps({"decision": 123, "claims": []})
+    parsed = parse_response(raw, _passages(2), MAX_CITATIONS)
+
+    assert parsed.decision is None
+    assert parsed.claims == []
+    assert any("decision 123 is not one of" in e for e in parsed.errors)
+
+
+def test_json_reply_truncated_repair_records_recovery_note():
+    """Truncated guided-JSON reply repaired by appending a closing suffix records the repair in
+    `recovered` without producing parse errors."""
+    passages = _passages(2)
+    raw_valid = json.dumps(
+        {
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": 1,
+                    "text": "Metformin reduces mortality in type 2 diabetes.",
+                    "citations": [{"passage_id": "p1", "quote": "No severe hypoglycaemia occurred."}],
+                }
+            ],
+        }
+    )
+    truncated = raw_valid[:-2]
+    parsed = parse_response(truncated, passages, MAX_CITATIONS, require_decision=True)
+    assert parsed.errors == []
+    assert len(parsed.recovered) == 1
+    assert "truncated" in parsed.recovered[0]
+    assert "recovered by appending" in parsed.recovered[0]
+    assert parsed.decision == "yes"
+    assert len(parsed.claims) == 1
+
+
+def test_json_reply_strictly_valid_has_empty_recovered():
+    """Strictly valid guided-JSON reply returns an empty `recovered` list."""
+    passages = _passages(2)
+    raw = json.dumps(
+        {
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": 1,
+                    "text": "Metformin reduces mortality in type 2 diabetes.",
+                    "citations": [{"passage_id": "p1", "quote": "No severe hypoglycaemia occurred."}],
+                }
+            ],
+        }
+    )
+    parsed = parse_response(raw, passages, MAX_CITATIONS, require_decision=True)
+
+    assert parsed.errors == []
+    assert parsed.recovered == []
 def test_claim_stem_normalises_text_and_strips_trailing_punctuation():
     raw1 = "  distress associated with attenuated psychotic symptoms.  \n"
     stem1 = claim_stem(raw1)
