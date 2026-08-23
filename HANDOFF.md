@@ -36,9 +36,9 @@ half. See §2.1. Its text now matches commit `054ec6b` byte-for-byte
 |---|---|---|
 | **G0** — 8B AWQ generator chosen | Aug 4 | **PASSED 2026-08-04.** |
 | **G1** — hit@10 ≥ 0.90, Wilson lower > 0.85 (ADR-0015) | Aug 23 | **PASSED 2026-08-10.** hit@10 = 0.9400, Wilson lower 0.8752. |
-| **G2** — citation-F1 contrast + ≥95% valid claim parse | **Sep 6** | **PASSED 2026-08-23**, two weeks early, on `generate_fp05_n100_guided_v4`. Citation F1 joint **0.6651** vs post-hoc **0.5248**, delta **+0.1403 [+0.0751, +0.2066]**, excludes zero. Joint valid-parse rate **97/100 (97%)**, `quote_not_found = 0`. |
-| **W9 stratified check** (ADR-0009 §5) — *disclosed diagnostic, **not** a G2 criterion* | before G2 sign-off | **RUN on `v4`, reads FAIL at +30.8%, and is DISCHARGED.** The gap does not transmit: at matched claim length the contrast *widens* to **+0.1495 [+0.0786, +0.2244]**. |
-| G3 · G4 · G5 | Sep 20 · Sep 27 · Oct 11 | Unstarted, with due weeks. |
+| **G2** — citation-F1 contrast + ≥95% valid claim parse | **Sep 6** | **PASSED 2026-08-23**, two weeks early, on `generate_fp05_n100_guided_v4`. Citation F1 joint **0.6651** vs post-hoc **0.5248**, delta **+0.1403 [+0.0751, +0.2066]**, excludes zero. Valid claim parse rate: record-level **97/100 (97%)**, claim-level **399/406 (98.3%)** (preregistered criterion ADR-0019), `quote_not_found = 0`. Both MET. See definitions in `docs/harvest/joint_citation_f1_fp05_guided_v4.md`. |
+| **G3** — Cheap Verifier Gate | **Sep 20** | **Machinery ready, evidence pending** (`passes: false` blocked on labels, judge cost evidence, verifier timing/rate). See `docs/harvest/runbooks/g3_runbook.md`. |
+| G4 · G5 | Sep 27 · Oct 11 | Unstarted, with due weeks. |
 
 ### The correction that unblocked G2
 
@@ -148,8 +148,7 @@ Two correctness properties the script asserts or verifies:
    and keeping `v5` (already tracked, cited in the reports).
 3. **Paper methods section** gains the length-standardised contrast alongside the pre-registered
    asymmetric rule, and reports parity as a disclosed miss with its transmission measured.
-4. Goals 9 (G3 verifier AUROC, Sep 20) and 10 (G4 gold annotation, Sep 27) remain unstarted. G2
-   landing two weeks early frees that runway.
+4. Goal 9 (G3 verifier AUROC, Sep 20): machinery ready, evidence pending (`passes: false` blocked on human labels [annotation opens 2026-09-07], judge cost evidence, verifier pricing). Goal 10 (G4 gold annotation, Sep 27) remains unstarted. Canonical G3 runbook pointer: `docs/harvest/runbooks/g3_runbook.md`.
 
 **No further dev-set generation run is needed for G2.** Everything above is re-derived from stored
 `v4` records with a complete MiniCheck cache — no inference, no A4000 server, no WSL2 keep-alive.

@@ -94,7 +94,7 @@ This document lists the upcoming targets for the project. The project uses evide
 * ~~**Evaluate Citation F1:** You must compute citation precision, citation recall, and citation F1 using MiniCheck ($\phi$) at threshold $0.5$.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4` — joint $0.6651$, post-hoc $0.5248$, delta $+0.1403$ $[+0.0751, +0.2066]$, excludes zero, $99$ paired queries, $1$ dropped for zero claims in the joint arm).*
 * ~~**Confirm Gate Criteria:**~~
   * ~~Joint attribution must beat post-hoc citation on citation F1 (paired-bootstrap CI excluding zero).~~ *(Met on `generate_fp05_n100_guided_v4` — $[+0.0751, +0.2066]$).*
-  * ~~Valid claim parse rate must be $\ge 95\%$.~~ *(Met on `generate_fp05_n100_guided_v4` — joint arm reads $97/100$, and `quote_not_found` is $0$).*
+  * ~~Valid claim parse rate must be $\ge 95\%$.~~ *(Met on `generate_fp05_n100_guided_v4` — record-level $97/100$ [97.0%], claim-level $399/406$ [98.3%, preregistered criterion ADR-0019], `quote_not_found` = 0. Both MET. See definitions in `docs/harvest/joint_citation_f1_fp05_guided_v4.md`).*
 * ~~**Run Stratified Check:** You must execute the mandatory W9 stratified robustness check required by ADR-0009 §5.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4` — verdict FAIL at $+30.8\%$, disclosed, and discharged. See goal 11).*
 * ~~**Sign Off Gate G2:** You must sign off Gate G2 when the citation-F1 contrast and the $\ge 95\%$ parse-rate bar both pass on the same run.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4`. Recorded in `docs/harvest/joint_citation_f1_fp05_guided_v4.md`).*
 
@@ -103,7 +103,7 @@ This document lists the upcoming targets for the project. The project uses evide
 ## 9. Gate G3 Cheap Verifier Preparation
 
 **Target Date:** September 20, 2026  
-**Context:** Gate G3 requires a verifier AUROC of $\ge 0.75$ for unsupported claim detection, at a cost $10\times$ lower than the Opus 5 judge baseline. This gate is not started.
+**Context:** Gate G3 requires a verifier AUROC of $\ge 0.75$ for unsupported claim detection, at a cost $10\times$ lower than the Opus 5 judge baseline. **Status: machinery ready, evidence pending.** Machinery (`gate_g3`, `join_scores_and_labels`, annotation ingest, `scripts/g3_report.py`) is implemented and exercised end-to-end; evaluation run on real MiniCheck scores gives verdict `passes: false` blocked on: (a) human labels (annotation opens 2026-09-07), (b) judge cost evidence, (c) verifier pricing pending wall_s timing + cited GPU-hour rate. Judge sweep estimate ($1.02–$1.21 floor/ceiling, `docs/harvest/runbooks/judge_cost_estimate.json`) is an estimate, not measured cost. Canonical runbook pointer: `docs/harvest/runbooks/g3_runbook.md`.
 
 * **Select Claim Set:** You must select the labeled claim set that gives the AUROC reading.
 * **Measure Verifier AUROC:** You must measure the MiniCheck ($\phi$) and AlignScore AUROC on that set.
@@ -141,11 +141,10 @@ This document lists the upcoming targets for the project. The project uses evide
 1. ~~**Goal 4:** Fix the joint arm's malformed-JSON call failures so the valid claim parse rate reaches $\ge 95\%$.~~ *(Completed Aug 20, 2026 — $97/100$ on `generate_fp05_n100_guided_v4`).*
 2. ~~**Goal 11:** Run the W9 stratified check on the Gate G2 run of record and discharge it.~~ *(Completed Aug 23, 2026 — FAIL at $+30.8\%$, disclosed, and discharged by length standardisation).*
 3. ~~**Goal 8:** Sign off Gate G2 once the citation-F1 contrast and the parse-rate bar both pass on the same run.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4`, two weeks before the Sep 6 date).*
-4. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. **Start here.**
+4. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. *(Machinery ready, evidence pending).*
 5. **Goal 10:** Annotate human gold set for Gate G4.
 
-Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20) and goal 10 (Gate G4, Sep 27) are
-open. Gate G2 closed two weeks early, so that time is now available to them.
+Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20: machinery ready, evidence pending) and goal 10 (Gate G4, Sep 27) are open. Gate G2 closed two weeks early, so that time is now available to them.
 
 One rule carries forward. Do not edit any arm's prompt to move a granularity number. ADR-0009 §4
 permits that lever only on the post-hoc template, and §6's blind lifted on Aug 14, so no legitimate

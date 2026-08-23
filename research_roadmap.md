@@ -480,8 +480,8 @@ while the reranker is still being tuned.
     column, and **citation-F1 is reported on both denominators, always** — no threshold.
 
 > **Gate G2 (by Sep 6): on dev, joint attribution beats post-hoc citation on citation-F1 by a margin
-> exceeding the paired-bootstrap CI, and ≥95% of emitted claims parse into the schema with resolvable
-> spans.**
+> exceeding the paired-bootstrap CI, and valid claim parse rate is ≥95% (PASSED 2026-08-23).**
+> *Criterion clarification: claim-level valid parse rate 399/406 = 98.3% is the preregistered criterion (ADR-0019); record-level 97/100 = 97.0% is what the implementation computes; both are MET. See definitions in `docs/harvest/joint_citation_f1_fp05_guided_v4.md`.*
 > *If the margin is not there:* this is the paper's central contrast — investigate before proceeding.
 > Usual causes: **the post-hoc baseline accidentally *weakened*** (unequal retriever, unequal
 > citation cap, or — most likely — unequal prompt-iteration attention, since Weeks 3–5 are spent
@@ -522,6 +522,7 @@ edge and it cannot be reconstructed after the fact.
 
 > **Gate G3 (by Sep 20): verifier AUROC ≥ 0.75 on the gold set for unsupported-claim detection, at
 > ≥10× lower per-claim cost than the judge baseline, both measured on stated hardware.**
+> *(Status: machinery ready, evidence pending. Machinery implemented and exercised end-to-end: `gate_g3`, `join_scores_and_labels`, annotation ingest, `scripts/g3_report.py`. Evaluation run on real MiniCheck scores gives verdict `passes: false` blocked on: [a] human labels [annotation opens 2026-09-07], [b] judge cost evidence, [c] verifier pricing pending wall_s timing + cited GPU-hour rate. Judge sweep estimate is $1.02–$1.21 floor/ceiling [`docs/harvest/runbooks/judge_cost_estimate.json`], an estimate, not measured cost. Canonical runbook pointer: `docs/harvest/runbooks/g3_runbook.md`.)*
 > *If AUROC too low:* AlignScore, an ensemble of cheap signals, or a **biomedical-NLI fine-tune** —
 > for which the window is one week (G3 Sep 20 → freeze Sep 27). **MedNLI (PhysioNet) access is
 > licence-gated and human-reviewed: apply in W0, not W7.** Requires PhysioNet credentialing, CITI
@@ -675,7 +676,7 @@ Runs against the skeleton created in Week 0, in this order (tables outward, intr
 | **W4** | Aug 24–30 | Joint claim-grounded generation; schema round-trip · **granularity-parity loop, blind — hard stop at 10 iterations or Aug 30** | Vanilla RAG + post-hoc baselines, **equal-effort protocol** · **clustered-vs-unclustered CI dry-run** | First end-to-end record · **parity frozen** |
 | **W5** | Aug 31 – Sep 6 | Decontextualization; granularity knob; citation P/R scorers (strict + lenient) · **first citation-F1 ever computed (≈ Aug 31)** | Verifier wiring; **cost instrumentation**; **guidelines pass 1 from Aug 31, worked examples Sep 3–6** · ~~MedNLI source~~ | **G2** · **decomposer freeze Sep 3** |
 | **W6** | Sep 7–13 | MiniCheck + Opus 5 judge, identical APIs; AlignScore row | **Annotation pilot (10 claims, 3 annotators, ~1 h each)** — tests the *guidelines* · **all three main passes start here** (ADR-0013 §4, ADR-0016) | Gold set launched |
-| **W7** | Sep 14–20 | Threshold sweep, AUROC, ECE; **overhead measurement (clean, GPU idle, ≥5 runs)** | Annotation in progress — **3 × 10–16 h is now the long pole** · **Sep 20 tripwire: common prefix ≥ ~19 questions** | **G3** · Table 4 draft |
+| **W7** | Sep 14–20 | Threshold sweep, AUROC, ECE; **overhead measurement (clean, GPU idle, ≥5 runs)** | Annotation in progress — **3 × 10–16 h is now the long pole** · **Sep 20 tripwire: common prefix ≥ ~19 questions** | **G3 (Machinery ready, evidence pending)** · Table 4 draft |
 | **W8** | Sep 21–27 | **Code freeze + tag. Decide the frozen-run backend.** Test runs begin, seed 1 | Annotation completes; α over the triple-labeled prefix | **G4** |
 | **W9** | Sep 28 – Oct 4 | Seeds 2–3, all systems; ablations; **swap check** | ⚠ **Triple-booked:** stratified robustness check (ADR-0009, *likely* to trigger) · a G4 re-pilot if α < 0.6 · *and* its original role absorbing Phase 3–5 slippage | Raw results |
 | **W10** | Oct 5–11 | Significance tests, CIs; stratified error analysis (Table 5) | **Write Method + Setup** | **G5** · Tables 1–5 final |
