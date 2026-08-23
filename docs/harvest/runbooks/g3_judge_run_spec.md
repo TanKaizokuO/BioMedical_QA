@@ -16,5 +16,4 @@ Evaluating Gate G3's cost clause requires two inputs for the verifier side:
 2. **Real measured wall-clock timing**: Per-unit `wall_s` recorded from a timed MiniCheck pass over the 1,257 evaluation units.
 
 An operator rate supplied without real measured wall-clock timing is refused by `scripts/g3_report.py` and leaves the clause unevaluable (`verifier_cost_unpriced`).
-Once both exist, evaluate the cost clause via:
-`uv run python scripts/g3_report.py --records <records.jsonl> --costs <costs.jsonl> --verifier-gpu-hourly-rate <RATE> --out <out.json>`
+For full Gate G3 execution instructions, CLI flags, and operator workflows, see the canonical [Gate G3 Operator Runbook](g3_runbook.md).
