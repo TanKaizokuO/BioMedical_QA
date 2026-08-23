@@ -92,7 +92,14 @@ byte-for-byte, the state `v4` ran on. Full argument in
 | criterion | source | result |
 |---|---|---|
 | citation-F1 margin exceeds the paired-bootstrap CI | `research_roadmap.md` Gate G2 | **MET** — +0.1403 [+0.0751, +0.2066] |
-| $\ge 95\%$ of emitted claims parse with resolvable spans | `research_roadmap.md` Gate G2 | **MET** — 97/100, `quote_not_found = 0` |
+| $\ge 95\%$ of emitted claims parse with resolvable spans | `research_roadmap.md` Gate G2 | **MET** — claim-level 399/406 (98.3%); record-level 97/100 (97.0%); quote_not_found = 0 |
 | W9 stratified granularity check *(disclosed diagnostic, ADR-0009 §1/§3/§5 — not a gate)* | ADR-0009 §5 | run, FAIL at +30.8%, disclosed, and discharged by the length-standardised contrast |
+
+### Parse-rate definitions
+
+- **record-level parse rate**: fraction of emitted response records that parse with zero errors (implemented at `scripts/generate_smoke.py:423`, reported at `scripts/citation_contrast.py:359-360`).
+- **claim-level parse rate**: fraction of individual emitted claims that parse into the schema with resolvable spans — this is the preregistered Gate G2 criterion (`research_roadmap.md:483-484`, ADR-0019).
+
+The two are not interchangeable. The `v4` harvest satisfies Gate G2 on both criteria (98.3% claim-level, 97.0% record-level). The historical record-level figure of 97/100 is retained verbatim and unrevised.
 
 **Gate G2 signs off on `generate_fp05_n100_guided_v4`.**
