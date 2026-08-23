@@ -1,0 +1,46 @@
+{
+  "estimate_only": true,
+  "is_measured_evidence": false,
+  "n_units": 1257,
+  "total_input_tokens": 191172,
+  "total_output_tokens_assumed": 2514,
+  "usd_input": 0.95586,
+  "usd_output": 0.06285,
+  "usd_total": 1.01871,
+  "per_unit_usd": 0.0008104295942720764,
+  "tokenization_method": "char_approx_4.0_chars_per_token",
+  "assumptions": [
+    "No network access or API calls were performed; pure estimation.",
+    "Input tokens counted via character approximation: ceil(len(prompt) / 4.0).",
+    "Baseline output token budget per unit is 2 tokens (single integer percentage reply, 0-100).",
+    "Pessimistic sensitivity range computed at 2x output tokens (4 tokens/unit) and max budget limit (8 tokens/unit).",
+    "Opus-5 rates derived from docs/adr/0004-local-generator-frontier-judge.md:75 ($5.0/MTok input, $25.0/MTok output)."
+  ],
+  "price_source": "docs/adr/0004-local-generator-frontier-judge.md:75",
+  "price_input_per_m": 5.0,
+  "price_output_per_m": 25.0,
+  "records_path": "docs/harvest/generate_fp05_n100_guided_v4.verifier_scored.records.jsonl",
+  "records_sha256": "1a900478e3ded78ffeb65ae16510dfb2e19d3ebb5ffd318e7ca1207274803f3b",
+  "git_commit": "eb6d6628baebe411cfecdb09ea5948863edef56d",
+  "timestamp": "2026-08-23T14:50:03.119644+00:00",
+  "sensitivity_range": {
+    "floor": {
+      "output_tokens_per_unit": 2,
+      "total_output_tokens": 2514,
+      "usd_output": 0.06285,
+      "usd_total": 1.01871
+    },
+    "pessimistic_2x": {
+      "output_tokens_per_unit": 4,
+      "total_output_tokens": 5028,
+      "usd_output": 0.1257,
+      "usd_total": 1.08156
+    },
+    "max_budget_8": {
+      "output_tokens_per_unit": 8,
+      "total_output_tokens": 10056,
+      "usd_output": 0.2514,
+      "usd_total": 1.20726
+    }
+  }
+}
