@@ -258,11 +258,16 @@ def join_scores_and_labels(
                 raise ValueError(
                     f"Missing verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
                 )
-            if len(matching_scores) > 1:
+            target_idx = citation_index if citation_index is not None else 0
+            if len(matching_scores) > max(1, len(claim.citations)):
                 raise ValueError(
                     f"Duplicate verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
                 )
-            score = matching_scores[0].score
+            if target_idx >= len(matching_scores):
+                raise ValueError(
+                    f"Missing verifier score at citation_index={target_idx} for {verifier_name!r} on query_id={qid!r}, claim_id={claim.claim_id!r}"
+                )
+            score = matching_scores[target_idx].score
 
             matching_labels = [
                 h for h in claim.human_labels if h.citation_index == citation_index

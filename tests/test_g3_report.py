@@ -1,0 +1,284 @@
+"""Tests for G3 Gate Report Driver (scripts/g3_report.py)."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+from biomedqa.schema import (
+    Citation,
+    Claim,
+    HumanLabel,
+    QueryRecord,
+    SupportLabel,
+    System,
+    VerifierScore,
+    write_jsonl,
+)
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+def make_record(
+    qid: str,
+    score: float | None = None,
+    label: SupportLabel | None = None,
+) -> QueryRecord:
+    claims = []
+    if score is not None or label is not None:
+        v_scores = [VerifierScore(name="minicheck", score=score)] if score is not None else []
+        h_labels = (
+            [HumanLabel(annotator_id="a1", support_label=label, claim_validity=True)]
+            if label is not None
+            else []
+        )
+        claims.append(
+            Claim(
+                claim_id=f"{qid}_c1",
+                text=f"Claim text for {qid}",
+                citations=[Citation(passage_id="p1", char_start=0, char_end=10)],
+                verifier_scores=v_scores,
+                human_labels=h_labels,
+            )
+        )
+
+    return QueryRecord(
+        run_id="run_test",
+        query_id=qid,
+        question=f"Question for {qid}",
+        system=System.JOINT,
+        seed=20260804,
+        claims=claims,
+    )
+
+
+def make_records_file(
+    path: Path,
+    scores: list[float] | None = None,
+    labels: list[SupportLabel] | None = None,
+    n: int = 10,
+) -> Path:
+    records = []
+    for i in range(n):
+        s = scores[i] if scores is not None and i < len(scores) else None
+        lbl = labels[i] if labels is not None and i < len(labels) else None
+        records.append(make_record(f"q{i}", score=s, label=lbl))
+    write_jsonl(path, records)
+    return path
+
+
+def run_driver(args: list[str]) -> subprocess.CompletedProcess[str]:
+    cmd = [sys.executable, str(_REPO / "scripts/g3_report.py"), *args]
+    return subprocess.run(cmd, capture_output=True, text=True, check=False)
+
+
+def test_passing_case(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "passing.records.jsonl", scores=scores, labels=labels)
+    out_path = tmp_path / "passing.json"
+
+    res = run_driver(["--records", str(rec_path), "--cost-ratio", "15.0", "--out", str(out_path)])
+    assert res.returncode == 0
+    assert "G3 PASSES: true" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is True
+    assert data["auroc_passes"] is True
+    assert data["cost_passes"] is True
+    assert data["auroc"] == 1.0
+    assert data["cost_ratio"] == 15.0
+    assert data["reason"] == "pass"
+
+
+def test_auroc_below_threshold(tmp_path: Path) -> None:
+    # Inverse scores -> AUROC = 0.0 < 0.75
+    scores = [0.1] * 5 + [0.9] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "low_auroc.records.jsonl", scores=scores, labels=labels)
+    out_path = tmp_path / "low_auroc.json"
+
+    res = run_driver(["--records", str(rec_path), "--cost-ratio", "15.0", "--out", str(out_path)])
+    assert res.returncode == 0
+    assert "G3 PASSES: false" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is False
+    assert data["auroc_passes"] is False
+    assert data["cost_passes"] is True
+    assert "auroc_below_threshold" in data["reason"]
+
+
+def test_no_annotations_input(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    rec_path = make_records_file(tmp_path / "no_ann.records.jsonl", scores=scores, labels=None)
+    out_path = tmp_path / "no_ann.json"
+
+    res = run_driver(["--records", str(rec_path), "--cost-ratio", "15.0", "--out", str(out_path)])
+    assert res.returncode == 0
+    assert "G3 PASSES: false" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is False
+    assert "missing_human_labels" in data["reason"]
+    assert data["diagnostics"]["n_missing_annotations"] == 10
+
+
+def test_missing_cost_ratio(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "no_cost.records.jsonl", scores=scores, labels=labels)
+    out_path = tmp_path / "no_cost.json"
+
+    res = run_driver(["--records", str(rec_path), "--out", str(out_path)])
+    assert res.returncode == 0
+    assert "G3 PASSES: false" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is False
+    assert data["cost_passes"] is False
+    assert "cost_ratio_missing" in data["reason"]
+
+
+def test_provenance_and_threshold_keys(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "prov.records.jsonl", scores=scores, labels=labels)
+    out_path = tmp_path / "prov.json"
+
+    run_driver(["--records", str(rec_path), "--cost-ratio", "12.5", "--out", str(out_path)])
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    required_keys = {
+        "script",
+        "finished_at",
+        "records_source",
+        "records_sha256",
+        "annotations_source",
+        "git_commit",
+        "verifier",
+        "thresholds",
+        "diagnostics",
+        "gate",
+        "auroc",
+        "auroc_min",
+        "auroc_passes",
+        "cost_ratio",
+        "cost_ratio_min",
+        "cost_passes",
+        "passes",
+        "reason",
+    }
+    for k in required_keys:
+        assert k in data, f"Missing key {k!r} in emitted JSON"
+
+    assert data["thresholds"]["auroc_min"] == 0.75
+    assert data["thresholds"]["cost_ratio_min"] == 10.0
+
+    diag_keys = {
+        "n_records",
+        "n_claims",
+        "n_citations",
+        "n_scored",
+        "n_missing_scores",
+        "n_missing_annotations",
+        "n_no_majority",
+        "no_majority_rate",
+        "n_extra_citations",
+    }
+    for k in diag_keys:
+        assert k in data["diagnostics"], f"Missing key {k!r} in diagnostics"
+
+
+def test_determinism_identical_runs(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "det.records.jsonl", scores=scores, labels=labels)
+    out1 = tmp_path / "run1.json"
+    out2 = tmp_path / "run2.json"
+
+    run_driver(["--records", str(rec_path), "--cost-ratio", "15.0", "--out", str(out1)])
+    run_driver(["--records", str(rec_path), "--cost-ratio", "15.0", "--out", str(out2)])
+
+    d1 = json.loads(out1.read_text(encoding="utf-8"))
+    d2 = json.loads(out2.read_text(encoding="utf-8"))
+
+    d1.pop("finished_at")
+    d2.pop("finished_at")
+
+    assert d1 == d2
+
+
+def test_annotations_flag_loading(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    rec_path = make_records_file(tmp_path / "ann_flag.records.jsonl", scores=scores, labels=None)
+
+    ann_rows = []
+    for i in range(10):
+        lbl = "SUPPORTED" if i < 5 else "NOT_SUPPORTED"
+        ann_rows.append(
+            {
+                "query_id": f"q{i}",
+                "claim_id": f"q{i}_c1",
+                "annotator_id": "a1",
+                "support_label": lbl,
+            }
+        )
+    ann_path = tmp_path / "annotations.jsonl"
+    ann_path.write_text("\n".join(json.dumps(r) for r in ann_rows) + "\n", encoding="utf-8")
+
+    out_path = tmp_path / "ann_flag.json"
+
+    res = run_driver(
+        [
+            "--records",
+            str(rec_path),
+            "--annotations",
+            str(ann_path),
+            "--cost-ratio",
+            "15.0",
+            "--out",
+            str(out_path),
+        ]
+    )
+    assert res.returncode == 0
+    assert "G3 PASSES: true" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is True
+
+def test_reconciliation_identity(tmp_path: Path) -> None:
+    # Test reconciliation identity: citations == scored + missing_scores + n_extra_citations
+    c1 = Claim(
+        claim_id="c1",
+        text="Claim with 2 citations",
+        citations=[Citation("p1", 0, 5), Citation("p2", 0, 5)],
+        verifier_scores=[VerifierScore("minicheck", 0.9), VerifierScore("minicheck", 0.8)],
+        human_labels=[HumanLabel("a1", SupportLabel.SUPPORTED, True)],
+    )
+    c2 = Claim(
+        claim_id="c2",
+        text="Claim with 1 citation",
+        citations=[Citation("p3", 0, 5)],
+        verifier_scores=[VerifierScore("minicheck", 0.3)],
+        human_labels=[HumanLabel("a1", SupportLabel.NOT_SUPPORTED, True)],
+    )
+    rec = QueryRecord("r1", "q1", "Q?", System.JOINT, 0, claims=[c1, c2])
+    rec_path = tmp_path / "rec.jsonl"
+    write_jsonl(rec_path, [rec])
+    out_path = tmp_path / "out.json"
+
+    run_driver(["--records", str(rec_path), "--out", str(out_path)])
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    diag = data["diagnostics"]
+
+    # Identity: citations (3) == scored (2) + missing_scores (0) + n_extra_citations (1)
+    assert diag["n_citations"] == 3
+    assert diag["n_scored"] == 2
+    assert diag["n_missing_scores"] == 0
+    assert diag["n_extra_citations"] == 1
+    assert diag["n_citations"] == diag["n_scored"] + diag["n_missing_scores"] + diag["n_extra_citations"]
+    assert data["diagnostics"]["n_missing_annotations"] == 0

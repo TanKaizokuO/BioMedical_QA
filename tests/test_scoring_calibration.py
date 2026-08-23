@@ -535,6 +535,24 @@ def test_join_scores_and_labels_rejects_duplicate_verifier_scores():
         join_scores_and_labels([r])
 
 
+def test_join_scores_and_labels_multi_citation_claim():
+    r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, citation_index=0)
+    r.claims[0].citations.append(Citation(passage_id="p2", char_start=0, char_end=10))
+    r.claims[0].verifier_scores.append(VerifierScore(name="minicheck", score=0.6))
+    r.claims[0].human_labels.append(
+        HumanLabel("a1", SupportLabel.NOT_SUPPORTED, True, citation_index=1)
+    )
+
+    joined0 = join_scores_and_labels([r], verifier_name="minicheck", citation_index=0)
+    assert len(joined0) == 1
+    assert joined0[0].score == 0.8
+    assert joined0[0].is_supporting is True
+
+    joined1 = join_scores_and_labels([r], verifier_name="minicheck", citation_index=1)
+    assert len(joined1) == 1
+    assert joined1[0].score == 0.6
+    assert joined1[0].is_supporting is False
+
 def test_join_scores_and_labels_rejects_duplicate_annotator_labels():
     r = _make_record("q1", "c1", 0.8, SupportLabel.SUPPORTED, annotator_id="a1")
     r.claims[0].human_labels.append(

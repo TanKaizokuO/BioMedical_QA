@@ -1,0 +1,18 @@
+{
+  "coverage_rate": 1.0,
+  "missing_pairs": [],
+  "n_citations": 1257,
+  "n_claims": 1589,
+  "n_extra_citations": 248,
+  "n_missing": 0,
+  "n_records": 300,
+  "n_scored": 1257,
+  "provenance": {
+    "cache_path": "/home/tankaizokuo/Code/Research/BioMedical_QA/docs/harvest/minicheck_cache.json",
+    "cache_sha256": "a0d6dd4c6418894a9737f847d22db05525913bc843312d37f4136666ec72b058",
+    "git_commit": "c681045049896867bc85a89196aa655ca1cf5475",
+    "source_records_path": "/home/tankaizokuo/Code/Research/BioMedical_QA/docs/harvest/generate_fp05_n100_guided_v4.records.jsonl",
+    "timestamp": "2026-08-23T10:55:14.194608+00:00",
+    "verifier_name": "lytang/MiniCheck-Flan-T5-Large"
+  }
+}
