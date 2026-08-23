@@ -356,9 +356,8 @@ def main() -> int:
             rate_per_sec = args.verifier_gpu_hourly_rate / 3600.0
             priced_ours = []
             for c in ours_records:
-                c_usd = _get_val(c, "usd")
                 c_wall = _get_val(c, "wall_s")
-                if (c_usd is None or c_usd == 0.0) and c_wall is not None and c_wall > 0:
+                if c_wall is not None and c_wall > 0:
                     priced_ours.append(
                         CostRecord(
                             run_id=_get_val(c, "run_id") or "unspecified",
@@ -372,7 +371,18 @@ def main() -> int:
                         )
                     )
                 else:
-                    priced_ours.append(c)
+                    priced_ours.append(
+                        CostRecord(
+                            run_id=_get_val(c, "run_id") or "unspecified",
+                            query_id=_get_val(c, "query_id"),
+                            component=_get_val(c, "component") or "verify",
+                            backend=_get_val(c, "backend") or "unknown",
+                            input_tokens=_get_val(c, "input_tokens"),
+                            output_tokens=_get_val(c, "output_tokens"),
+                            usd=None,
+                            wall_s=c_wall,
+                        )
+                    )
             ours_records = priced_ours
 
         if not judge_records:

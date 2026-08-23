@@ -249,6 +249,57 @@ def test_operator_supplied_gpu_rate_prices_verifier(tmp_path: Path) -> None:
     assert data["cost_ratio"] == pytest.approx(20.0)
     assert data["cost_provenance"]["verifier_gpu_hourly_rate"] == 360.0
 
+def test_rate_supplied_without_measured_timing_remains_unevaluable(tmp_path: Path) -> None:
+    scores = [0.9] * 5 + [0.1] * 5
+    labels = [SupportLabel.SUPPORTED] * 5 + [SupportLabel.NOT_SUPPORTED] * 5
+    rec_path = make_records_file(tmp_path / "passing.records.jsonl", scores=scores, labels=labels)
+    out_path = tmp_path / "rate_no_timing.json"
+
+    # Judge has positive cost ($0.20), local verifier has wall_s=None (missing timing)
+    cost_records = [
+        CostRecord(
+            run_id="r1",
+            query_id=f"q{i}",
+            component="judge",
+            backend="anthropic:claude-opus-5",
+            usd=0.20,
+            input_tokens=100,
+            output_tokens=10,
+            wall_s=1.5,
+        )
+        for i in range(5)
+    ] + [
+        CostRecord(
+            run_id="r1",
+            query_id=f"q{i}",
+            component="verify",
+            backend="vllm:minicheck",
+            usd=None,
+            input_tokens=100,
+            output_tokens=5,
+            wall_s=None,
+        )
+        for i in range(5)
+    ]
+    costs_path = tmp_path / "no_timing.costs.jsonl"
+    write_jsonl(costs_path, cost_records)
+
+    # Rate supplied without timing => must remain unevaluable (verifier_cost_unpriced)
+    res = run_driver([
+        "--records", str(rec_path),
+        "--costs", str(costs_path),
+        "--verifier-gpu-hourly-rate", "360.0",
+        "--out", str(out_path),
+    ])
+    assert res.returncode == 0
+    assert "G3 PASSES: false" in res.stdout
+
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    assert data["passes"] is False
+    assert data["cost_passes"] is False
+    assert data["cost_ratio"] is None
+    assert "verifier_cost_unpriced" in data["reason"]
+
 def test_mutually_exclusive_cost_flags(tmp_path: Path) -> None:
     rec_path = make_records_file(tmp_path / "dummy.records.jsonl")
     costs_path = tmp_path / "dummy.costs.jsonl"
