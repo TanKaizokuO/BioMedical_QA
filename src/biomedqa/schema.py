@@ -300,3 +300,8 @@ def read_jsonl(path) -> Iterator[dict]:
 def read_query_records(path) -> Iterator[QueryRecord]:
     for d in read_jsonl(path):
         yield query_record_from_dict(d)
+
+
+def read_cost_records(path) -> Iterator[CostRecord]:
+    for d in read_jsonl(path):
+        yield CostRecord(**d)

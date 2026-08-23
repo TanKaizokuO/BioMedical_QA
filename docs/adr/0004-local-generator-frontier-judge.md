@@ -59,6 +59,13 @@ Cost: ~$28 typical; ceiling ~$125 (if switched to Sonnet 5) or ~$185 (Opus 5).
   `wall_clock_s`, `gpu_idle_confirmed` — for both verifier and judge. Retrofitting token accounting
   in W7 means re-running Phase 3.
 
+### Gate G3 Judge Run Requirement Specification
+For Gate G3 cost clause evaluation via `scripts/g3_report.py --costs <path>`, the judge run must emit a `costs.jsonl` containing `CostRecord` entries meeting all of the following:
+1. **Component**: Every judge record MUST set `component="judge"`.
+2. **Schema & Fields**: Each `CostRecord` must populate `run_id`, `query_id` (matching the record query ID), `backend` (`"anthropic:claude-opus-5"`), `input_tokens` (int), `output_tokens` (int), `usd` (float computed at listed rate), and `wall_s` (float).
+3. **Population Coverage**: Must cover all 1,257 (claim, cited span) evaluation units across all questions in the gold evaluation set (`records.jsonl`), evaluated by `JudgeVerifier` (`src/biomedqa/verify.py`).
+4. **Hardware/Pricing Provenance**: USD costs MUST reflect published Anthropic rates (ADR-0004:73-79); local verifier costs reflect NVIDIA A4000 timing (ADR-0008, `research_roadmap.md:519`).
+
 ## Alternatives rejected
 
 - **Claude generator throughout** (Opus 5 ~$274 / Sonnet 5 ~$165). Kills the seed plan outright.
