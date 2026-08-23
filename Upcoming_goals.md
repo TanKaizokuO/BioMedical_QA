@@ -114,9 +114,9 @@ This document lists the upcoming targets for the project. The project uses evide
 ## 10. Gate G4 Human Gold Set Preparation
 
 **Target Date:** September 27, 2026  
-**Context:** Gate G4 requires $\ge 250$ labeled claims and a Krippendorff $\alpha$ point estimate of $\ge 0.6$ on the binary collapse over the triple-labeled set (ADR-0016). The decomposer freeze is complete, so claim boundaries are now stable.
+**Context:** Gate G4 requires $\ge 250$ labeled claims and a Krippendorff $\alpha$ point estimate of $\ge 0.6$ on the binary collapse over the triple-labeled set (ADR-0016). The decomposer freeze is complete, so claim boundaries are now stable. The annotation batch is built and waits for the September 7 window.
 
-* **Build Annotation Batch:** You must build the annotation batch from the frozen decomposer output.
+* ~~**Build Annotation Batch:** You must build the annotation batch from the frozen decomposer output.~~ *(Completed Aug 23, 2026 — `scripts/build_annotation_ui.py --records docs/harvest/generate_fp05_n100_guided_v4.records.jsonl`. The batch holds $100$ questions, $1009$ claims, and $1257$ span labels for each annotator. The order hash `42a52170009b` is the same in all three forms (ADR-0016 §2). The three forms show no system, model, or run identity (ADR-0016 §4). `annotation/keyfile.jsonl` holds the $1009$ de-blinding rows and stays with the maintainer, because `.gitignore` excludes `annotation/`. Do not rebuild the forms after an annotator starts: a new order makes ADR-0016 §2 invalid and clears the saved progress).*
 * **Start Gold Annotation:** You must start the three non-expert annotators on the full gold set.
 * **Monitor Annotator Agreement:** You must monitor inter-annotator agreement during the annotation.
 
