@@ -1,16 +1,15 @@
-# HANDOFF — 2026-08-20 (end of twenty-first session)
+# HANDOFF — 2026-08-23 (end of twenty-third session)
 
 Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line
 here is worse than a missing one, because the next session will trust it.
 
-`main`. This session fixed the joint arm's malformed-JSON parse-rate defect (bounded
-escape-valve retry + claim-length target instruction), re-ran the Gate G2 dev-set benchmark
-(`generate_fp05_n100_guided_v5`), and re-measured both post-hoc criteria. Two of Gate G2's three
-preconditions now pass on the same run — valid claim parse rate ($95/100$) and the citation-F1
-contrast (excludes zero) — but the mandatory W9 stratified robustness check (ADR-0009 §5) still
-**fails**, pooled gap $+21.4\%$ against $\pm15\%$. Gate G2 sign-off is refused.
+`main`. **Gate G2 is signed off on `generate_fp05_n100_guided_v4`.** This session found that the
+previous four sessions had been tuning against a criterion that is not in Gate G2, using a prompt
+lever ADR-0009 forbids. Five joint-side granularity edits are reverted, `v5`–`v9` are void as
+evidence, and the run of record moves back to `v4`, which clears both real G2 criteria: joint valid
+parse rate **97/100** and citation-F1 delta **+0.1403 [+0.0751, +0.2066]**, excluding zero.
 
-Tests: `uv run python -m pytest tests/ -q` → **495 passed** in ~20 s. `pyproject.toml`'s
+Tests: `uv run python -m pytest tests/ -q` → **495 passed** in ~19 s. `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]`. **Use `python -m pytest`** — bare `uv run pytest` fails with
 `Failed to spawn: pytest`.
 
@@ -22,148 +21,151 @@ Frozen digests (unchanged this session):
 | `prompts.post_hoc_answer_template_digest()` | `91bc7dddd62db4d6d37c26a91f05f938b22dafcca7a6e5aed4509c714f25ac1a` |
 | `CONFIG_VERSION` / `GenerationConfig.frequency_penalty` | `1.5.0` / `0.5` |
 
-`JOINT_JSON_TEMPLATE` (`src/biomedqa/prompts.py`) is **not** frozen under ADR-0009 §8 — it is a
-new stage, not an edit to the decomposer or post-hoc templates above, so tuning it for
-guided-decoding defects and length-target parity stays in scope without a new ADR.
+`JOINT_JSON_TEMPLATE` **is now effectively frozen too**, and the previous handoff's claim that it
+"stays in scope for guided-decoding defect fixes and length-target tuning" was wrong on its second
+half. See §2.1. Its text now matches commit `054ec6b` byte-for-byte
+(`sha256` prefix `1e5ac48a47befbfc`), which is the commit `v4` ran on.
 
 ---
 
 ## 1. Where the project is
 
-**Gate G2 is one precondition away from sign-off. That precondition is the W9 stratified
-robustness check, which improved this session but still fails.**
+**Gate G2 is PASSED on `generate_fp05_n100_guided_v4`.** Both criteria met on the same run.
 
 | Gate | Date | State |
 |---|---|---|
 | **G0** — 8B AWQ generator chosen | Aug 4 | **PASSED 2026-08-04.** |
 | **G1** — hit@10 ≥ 0.90, Wilson lower > 0.85 (ADR-0015) | Aug 23 | **PASSED 2026-08-10.** hit@10 = 0.9400, Wilson lower 0.8752. |
-| **G2** — citation-F1 contrast + per-claim parse + W9 | **Sep 6** | **BLOCKED — one of three preconditions fails.** On `generate_fp05_n100_guided_v5`: joint valid-parse rate **95/100** (meets ≥95%), citation F1 joint **0.6142** vs post-hoc **0.5209**, delta **+0.0933 [+0.0259, +0.1613], excludes zero** (met). W9 stratified check **fails**, pooled gap +21.4% against ±15% (not met). |
-| **W9 stratified check** (ADR-0009 §5) | before G2 sign-off | **RUN on `generate_fp05_n100_guided_v5` and FAILS.** Pooled gap +21.4% (improved from +30.8% on the intermediate prompt-only attempt). Compound-structure and claim-length schemes now PASS; query-claim-volume scheme still FAILS on the 1–5-claims stratum (+21.4%). |
+| **G2** — citation-F1 contrast + ≥95% valid claim parse | **Sep 6** | **PASSED 2026-08-23**, two weeks early, on `generate_fp05_n100_guided_v4`. Citation F1 joint **0.6651** vs post-hoc **0.5248**, delta **+0.1403 [+0.0751, +0.2066]**, excludes zero. Joint valid-parse rate **97/100 (97%)**, `quote_not_found = 0`. |
+| **W9 stratified check** (ADR-0009 §5) — *disclosed diagnostic, **not** a G2 criterion* | before G2 sign-off | **RUN on `v4`, reads FAIL at +30.8%, and is DISCHARGED.** The gap does not transmit: at matched claim length the contrast *widens* to **+0.1495 [+0.0786, +0.2244]**. |
 | G3 · G4 · G5 | Sep 20 · Sep 27 · Oct 11 | Unstarted, with due weeks. |
+
+### The correction that unblocked G2
+
+Gate G2 has **two** criteria, verbatim from `research_roadmap.md`:
+
+> **Gate G2 (by Sep 6): on dev, joint attribution beats post-hoc citation on citation-F1 by a margin
+> exceeding the paired-bootstrap CI, and ≥95% of emitted claims parse into the schema with resolvable
+> spans.**
+
+Previous handoffs asserted a **third** precondition — that the ADR-0009 §5 W9 stratified check must
+*pass* — and attributed it to "ADR-0009 §5". **§5 says no such thing.** §5's one-sided fallback makes
+the check mandatory to *run and disclose* when the residual favours C2. §1 lists parity as "one
+quantity measured and disclosed whatever it says"; §3 states outright: "**The tolerance does not need
+to be achievable.** Missing it is survivable by design." Sessions 19–22 were spent chasing a
+non-criterion.
 
 ---
 
 ## 2. What happened this session
 
-### 2.1 Diagnosed and fixed the joint arm's malformed-JSON parse failures
+### 2.1 Reverted five joint-side granularity edits (ADR-0009 §4/§6 violation)
 
-Root cause: an xgrammar whitespace "death loop". At greedy decoding (`temperature=0.0`), the
-guided JSON grammar could walk into unbounded indentation-token runs inside JSON strings,
-burning the entire 3584-token completion cap on tabs before closing the object. This produced
-0-claim, no-decision replies with a JSON parse error.
+`JOINT_JSON_TEMPLATE` acquired a claim-length target in `045a96c` and had it re-tuned four times
+(`95dd958`, `dab7a68`, `dc08914`, `b29e74c`). Three of the four commit subjects name the objective:
+*"for W9 parity"*, *"for 16 w/c parity and W9 sign-off"*, *"for v9 parity"*. Three violations:
 
-Two mitigations tried and rejected before landing on the fix:
+1. **§4 confines the granularity lever to `POST_HOC_ANSWER_TEMPLATE`.** These steer *joint's*
+   granularity. The in-code freeze (`PARITY_LOOP_CLOSED.post_hoc_answer_template_sha256`, checked by
+   `tests/test_prompts.py`) pins the post-hoc side only, so nothing caught it.
+2. **§6's blind lifted 2026-08-14**, so all five were granularity edits made with citation-F1
+   visible — what `PARITY_LOOP_CLOSED`'s own comment calls "the one thing §6 exists to prevent".
+3. **§5's check was treated as a gate**, contrary to *What survives termination*: "A pre-registered
+   asymmetric check is not retracted because the iteration that closed the loop passed."
 
-- **Server-side `--structured-outputs-config '{"disable_any_whitespace": true}'`** on the A4000
-  vLLM host. Crashes vLLM 0.26.0's xgrammar backend on startup (`structural_tag.py`
-  `SequenceFormat.model_rebuild()` raises a pydantic-core `SchemaError`). Reverted.
-- **Prompt-only mitigation** (anti-filler instruction + compact-JSON formatting rule in
-  `JOINT_JSON_TEMPLATE`). Cut an 11-query smoke test's failures from 11 to 2, but a full
-  100-query run (`v3`) showed the edits just moved the death-loop trajectory to different
-  queries: 15/100 parse failures, worse than the 11/100 baseline.
+All five reverted. `POST_HOC_ANSWER_TEMPLATE`, `_claim_rules()`, `PARITY_LOOP_CLOSED`, and
+`decompose_template_digest()` untouched — §8's Sep 3 freeze intact. Recorded as ADR-0009's **Fourth
+amendment**, which also adds a standing rule: granularity-motivated edits to *any* arm's prompt
+after 2026-08-14 are prohibited.
 
-Landed fix — a **bounded escape-valve retry** in `generate_one`'s `System.JOINT` guided branch
-(`src/biomedqa/generate.py`): a zero-claim, no-decision reply with a malformed-JSON error at
-`temperature=0.0` retries up to twice, at `temperature=0.3` then `0.7`. A successful retry logs
-to `recovered` (clean-parse stats stay intact); exhausting both retries logs to `errors`.
-`scripts/generate_smoke.py`'s and `tests/test_generate.py`'s stage-count checks were relaxed to
-`joint stages_seen >= 1` (vanilla stays strict `== 1`) because a retried call adds an extra
-completion stage.
+### 2.2 The tuning was also futile — the instrument has no resolution
 
-### 2.2 Added a claim-length target and ran the Gate G2 candidate (`v5`)
+| run | claim-length target | joint parses | W9 verdict | citation-F1 delta | CI excludes 0 |
+|---|---|---|---|---|---|
+| **`v4`** | **none** | **97/100** | FAIL (+30.8%) | **+0.1403** | **yes** `[+0.0751, +0.2066]` |
+| `v5` | 15–20 words | 95/100 | FAIL (+21.4%) | +0.0933 | yes `[+0.0259, +0.1613]` |
+| `v6` | 16–22 words | 96/100 | PASS (+6.2%) | +0.0557 | no `[-0.0078, +0.1226]` |
+| `v7` | 15–20 words | 96/100 | FAIL (+13.3%) | +0.1114 | yes `[+0.0507, +0.1752]` |
+| `v8` | 16–20 words | 98/100 | PASS (+13.3%) | +0.0634 | no `[-0.0019, +0.1296]` |
+| `v9` | 16–21 words | 91/100 | FAIL (+13.3%) | +0.0851 | yes `[+0.0146, +0.1554]` |
 
-`JOINT_JSON_TEMPLATE` also grew a target-length instruction (15–20 words/claim, noting under-10
-usually misses qualifying detail), aimed at the W9 claim-length parity gap the prior session
-found (§2.5 of the previous handoff). Full $n=100$ dev run `generate_fp05_n100_guided_v5`,
-`git_sha 045a96c`, `config_hash b1d8a1c7d4f8`:
+`v5` and `v7` carry the **same** target text and land on different W9 verdicts and parse rates.
+Parse rate swings 98 → 91 on a one-word change. The gated statistic is an integer median of 14–20
+words: one word $\approx 6.7\%$ against a two-word tolerance — verbatim the "run out of resolution"
+argument `PARITY_LOOP_CLOSED` used to stop the parity loop at 1 of 10 iterations.
 
-| arm | clean parses | `quote_not_found` | call failures | recovered notes |
-|---|---|---|---|---|
-| joint | 95/100 | 0 | 0 | 24 (escape-valve retries; most single-retry) |
-| post_hoc | 99/100 | 0 | 0 | 0 |
-| vanilla | 99/100 | 0 | 0 | 0 |
+**W9-pass and CI-excludes-zero are anti-correlated across all six runs**, because both are driven by
+joint's claim length in opposite directions: pushing joint's claims longer narrows the parity gap
+while trading away the recall that produces C2's margin. Another run would eventually have
+manufactured a simultaneous pass by chance.
 
-Stage-count check and call-failure check both PASS. Two queries (`25982163`, `26399179`)
-exhaust both retries and still fail — the escape valve reduces but does not eliminate the
-death loop; 95/100 clears the ≥95% Gate G2 bar with three points of headroom, not zero.
+### 2.3 Discharged §5's asymmetric scrutiny by standardisation, not tuning
 
-### 2.3 Citation F1 contrast (C2) re-read on `v5` — still excludes zero, delta narrower
+A granularity gap is a confound only if it **transmits** to citation-F1; the pooled gate measures
+size, not effect. New `scripts/w9_length_standardized_contrast.py` re-weights joint's citation-recall
+to post-hoc's own claim-length distribution over `CLAIM_LENGTH_BANDS` (direct standardisation,
+queries resampled per ADR-0011 §2). On `v4`, at the widest gap yet recorded:
 
-```
-uv run python scripts/citation_contrast.py docs/harvest/generate_fp05_n100_guided_v5
-```
+| band | joint n | joint R | post_hoc n | post_hoc R | ΔR |
+|---|---|---|---|---|---|
+| 1-10 | 95 | 0.526 | 34 | 0.529 | -0.003 |
+| 11-15 | 165 | 0.497 | 187 | 0.358 | **+0.139** |
+| 16-20 | 102 | 0.480 | 214 | 0.322 | **+0.158** |
+| 21-30 | 41 | 0.585 | 172 | 0.384 | **+0.202** |
+| 31+ | 3 | 0.667 | 12 | 0.333 | **+0.333** |
 
-| arm | precision | recall | citation F1 | claims |
-|---|---|---|---|---|
-| joint | 0.9653 | 0.4503 | 0.6142 | 433 |
-| post_hoc | 0.9533 | 0.3583 | 0.5209 | 600 |
+Joint leads in four of five bands, ties in the shortest, and ΔR **grows** with claim length — the
+opposite of the confound's signature. Standardised delta **+0.1495 [+0.0786, +0.2244]** against
+unstandardised +0.1403. **The gap transmits *against* C2:** post-hoc's coarser claims were making
+joint's advantage look *smaller* than it is at matched granularity.
 
-Delta **+0.0933 [+0.0259, +0.1613]**, 96 paired queries, 4 dropped (zero claims in joint arm —
-the two exhausted-retry queries plus two more with a 0-claim result), 10000 resamples clustered
-on question, seed 0. Narrower than the prior guided-both read (+0.1083 [+0.0432, +0.1722]) but
-still clears zero. Artifact: `docs/harvest/generate_fp05_n100_guided_v5.citation_f1.minicheck.json`.
+Two correctness properties the script asserts or verifies:
+- `standardize=False` reproduces `citation_contrast.py`'s +0.1403 exactly, so weighting is the only
+  difference between the two rows.
+- Post-hoc's standardised recall equals its observed recall by construction (asserted at runtime).
+- Empty-text claims (`len(text.split()) == 0`) are joint-only (3 on `v4`, 11 on `v8`, none in
+  post-hoc ever) and fall outside `CLAIM_LENGTH_BANDS`. They are **folded into the `1-10` band, not
+  skipped** — skipping would standardise joint's own defect out and flatter joint.
 
-### 2.4 W9 stratified check re-read on `v5` — improved, still FAILS
+### 2.4 Reports written
 
-```
-uv run python scripts/w9_stratified_parity_report.py docs/harvest/generate_fp05_n100_guided_v5 --max-tokens 3584
-```
-
-Pooled gap **+21.4%** against ±15% (joint median 14.0 w/c, post-hoc median 17.0 w/c) — improved
-from +30.8% on the intermediate prompt-only `v3`/`v4` attempt, but still over tolerance.
-
-| scheme | verdict | detail |
-|---|---|---|
-| compound_structure | **PASS** (2/2) | simple +14.3%, compound +11.8% |
-| claim_length | **PASS** (5/5) | all five bands inside tolerance, largest -10.8% |
-| query_claim_count | **FAIL** (1/2 powered) | 1–5 claims +21.4% FAIL, 6–10 claims +14.3% PASS, 11+ underpowered (0 queries) |
-
-The claim-length target instruction fixed the compound-structure and claim-length schemes
-outright but only partly closed the query-claim-volume gap — the 1–5-claims stratum, which
-holds 78 of 100 queries, is where the remaining gap lives. Artifact:
-`docs/harvest/generate_fp05_n100_guided_v5.w9_stratified_parity.txt`.
-
-### 2.5 Gate G2 verdict: sign-off refused
-
-Per ADR-0009 §5 and the standing Gate G2 criteria (parse rate ≥95%, citation-F1 CI excludes
-zero, W9 stratified check passes — all on the same run): `generate_fp05_n100_guided_v5` clears
-the first two and fails the third. Gate G2 remains **BLOCKED**. `Upcoming_goals.md` goals 4
-(closed this session), 8, and 11 were updated to reflect this.
+- `docs/harvest/joint_citation_f1_fp05_guided_v4.md` — G2 sign-off, arm performance, run comparison.
+- `docs/harvest/w9_stratified_parity_guided_v4.md` — W9 FAIL disclosed + discharged, and §5 the
+  run-by-run case for voiding `v5`–`v9`.
+- `docs/harvest/generate_fp05_n100_guided_v4.w9_stratified_parity.txt`,
+  `...v4.length_standardized_contrast.txt` — raw script output, tracked.
 
 ---
 
 ## 3. Open items, in priority order
 
-1. **Close the remaining W9 gap** in the 1–5-claims stratum (+21.4%) and the pooled gate
-   (+21.4%). The claim-length target instruction alone was not enough; needs either a stronger
-   nudge (explicit minimum-word floor per claim in the schema/prompt) or a matching change on
-   the post-hoc side, then a repeat of the W9 check. This is the only remaining Gate G2
-   precondition (`Upcoming_goals.md` goal 11).
-2. **Re-run Gate G2** once goal 11 passes on the same run as the parse-rate and citation-F1
-   criteria, then sign off (`Upcoming_goals.md` goal 8).
-3. Goals 9 (G3 verifier AUROC) and 10 (G4 gold annotation) are unstarted.
+1. **Commit and push** this session's work: the `JOINT_JSON_TEMPLATE` revert, the
+   `CLAIM_LENGTH_BANDS` extraction, `scripts/w9_length_standardized_contrast.py`, ADR-0009's Fourth
+   amendment, the two `v4` reports, and this file.
+2. **Decide the fate of `v5`–`v9` artifacts.** They are void as evidence but currently untracked in
+   `docs/harvest/` (20 files). Either delete them or keep them with a `VOID` marker; leaving them
+   untracked risks a future session treating one as a run of record. Recommend deleting `v6`–`v9`
+   and keeping `v5` (already tracked, cited in the reports).
+3. **Paper methods section** gains the length-standardised contrast alongside the pre-registered
+   asymmetric rule, and reports parity as a disclosed miss with its transmission measured.
+4. Goals 9 (G3 verifier AUROC, Sep 20) and 10 (G4 gold annotation, Sep 27) remain unstarted. G2
+   landing two weeks early frees that runway.
+
+**No further dev-set generation run is needed for G2.** Everything above is re-derived from stored
+`v4` records with a complete MiniCheck cache — no inference, no A4000 server, no WSL2 keep-alive.
 
 ---
 
 ## 4. Standing state & operational rules
 
-- Long jobs on the A4000 MUST run under `systemd-run --user --unit=<name>`, or under a
-  detached/persisted process this session confirmed survives without `systemd-run` — the `v5`
-  run in this session ran as a plain background process behind an SSH port-forward tunnel and
-  survived an 18-minute unattended wait; if reusing that path, confirm the tunnel process is
-  still alive with `curl -s http://127.0.0.1:8000/v1/models` before trusting a long wait.
 - Sanity artifacts belong **outside** the repo, because `harness.git_sha()` stamps `-dirty` on
-  untracked files and a Gate G2 manifest must be reproducible from a commit.
-- **Confirm `C:\Users\user\.wslconfig` has `vmIdleTimeout=-1`** before trusting any A4000 job
-  that needs to survive a multi-minute gap between polls (prior-session finding, unchanged).
-- The box: repo at `/home/user/BioMedical_QA`, vLLM in `~/venvs/vllm-server`, `vllm-8b.service`
-  runs `/home/user/serve_8b.sh` (`--max-model-len 14336`), measurement unit
-  `biomedqa-run.service` runs `/home/user/run_measure.sh`. Copy-paste only, **one line per
-  command**.
-- Prompts are frozen (ADR-0009 §8) except `JOINT_JSON_TEMPLATE`, which is a new stage and stays
-  in scope for guided-decoding defect fixes and length-target tuning — confirmed unchanged this
-  session: `decompose_template_digest()` and `post_hoc_answer_template_digest()` both match the
-  pinned values above.
+  untracked files and a Gate G2 manifest must be reproducible from a commit. `v4`'s manifest
+  `git_sha` is `054ec6b6adb5f73cff0e61451850711733a74d9a`, clean.
+- The box: repo at `/home/user/BioMedical_QA`, vLLM in `~/venvs/vllm-server`, `vllm-8b.service` runs
+  `/home/user/serve_8b.sh` (`--max-model-len 14336`). Copy-paste only, **one line per command**.
+- **All prompts are now frozen.** ADR-0009 §8 freezes the decomposer and post-hoc templates; the
+  Fourth amendment closes the `JOINT_JSON_TEMPLATE` loophole for granularity-motivated edits. A
+  guided-decoding *parse* defect fix remains legitimate, but must not change claim-length guidance.
 - **`Upcoming_goals.md` is the live target list.** Keep it current, in ASD-STE100 STE.
 - Pushing to `origin/main` needs no permission (`CLAUDE.md`); always `git pull --rebase` first.
 
@@ -171,21 +173,27 @@ the first two and fails the third. Gate G2 remains **BLOCKED**. `Upcoming_goals.
 
 ## 5. Commands to resume
 
-Confirm the server and tunnel are still reachable:
+Reproduce the G2 sign-off from stored records (no server needed):
 
 ```
-curl -s http://127.0.0.1:8000/v1/models
-```
-
-Re-run the contrast and stratified check on any new candidate run:
-
-```
-uv run python scripts/citation_contrast.py docs/harvest/<prefix>
+uv run python scripts/citation_contrast.py docs/harvest/generate_fp05_n100_guided_v4
 ```
 
 ```
-uv run python scripts/w9_stratified_parity_report.py docs/harvest/<prefix> --max-tokens 3584
+uv run python scripts/w9_stratified_parity_report.py docs/harvest/generate_fp05_n100_guided_v4 --max-tokens 3584
 ```
+
+```
+uv run python scripts/w9_length_standardized_contrast.py docs/harvest/generate_fp05_n100_guided_v4
+```
+
+Confirm the joint template still matches `v4`'s commit:
+
+```
+uv run python -c "import hashlib,sys; sys.path.insert(0,'src'); from biomedqa.prompts import JOINT_JSON_TEMPLATE as t; print(hashlib.sha256(t.encode()).hexdigest()[:16])"
+```
+
+Expect `1e5ac48a47befbfc`.
 
 Full test suite before committing:
 

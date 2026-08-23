@@ -13,6 +13,14 @@ gate passing on every basis. §6's blind is lifted; the W9 stratified check surv
 731-word joint claim "lands before the first citation-F1 is read" expired: F1 was read the day
 before, 2026-08-14. See *Second amendment* at the end for the resulting decision — the guard stays
 on the scoring side, `_claim_rules()` is not touched pre-freeze.
+**Amended 2026-08-17** — the 731-word claim defect is discharged on the parser, splitter, and
+decoding sides, with every prompt still frozen. See *Third amendment* at the end.
+**Amended 2026-08-23** — five joint-side granularity edits (`045a96c`, `95dd958`, `dab7a68`,
+`dc08914`, `b29e74c`) are **reverted**: they tuned `JOINT_JSON_TEMPLATE`'s claim length to make §5's
+W9 check pass, which §4 confines to post-hoc and §6 forbids post-unblinding, and which §1/§3/§5
+never made a Gate G2 precondition. §5's scrutiny is discharged by length standardisation instead —
+the granularity gap transmits *against* C2. Run of record is `generate_fp05_n100_guided_v4`. See
+*Fourth amendment* at the end.
 
 ## Context
 
@@ -322,3 +330,84 @@ against the new prompts, per §4 — not a quiet edit to a frozen template.
 3. **Generator-side root cause addressed (sampling frequency penalty):** `GenerationConfig.frequency_penalty` default is raised from `0.0` to `0.5` (`CONFIG_VERSION` 1.5.0). Live A4000 sampling sweeps confirm `joint` over-length claims drop to 0, longest claim falls 731w $\rightarrow$ 27w, `quote_not_found` falls $8 \rightarrow 0$, and window-overflow HTTP 400 call rejections vanish.
 
 **Strict adherence to prompt freeze.** Still no prompt edit was performed, and `_claim_rules()` remains frozen. Prompt text, `prompts.PARITY_LOOP_CLOSED`, and `decompose.decompose_template_digest()` are unchanged.
+
+## Fourth amendment, 2026-08-23 — five joint-side granularity edits reverted; W9 is discharged by standardisation, not by tuning
+
+**What went wrong.** Between 2026-08-20 and 2026-08-22, `JOINT_JSON_TEMPLATE` acquired a claim-length
+target and then had it re-tuned four times (`045a96c` → `95dd958` → `dab7a68` → `dc08914` →
+`b29e74c`), producing runs `generate_fp05_n100_guided_v5` through `v9`. Three of the four re-tunings
+name the objective in their commit subject: *"for W9 parity"*, *"for 16 w/c parity and W9
+sign-off"*, *"for v9 parity"*.
+
+This is three separate violations of this ADR, and none of them was caught by a test:
+
+1. **§4 confines the granularity lever to `POST_HOC_ANSWER_TEMPLATE`.** These edits steer *joint's*
+   granularity. The freeze that exists in code — `PARITY_LOOP_CLOSED.post_hoc_answer_template_sha256`,
+   checked by `tests/test_prompts.py` — pins the post-hoc side only, so the joint side was
+   unprotected precisely because §4 never contemplated tuning it.
+2. **§6's blind lifted 2026-08-14.** Every one of these edits was therefore a granularity edit made
+   with citation-F1 visible. `PARITY_LOOP_CLOSED`'s own comment names this as "the one thing §6
+   exists to prevent" — and says so about a *post-hoc* edit, which is the milder case.
+3. **§5's check was treated as a gate.** *What survives termination* states: "A pre-registered
+   asymmetric check is not retracted because the iteration that closed the loop passed; that
+   retraction is the post-hoc steering §3 and §6 exist to prevent." Tuning the check into passing is
+   that retraction by another route. The compounding error was a belief — recorded in `HANDOFF.md`
+   and `Upcoming_goals.md`, and attributed to "ADR-0009 §5" — that W9 passing was a Gate G2
+   precondition. **§5 says nothing of the kind, and neither does Gate G2.** §1 lists parity as "one
+   quantity measured and disclosed whatever it says"; §3 states "the tolerance does not need to be
+   achievable. Missing it is survivable by design"; §5's fallback makes the stratified check
+   *mandatory to run*, not mandatory to pass. `research_roadmap.md`'s gate text gates citation-F1
+   and parse rate, and nothing else.
+
+**Why it was also futile.** Across the six runs, W9 verdict and parse rate move with no stable
+relation to the target's wording — `v5` and `v7` carry the *same* target text and land on different
+W9 verdicts; parse rate swings 98/100 → 91/100 on a one-word change. This is the resolution argument
+*Why it stopped one iteration in* already made: an integer median of 14–20 words, one word
+$\approx 6.7\%$, tolerance two words wide. Worse, W9-pass and CI-excludes-zero proved
+**anti-correlated** across all six runs, because both are driven by joint's claim length in opposite
+directions — pushing joint's claims longer narrows the parity gap while trading away the recall that
+produces C2's margin. Continuing would eventually have manufactured a simultaneous pass by chance,
+on a gate whose asymmetric-scrutiny rule is pre-registered in the paper's methods section.
+
+**Decision.** All five edits are reverted; `JOINT_JSON_TEMPLATE` now matches `054ec6b`
+byte-for-byte, verified by digest. `054ec6b` is the commit `generate_fp05_n100_guided_v4` ran on
+(its manifest `git_sha`, clean), so the run of record has an exact template match and its joint
+prompt carries **no granularity instruction at all**. `v5`–`v9` are void as evidence. No prompt
+other than `JOINT_JSON_TEMPLATE` was touched; `POST_HOC_ANSWER_TEMPLATE`, `_claim_rules()`,
+`PARITY_LOOP_CLOSED`, and `decompose_template_digest()` are unchanged, so §8's Sep 3 freeze is
+intact.
+
+**§5's asymmetric scrutiny is discharged on the measurement side instead.** The scrutiny this ADR
+demands was never "make the gap small" — the Context says the worry is that *"C2's gap appears
+without joint grounding doing any work."* A granularity gap is a confound only if it **transmits**
+to citation-F1, which the pooled gate cannot measure. `scripts/w9_length_standardized_contrast.py`
+measures it directly, by re-weighting joint's citation-recall to post-hoc's own claim-length
+distribution over `CLAIM_LENGTH_BANDS` (direct standardisation; queries resampled per ADR-0011 §2).
+On `v4`, at the *widest* granularity gap yet recorded (+30.8%):
+
+| quantity | joint | post_hoc | delta |
+|---|---|---|---|
+| citation-F1, unstandardised | 0.6651 | 0.5248 | +0.1403 `[+0.0751, +0.2066]` |
+| citation-F1, length-standardised | 0.6743 | 0.5248 | **+0.1495** `[+0.0786, +0.2244]` |
+
+Joint leads in four of five length bands, ties in the shortest, and $\Delta$recall **grows** with
+claim length (+0.139 / +0.158 / +0.202 / +0.333 in the 11–15 / 16–20 / 21–30 / 31+ bands) — the
+opposite of the confound's signature. **The granularity gap transmits against C2, not for it:**
+post-hoc's coarser claims were making joint's advantage look smaller than it is at matched
+granularity. This is the same posture as the Second amendment — a scoring-side answer to a
+scoring-side question, leaving both prompts frozen and re-deriving from stored records with no new
+inference.
+
+The gap is therefore reported at +30.8%, disclosed, and **not** tuned away — which is what §1 said
+would happen from the start.
+
+**Consequence for the paper.** The methods section gains the standardised contrast alongside the
+pre-registered asymmetric rule, and the parity diagnostic is reported as a miss with its transmission
+measured. A disclosed miss whose mechanism is shown not to favour the hypothesis is a stronger
+position than a passed tolerance reached by tuning the arm under test — and it is the position §1
+chose deliberately over the "fifth enforced condition" framing.
+
+**Standing rule added.** Granularity-motivated edits to *any* arm's prompt after 2026-08-14 are
+prohibited, not merely discouraged: §4's confinement plus §6's unblinding leaves no legitimate
+granularity lever on either side. `docs/harvest/w9_stratified_parity_guided_v4.md` §5 carries the
+run-by-run evidence.

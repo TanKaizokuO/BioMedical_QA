@@ -516,6 +516,19 @@ def compute_compound_strata(
     return StratifiedParityGate(scheme="compound_structure", strata=tuple(results), min_queries=min_queries)
 
 
+#: ADR-0009 §5's pre-registered claim-length bands, shared by the stratified parity check and the
+#: length-standardised citation-F1 contrast that discharges §5's asymmetric scrutiny. One
+#: definition: a second copy is a second thing to keep in step, and the two analyses are only
+#: comparable while they bin identically.
+CLAIM_LENGTH_BANDS: tuple[tuple[str, int, int], ...] = (
+    ("1-10", 1, 10),
+    ("11-15", 11, 15),
+    ("16-20", 16, 20),
+    ("21-30", 21, 30),
+    ("31+", 31, 999999),
+)
+
+
 def compute_claim_length_strata(
     records: Iterable[QueryRecord], *, min_queries: int = 5
 ) -> StratifiedParityGate:
@@ -526,13 +539,7 @@ def compute_claim_length_strata(
       Alternative reading: Dynamic quantiles/tertiles fit to run data. Fixed bands prevent data-dependent
       binning.
     """
-    bands = [
-        ("1-10", 1, 10),
-        ("11-15", 11, 15),
-        ("16-20", 16, 20),
-        ("21-30", 21, 30),
-        ("31+", 31, 999999),
-    ]
+    bands = list(CLAIM_LENGTH_BANDS)
     records = list(records)
     by_query: dict[str, dict[str, list[Claim]]] = {}
     for r in records:

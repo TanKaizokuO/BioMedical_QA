@@ -1,0 +1,20 @@
+ADR-0009 §5 length-standardised citation-F1 contrast: generate_fp05_n100_guided_v4
+  paired queries: 99, dropped: 1
+  bands: 1-10, 11-15, 16-20, 21-30, 31+ words
+
+Per-band citation recall (matched claim length):
+      band  joint n  joint R     ph n     ph R       dR
+      1-10       95    0.526       34    0.529   -0.003
+     11-15      165    0.497      187    0.358   +0.139
+     16-20      102    0.480      214    0.322   +0.158
+     21-30       41    0.585      172    0.384   +0.202
+       31+        3    0.667       12    0.333   +0.333
+
+Citation-F1:
+  unstandardised: joint 0.6651 (R 0.5099) vs post-hoc 0.5248 (R 0.3619)  delta +0.1403
+  standardised:   joint 0.6743 (R 0.5207) vs post-hoc 0.5248 (R 0.3619)  delta +0.1495
+  95% clustered CI on the standardised delta: [+0.0786, +0.2244] (width 0.1458)
+  excludes zero: True
+  resampling: unit=query, n_clusters=99, n_boot=10000, seed=0
+
+Verdict: the granularity gap transmits against C2 -- matching claim length widens the contrast (+0.1403 -> +0.1495), so the citation-F1 gap is not an artifact of post-hoc's coarser claims.

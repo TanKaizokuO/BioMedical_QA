@@ -502,13 +502,23 @@ claim with a quotation as you write it.
 #: to twice at rising nonzero temperature; see its comment for the measurement. Net result on
 #: `generate_fp05_n100_guided_v4`: 97/100 clean parses, clearing G2's >=95% bar.
 #:
-#: A third instruction (length target) is unrelated to the death-loop and fixes a different
-#: measured defect: the first two mitigations, run together on the full 100, left joint's median
-#: claim length at 13 words against post-hoc's 17 (W9
-#: `docs/harvest/w9_stratified_parity_both_guided.md` gap widened from +21.4% to +30.8%). Nothing
-#: here told the model to write *short* claims; the "format compactly" instruction was about JSON
-#: whitespace, and evidently over-generalised to claim prose too. The length-target sentence names
-#: the target explicitly and says compactness is about the JSON only, not the claim.
+#: **No length target here, deliberately — reverted 2026-08-23.** One was added on 2026-08-20
+#: (`045a96c`) because the two mitigations above left joint's median claim length at 13 words
+#: against post-hoc's 17, and then re-tuned four times (`95dd958`, `dab7a68`, `dc08914`, `b29e74c`)
+#: chasing the ADR-0009 §5 W9 stratified check. All five are reverted, for two reasons.
+#: **Protocol:** §4 confines the granularity lever to `POST_HOC_ANSWER_TEMPLATE`, and §6's blind
+#: lifted 2026-08-14, so every one of those edits steered *joint's* granularity with citation-F1
+#: visible -- the one thing §3/§6 exist to prevent. §1 and §3 are explicit that parity is disclosed
+#: whatever it says and "the tolerance does not need to be achievable"; W9 is not a Gate G2
+#: criterion (`research_roadmap.md` §"Gate G2" gates citation-F1 and parse rate, nothing else).
+#: **Measurement:** the five runs read W9 PASS/FAIL and parse 91-98/100 in no stable relation to the
+#: target's wording, because the gated statistic is an integer median of 14-20 words where one word
+#: is ~6.7% against a two-word tolerance -- the same "run out of resolution" argument
+#: `PARITY_LOOP_CLOSED` used to stop at 1 of 10 iterations.
+#: The 13-vs-17 gap is therefore reported, not tuned away; `docs/harvest/w9_stratified_parity_guided_v4.md`
+#: discharges §5's asymmetric scrutiny by showing joint's citation-recall advantage survives
+#: length matching (it *grows*: standardised to post-hoc's claim-length distribution, joint's recall
+#: rises 0.5099 -> 0.5216 and the F1 delta +0.1403 -> +0.1503 [+0.0794, +0.2251]).
 #: This also carries the `claim_rules` and JSON-reply instruction; see `JOINT_TEMPLATE` above for
 #: the unguided fallback these lines mirror.
 #:
@@ -532,13 +542,8 @@ claim with a quotation from the passages.
 Only write a claim that says something the passages actually support. If a passage has nothing to
 do with the question, leave it out rather than writing a claim that says so.
 
-Write each claim with full detail so it stands on its own: target sixteen to twenty-one words per
-claim, and a claim under ten words is usually missing a qualifying detail the passage gives it —
-the population, the comparison, or the size of the effect.
-
 Format the JSON compactly: a single space after each colon, no extra indentation, and no blank
-lines between claims. This is about the JSON's own whitespace only, not about how much a claim
-says.
+lines between claims.
 
 Reply with a single JSON object and nothing else."""
 

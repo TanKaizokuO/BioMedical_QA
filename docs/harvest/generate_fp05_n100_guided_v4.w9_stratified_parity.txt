@@ -1,0 +1,35 @@
+ADR-0009 §5 W9 Stratified Robustness Check: generate_fp05_n100_guided_v4
+  records: 300, cost rows: 472, max_tokens: 3584, min_queries: 5
+
+Overall Parity Gate (all records):
+  joint median: 13.0 w/c, post_hoc median: 17.0 w/c
+  gap: +30.8% against ±15%  ->  FAIL
+
+Stratification Scheme: compound_structure
+  stratum         queries j_claims ph_claims  j_median  ph_median      gap        status
+  --------------------------------------------------------------------------------------
+  simple              100      301       379      13.0       16.0   +23.1%          FAIL
+  compound             95      105       247      17.0       19.0   +11.8%          PASS
+  Scheme verdict -> FAIL (powered strata: 2/2)
+
+Stratification Scheme: claim_length
+  stratum         queries j_claims ph_claims  j_median  ph_median      gap        status
+  --------------------------------------------------------------------------------------
+  1-10                 58       92        34       9.0        9.0    +0.0%          PASS
+  11-15                96      165       190      13.0       13.0    +0.0%          PASS
+  16-20                90      102       215      18.0       18.0    +0.0%          PASS
+  21-30                78       41       174      24.0       23.0    -4.2%          PASS
+  31+                  13        3        13      34.0       33.0    -2.9%          PASS
+  Scheme verdict -> PASS (powered strata: 5/5)
+
+Stratification Scheme: query_claim_count
+  stratum         queries j_claims ph_claims  j_median  ph_median      gap        status
+  --------------------------------------------------------------------------------------
+  1-5 claims           89      336       552      13.0       18.0   +38.5%          FAIL
+  6-10 claims          10       70        67      14.0       16.0   +14.3%          PASS
+  11+ claims            0        0         0         -          -        -  UNDERPOWERED
+  Scheme verdict -> FAIL (powered strata: 2/3)
+
+========================================================================================
+OVERALL W9 STRATIFIED ROBUSTNESS VERDICT: FAIL
+========================================================================================
