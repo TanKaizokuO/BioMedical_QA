@@ -342,3 +342,28 @@ uv run python scripts/build_annotation_ui.py --records <records.jsonl> --out /tm
 
 It writes `annotate_a1.html`, `annotate_a2.html`, `annotate_a3.html` and `keyfile.jsonl`, and
 prints the shared `order_hash`. The payload is the JSON inside `<script id="tasks">` of any form.
+
+---
+
+## 11. Post-Annotation Gate G3 Verdict Execution
+
+Once human annotations are collected from annotators (e.g. `ann1.jsonl`, `ann2.jsonl`, `ann3.jsonl`), run `scripts/g3_report.py` to join annotations against the keyfile and compute the Gate G3 verdict:
+
+```bash
+uv run python scripts/g3_report.py \
+  --records <records.jsonl> \
+  --annotations <ann1.jsonl> <ann2.jsonl> <ann3.jsonl> \
+  --keyfile <keyfile.jsonl> \
+  [--primary-annotator <id>] \
+  --cost-ratio <float> \
+  --out <g3_verdict.json>
+```
+
+**Required Input Artifacts:**
+1. Verifier-scored `QueryRecord` JSONL file (`--records`).
+2. Blinded human annotation export JSONL files (`--annotations`), containing `LABEL_ROW` and `QUESTION_ROW` entries.
+3. Unblinding keyfile JSONL (`--keyfile`), produced by `build_annotation_ui.py`.
+4. Cost reduction ratio vs Opus baseline (`--cost-ratio`) or judge cost records (`--costs`).
+
+**Auditable Output:**
+The generated output JSON (`--out`) is the sole auditable artifact containing gate thresholds, joined diagnostics (`n_scored`, `n_missing_annotations`, `no_majority_rate`), and the G3 verdict (`passes`: `true`/`false`).

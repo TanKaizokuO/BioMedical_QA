@@ -4,7 +4,7 @@
 Consumes verifier-scored QueryRecords and human label annotations to report G3 gate status.
 
 Usage:
-    uv run python scripts/g3_report.py --records <path> [--annotations <path>] [--cost-ratio <float>] --out <path>
+    uv run python scripts/g3_report.py --records <path> [--annotations <path...>] [--keyfile <path>] [--primary-annotator <id>] [--cost-ratio <float>] --out <path>
 
 Exit Code Convention:
     Returns 0 when the driver successfully completes and writes the report artifact,
@@ -27,11 +27,12 @@ from typing import Any
 _REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(_REPO / "src"))
 
+from biomedqa.annotate import ingest_annotations  # noqa: E402
 from biomedqa.harness import git_sha  # noqa: E402
 from biomedqa.schema import (  # noqa: E402
-    HumanLabel,
+    CostRecord,
     QueryRecord,
-    SupportLabel,
+    read_cost_records,
     read_query_records,
 )
 from biomedqa.scoring.calibration import (  # noqa: E402
@@ -40,6 +41,7 @@ from biomedqa.scoring.calibration import (  # noqa: E402
     gate_g3,
     join_scores_and_labels,
 )
+from biomedqa.scoring.cost import _get_val, overhead_ratio  # noqa: E402
 
 DEFAULT_VERIFIER_NAME = "minicheck"
 
@@ -68,51 +70,6 @@ def file_sha256(path: Path) -> str | None:
     return h.hexdigest()
 
 
-def load_and_apply_annotations(records: list[QueryRecord], annotations_path: Path) -> None:
-    """Load human label annotations from file and attach to matching claims on records."""
-    if not annotations_path.exists():
-        raise FileNotFoundError(f"Annotations file not found: {annotations_path}")
-
-    content = annotations_path.read_text(encoding="utf-8").strip()
-    if not content:
-        return
-
-    rows: list[dict[str, Any]] = []
-    if content.startswith("["):
-        rows = json.loads(content)
-    else:
-        for line in content.splitlines():
-            if line.strip():
-                rows.append(json.loads(line))
-
-    claim_map = {(r.query_id, c.claim_id): c for r in records for c in r.claims}
-
-    for r in rows:
-        if "query_id" in r and "claim_id" in r:
-            key = (str(r["query_id"]), str(r["claim_id"]))
-            if key in claim_map:
-                claim = claim_map[key]
-                citation_idx = r.get("citation_index")
-                annotator_id = str(r.get("annotator_id", "human"))
-                lbl_val = r["support_label"]
-                support_lbl = SupportLabel(lbl_val) if isinstance(lbl_val, str) else lbl_val
-                claim_validity = bool(r.get("claim_validity", True))
-                notes = r.get("notes")
-
-                dup = any(
-                    h.annotator_id == annotator_id and h.citation_index == citation_idx
-                    for h in claim.human_labels
-                )
-                if not dup:
-                    claim.human_labels.append(
-                        HumanLabel(
-                            annotator_id=annotator_id,
-                            support_label=support_lbl,
-                            claim_validity=claim_validity,
-                            citation_index=citation_idx,
-                            notes=notes,
-                        )
-                    )
 
 
 def sanitize_nans_for_json(obj: Any) -> Any:
@@ -127,7 +84,9 @@ def sanitize_nans_for_json(obj: Any) -> Any:
 
 
 def score_records(
-    records: list[QueryRecord], verifier_name: str = DEFAULT_VERIFIER_NAME
+    records: list[QueryRecord],
+    verifier_name: str = DEFAULT_VERIFIER_NAME,
+    primary_annotator: str | None = None,
 ) -> tuple[list[float], list[bool], list[str], dict[str, Any]]:
     """Compute join diagnostics and perform score/label join via `join_scores_and_labels`."""
     n_records = len(records)
@@ -162,7 +121,9 @@ def score_records(
 
     if n_missing_annotations == 0 and n_scored > 0 and (n_scored + n_missing_scores) > 0:
         try:
-            joined = join_scores_and_labels(records, verifier_name=verifier_name)
+            joined = join_scores_and_labels(
+                records, verifier_name=verifier_name, primary_annotator=primary_annotator
+            )
             n_no_majority = joined.n_no_majority
             no_majority_rate = joined.no_majority_rate
             scores = [r.score for r in joined]
@@ -191,6 +152,7 @@ def compute_verdict(
     clusters: list[str],
     cost_ratio: float | None,
     diagnostics: dict[str, Any],
+    missing_judge_evidence: bool = False,
 ) -> dict[str, Any]:
     """Pass score/label pairs into `gate_g3` and adjust reasons if evidence is missing."""
     verdict = gate_g3(
@@ -202,18 +164,21 @@ def compute_verdict(
         no_majority_rate=diagnostics["no_majority_rate"],
     )
 
+    reasons: list[str] = []
     if diagnostics["n_missing_annotations"] > 0 or len(scores) == 0:
-        reasons: list[str] = []
-        if diagnostics["n_missing_annotations"] > 0 or len(scores) == 0:
-            reasons.append("missing_human_labels")
-        if cost_ratio is None:
-            reasons.append("cost_ratio_missing")
-        elif math.isnan(cost_ratio) or cost_ratio < G3_COST_RATIO_MIN:
-            reasons.append(f"cost_ratio_below_threshold ({cost_ratio} < {G3_COST_RATIO_MIN})")
-        elif not math.isnan(verdict.get("auroc", float("nan"))) and verdict["auroc"] < G3_AUROC_MIN:
-            reasons.append(f"auroc_below_threshold ({verdict['auroc']:.4f} < {G3_AUROC_MIN})")
+        reasons.append("missing_human_labels")
 
-        verdict["reason"] = "; ".join(reasons) if reasons else verdict["reason"]
+    if missing_judge_evidence:
+        reasons.append("missing_judge_cost_evidence")
+    elif cost_ratio is None:
+        reasons.append("cost_ratio_missing")
+    elif math.isnan(cost_ratio) or cost_ratio < G3_COST_RATIO_MIN:
+        reasons.append(f"cost_ratio_below_threshold ({cost_ratio} < {G3_COST_RATIO_MIN})")
+    elif not math.isnan(verdict.get("auroc", float("nan"))) and verdict["auroc"] < G3_AUROC_MIN:
+        reasons.append(f"auroc_below_threshold ({verdict['auroc']:.4f} < {G3_AUROC_MIN})")
+
+    if reasons:
+        verdict["reason"] = "; ".join(reasons)
 
     return verdict
 
@@ -251,17 +216,58 @@ def build_report(
     verdict: dict[str, Any],
     finished_at: str,
     verifier_name: str = DEFAULT_VERIFIER_NAME,
+    cost_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build self-describing JSON report dict containing gate verbatim, diagnostics, and provenance."""
+    ann_sources = (
+        [str(p) for p in args.annotations]
+        if isinstance(args.annotations, list)
+        else ([str(args.annotations)] if args.annotations else None)
+    )
+    ann_sha = (
+        [file_sha256(p) for p in args.annotations]
+        if isinstance(args.annotations, list)
+        else ([file_sha256(args.annotations)] if args.annotations and args.annotations.exists() else None)
+    )
+    keyfile_source = str(args.keyfile) if getattr(args, "keyfile", None) else None
+    keyfile_sha = (
+        file_sha256(args.keyfile)
+        if getattr(args, "keyfile", None) and args.keyfile.exists()
+        else None
+    )
+    cost_prov = cost_provenance or {}
+
     report: dict[str, Any] = {
         "script": "scripts/g3_report.py",
         "finished_at": finished_at,
         "records_source": str(args.records),
         "records_sha256": file_sha256(args.records),
-        "annotations_source": str(args.annotations) if args.annotations else None,
-        "annotations_sha256": file_sha256(args.annotations)
-        if args.annotations and args.annotations.exists()
-        else None,
+        "annotations_source": ann_sources,
+        "annotations_sha256": ann_sha,
+        "keyfile_source": keyfile_source,
+        "keyfile_sha256": keyfile_sha,
+        "cost_source_type": cost_prov.get("source_type", "none"),
+        "cost_records_source": cost_prov.get("records_source"),
+        "cost_records_sha256": cost_prov.get("records_sha256"),
+        "cost_provenance": cost_prov,
+        "judge_run_specification": {
+            "required_component": "judge",
+            "required_backend": "anthropic:claude-opus-5",
+            "required_cost_record_fields": [
+                "run_id",
+                "query_id",
+                "component",
+                "backend",
+                "input_tokens",
+                "output_tokens",
+                "usd",
+                "wall_s",
+            ],
+            "required_population": "All 1,257 (claim, cited span) evaluation units in gold evaluation set",
+            "pricing_provenance": "Anthropic listed API rates (ADR-0004:73-79)",
+            "verifier_hardware_provenance": "NVIDIA A4000 (ADR-0008, research_roadmap.md:519)",
+            "doc_reference": "docs/adr/0004-local-generator-frontier-judge.md",
+        },
         "git_commit": git_sha(_REPO),
         "verifier": verifier_name,
         "thresholds": {
@@ -276,15 +282,37 @@ def build_report(
         report[k] = v
     return report
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="G3 Gate Report Driver (CPU)")
     ap.add_argument("--records", type=Path, required=True, help="Path to QueryRecord JSONL file")
-    ap.add_argument("--annotations", type=Path, default=None, help="Path to human annotations file")
+    ap.add_argument(
+        "--annotations",
+        type=Path,
+        nargs="+",
+        default=None,
+        help="Path(s) to human annotation JSONL file(s)",
+    )
+    ap.add_argument(
+        "--keyfile",
+        type=Path,
+        default=None,
+        help="Path to blinding keyfile JSONL mapping unit_id to record metadata",
+    )
+    ap.add_argument(
+        "--primary-annotator",
+        type=str,
+        default=None,
+        help="Primary annotator ID for tie-breaking majority votes (ADR-0016)",
+    )
     ap.add_argument("--cost-ratio", type=float, default=None, help="Cost reduction ratio vs Opus")
+    ap.add_argument("--costs", type=Path, default=None, help="Path to CostRecord JSONL file")
     ap.add_argument("--verifier", type=str, default=None, help="Verifier score name filter")
     ap.add_argument("--out", type=Path, required=True, help="Output JSON file path")
     args = ap.parse_args()
+
+    if args.cost_ratio is not None and args.costs is not None:
+        print("Error: --cost-ratio and --costs are mutually exclusive", file=sys.stderr)
+        return 1
 
     if not args.records.exists():
         print(f"Error: --records file does not exist: {args.records}", file=sys.stderr)
@@ -292,21 +320,89 @@ def main() -> int:
 
     finished_at = datetime.now(timezone.utc).isoformat()
 
+    cost_source_type = "none"
+    cost_records_source = None
+    cost_records_sha256 = None
+    cost_overhead_summary = None
+    n_ours_cost_records = None
+    n_judge_cost_records = None
+    cost_ratio = None
+    missing_judge_evidence = False
+
+    if args.cost_ratio is not None:
+        cost_source_type = "hand_passed"
+        cost_ratio = args.cost_ratio
+    elif args.costs is not None:
+        cost_source_type = "derived"
+        cost_records_source = str(args.costs)
+        if not args.costs.exists():
+            print(f"Error: --costs file does not exist: {args.costs}", file=sys.stderr)
+            return 1
+        cost_records_sha256 = file_sha256(args.costs)
+        cost_records = list(read_cost_records(args.costs))
+        judge_records = [c for c in cost_records if (_get_val(c, "component") or "") == "judge"]
+        ours_records = [c for c in cost_records if (_get_val(c, "component") or "") != "judge"]
+        n_judge_cost_records = len(judge_records)
+        n_ours_cost_records = len(ours_records)
+
+        if not judge_records:
+            cost_ratio = None
+            missing_judge_evidence = True
+            cost_overhead_summary = {
+                "usd_ratio": None,
+                "note": "empty judge series: component='judge' CostRecords absent",
+            }
+        else:
+            cost_overhead_summary = overhead_ratio(ours_records, judge_records)
+            cost_ratio = cost_overhead_summary.get("usd_ratio")
+
+    cost_provenance = {
+        "source_type": cost_source_type,
+        "records_source": cost_records_source,
+        "records_sha256": cost_records_sha256,
+        "hand_passed_cost_ratio": args.cost_ratio,
+        "n_ours_cost_records": n_ours_cost_records,
+        "n_judge_cost_records": n_judge_cost_records,
+        "cost_overhead_summary": cost_overhead_summary,
+    }
+
     records = list(read_query_records(args.records))
     if args.annotations is not None:
+        if args.keyfile is None:
+            print("Error: --keyfile is required when --annotations is specified", file=sys.stderr)
+            return 1
         try:
-            load_and_apply_annotations(records, args.annotations)
+            ingest_annotations(
+                label_files=args.annotations,
+                keyfile=args.keyfile,
+                records=records,
+            )
         except Exception as err:
             print(f"Error loading annotations from {args.annotations}: {err}", file=sys.stderr)
             return 1
 
     verifier_name = detect_verifier_name(records, args.verifier)
-    scores, labels, clusters, diagnostics = score_records(records, verifier_name=verifier_name)
-    verdict = compute_verdict(scores, labels, clusters, args.cost_ratio, diagnostics)
+    scores, labels, clusters, diagnostics = score_records(
+        records, verifier_name=verifier_name, primary_annotator=args.primary_annotator
+    )
+    verdict = compute_verdict(
+        scores,
+        labels,
+        clusters,
+        cost_ratio,
+        diagnostics,
+        missing_judge_evidence=missing_judge_evidence,
+    )
 
     print_verdict_block(verdict, diagnostics)
-
-    report = build_report(args, diagnostics, verdict, finished_at, verifier_name=verifier_name)
+    report = build_report(
+        args,
+        diagnostics,
+        verdict,
+        finished_at,
+        verifier_name=verifier_name,
+        cost_provenance=cost_provenance,
+    )
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     clean_report = sanitize_nans_for_json(report)
