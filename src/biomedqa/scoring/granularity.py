@@ -321,7 +321,7 @@ def stage_output_tokens(
     """
     per_query: dict[str, list[CostRecord]] = {}
     for c in costs:
-        if c.query_id is not None:
+        if c.query_id is not None and not getattr(c, "is_retry", False):
             per_query.setdefault(c.query_id, []).append(c)
 
     by_key = {
@@ -373,7 +373,7 @@ def truncated_queries(
     """
     per_query: dict[str, list[CostRecord]] = {}
     for c in costs:
-        if c.query_id is not None:
+        if c.query_id is not None and not getattr(c, "is_retry", False):
             per_query.setdefault(c.query_id, []).append(c)
 
     out: dict[str, set[str]] = {system.value if isinstance(system, System) else system: set() for system in STAGES_OF}

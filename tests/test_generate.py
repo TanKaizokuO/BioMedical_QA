@@ -634,3 +634,270 @@ class TestStageCountRule:
             "post_hoc": {"stages_seen": [2]},
         }
         assert evaluate(joint_no_records_fault) is False
+class TestProvenanceAndRetries:
+    def test_prompt_window_value_error_yields_recorded_failure(self) -> None:
+        """(1) prompt-window ValueError yields a recorded failure, no exception escapes."""
+        msg = "Prompt window exceeded: prompt_tokens (7000) + max_tokens (2000) = 9000 exceeds model_max_len (8192) for model 'stub'."
+
+        def failing_completer(prompt, config, *, seed, run_id, query_id):
+            raise ValueError(msg)
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="21074975",
+            complete=failing_completer,
+        )
+        assert isinstance(gen.record, QueryRecord)
+        assert gen.record.claims == []
+        assert len(gen.errors) > 0
+        assert any("call 1 rejected: Prompt window exceeded" in e for e in gen.errors)
+        assert gen.record.prompt_tokens is None
+        assert gen.record.completion_tokens is None
+        assert isinstance(gen.record.latency_s, float)
+
+    def test_retry_http_transport_failure_handled_like_normal_call_failure(self) -> None:
+        """(2) retry HTTP/transport failure handled like a normal call failure."""
+        req = httpx.Request("POST", "http://localhost:8000/v1/chat/completions")
+        exc = httpx.TransportError("Retry connection failed", request=req)
+
+        call_count = 0
+
+        def retry_failing_completer(prompt, config, *, seed, run_id, query_id, response_format=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "{not valid json", CostRecord(
+                    run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                    input_tokens=100, output_tokens=50, wall_s=0.2, temperature=config.temperature,
+                )
+            raise exc
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+            seed=0,
+            run_id="run-1",
+            query_id="1",
+            complete=retry_failing_completer,
+        )
+        assert len(gen.costs) == 3
+        assert gen.costs[1].is_retry is True
+        assert gen.costs[1].attempt == 2
+        assert gen.costs[1].input_tokens is None
+        assert gen.costs[1].output_tokens is None
+        assert gen.costs[2].is_retry is True
+        assert gen.costs[2].attempt == 3
+        assert gen.costs[2].input_tokens is None
+        assert gen.costs[2].output_tokens is None
+        assert any("call 2 rejected: Retry connection failed" in e for e in gen.errors)
+        assert any("call 3 rejected: Retry connection failed" in e for e in gen.errors)
+
+    def test_retry_cost_bookkeeping(self) -> None:
+        """(3) retry cost bookkeeping: primary component costs uncorrupted, retry tokens still counted."""
+        joint_json = json.dumps({
+            "decision": "yes",
+            "claims": [
+                {
+                    "claim_index": 1,
+                    "text": "Metformin reduced all-cause mortality in adults with type 2 diabetes.",
+                    "citations": [{"passage_id": "p1", "quote": "Metformin reduced all-cause mortality by 21%"}],
+                }
+            ],
+        })
+        call_count = 0
+
+        def retry_completer(prompt, config, *, seed, run_id, query_id, response_format=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "{not valid json", CostRecord(
+                    run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                    input_tokens=100, output_tokens=50, wall_s=0.2, temperature=config.temperature,
+                )
+            return joint_json, CostRecord(
+                run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                input_tokens=100, output_tokens=60, wall_s=0.3, temperature=config.temperature,
+            )
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub", guided_decoding=True),
+            seed=0,
+            run_id="run-1",
+            query_id="1",
+            complete=retry_completer,
+        )
+        assert gen.record.prompt_tokens == 100
+        assert gen.record.completion_tokens == 50
+
+        from biomedqa.scoring.cost import per_query_cost
+        totals = per_query_cost(gen.costs)
+        assert totals["generate"]["input_tokens"]["total"] == 200
+        assert totals["generate"]["output_tokens"]["total"] == 110
+
+    def test_call_order_positional_integrity_with_retry(self) -> None:
+        """(4) CALL_ORDER positional integrity with a retry present."""
+        from biomedqa.scoring.granularity import CALL_ORDER
+
+        c_joint_initial = CostRecord("r", "q1", "generate", "b", 100, 50, wall_s=0.2, is_retry=False, attempt=1)
+        c_joint_retry = CostRecord("r", "q1", "generate", "b", 100, 60, wall_s=0.3, is_retry=True, attempt=2)
+        c_ph_ans = CostRecord("r", "q1", "generate", "b", 100, 40, wall_s=0.2, is_retry=False, attempt=1)
+        c_ph_cite = CostRecord("r", "q1", "generate", "b", 100, 30, wall_s=0.2, is_retry=False, attempt=1)
+        c_vanilla = CostRecord("r", "q1", "generate", "b", 100, 20, wall_s=0.1, is_retry=False, attempt=1)
+
+        costs = [c_joint_initial, c_joint_retry, c_ph_ans, c_ph_cite, c_vanilla]
+        primary_costs = [c for c in costs if not c.is_retry]
+
+        assert len(primary_costs) == len(CALL_ORDER)
+        assert primary_costs[0] == c_joint_initial
+        assert primary_costs[1] == c_ph_ans
+        assert primary_costs[2] == c_ph_cite
+        assert primary_costs[3] == c_vanilla
+
+    def test_retry_temperature_recorded_structurally(self) -> None:
+        """(5) retry temperature recorded structurally and differs from base when overridden."""
+        joint_json = json.dumps({
+            "decision": "yes",
+            "claims": [],
+        })
+        call_count = 0
+
+        def retry_completer(prompt, config, *, seed, run_id, query_id, response_format=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "{not valid json", CostRecord(
+                    run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                    input_tokens=100, output_tokens=50, wall_s=0.2, temperature=config.temperature,
+                )
+            return joint_json, CostRecord(
+                run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                input_tokens=100, output_tokens=60, wall_s=0.3, temperature=config.temperature,
+            )
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub", temperature=0.0, guided_decoding=True),
+            seed=0,
+            run_id="run-1",
+            query_id="1",
+            complete=retry_completer,
+        )
+        assert gen.costs[0].temperature == 0.0
+        assert gen.costs[0].is_retry is False
+        assert gen.costs[0].attempt == 1
+
+        assert gen.costs[1].temperature == 0.3
+        assert gen.costs[1].is_retry is True
+        assert gen.costs[1].attempt == 2
+        assert gen.costs[1].temperature != gen.costs[0].temperature
+
+    def test_stage_output_tokens_compatibility_with_retry(self) -> None:
+        """(6) stage_output_tokens compatibility with retry records present."""
+        from biomedqa.scoring.granularity import stage_output_tokens
+
+        r_joint = QueryRecord("r", "q1", "q", System.JOINT, 0, completion_tokens=50)
+        r_ph = QueryRecord("r", "q1", "q", System.POST_HOC, 0, completion_tokens=70)
+        r_vanilla = QueryRecord("r", "q1", "q", System.VANILLA, 0, completion_tokens=20)
+
+        c_joint_initial = CostRecord("r", "q1", "generate", "b", 100, 50, wall_s=0.2, is_retry=False, attempt=1)
+        c_joint_retry = CostRecord("r", "q1", "generate", "b", 100, 60, wall_s=0.3, is_retry=True, attempt=2)
+        c_ph_ans = CostRecord("r", "q1", "generate", "b", 100, 40, wall_s=0.2, is_retry=False, attempt=1)
+        c_ph_cite = CostRecord("r", "q1", "generate", "b", 100, 30, wall_s=0.2, is_retry=False, attempt=1)
+        c_vanilla = CostRecord("r", "q1", "generate", "b", 100, 20, wall_s=0.1, is_retry=False, attempt=1)
+
+        costs = [c_joint_initial, c_joint_retry, c_ph_ans, c_ph_cite, c_vanilla]
+        records = [r_joint, r_ph, r_vanilla]
+
+        stages = stage_output_tokens(records, costs)
+        assert stages["q1"] == {
+            "joint": 50,
+            "post_hoc_answer": 40,
+            "post_hoc_cite": 30,
+            "vanilla": 20,
+        }
+
+    def test_failure_record_shape(self) -> None:
+        """(7) failure-record shape."""
+        msg = "Prompt window exceeded: prompt_tokens (7000) + max_tokens (2000) = 9000 exceeds model_max_len (8192) for model 'stub'."
+
+        def failing_completer(prompt, config, *, seed, run_id, query_id):
+            raise ValueError(msg)
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub"),
+            seed=0,
+            run_id="run-1",
+            query_id="q1",
+            complete=failing_completer,
+        )
+        assert len(gen.costs) == 1
+        cost = gen.costs[0]
+        assert cost.run_id == "run-1"
+        assert cost.query_id == "q1"
+        assert cost.component == "generate"
+        assert cost.backend == "vllm:stub"
+        assert cost.input_tokens is None
+        assert cost.output_tokens is None
+        assert isinstance(cost.wall_s, float)
+        assert any("call 1 rejected:" in e for e in gen.errors)
+
+    def test_deterministic_provenance_fields(self) -> None:
+        """(8) deterministic provenance fields."""
+        joint_json = json.dumps({"decision": "yes", "claims": []})
+        call_count = 0
+
+        def retry_completer(prompt, config, *, seed, run_id, query_id, response_format=None):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return "{not valid json", CostRecord(
+                    run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                    input_tokens=100, output_tokens=50, wall_s=0.2, temperature=config.temperature,
+                )
+            return joint_json, CostRecord(
+                run_id=run_id, query_id=query_id, component="generate", backend="stub",
+                input_tokens=100, output_tokens=60, wall_s=0.3, temperature=config.temperature,
+            )
+
+        gen = generate_one(
+            "q",
+            _passages(),
+            ["p1"],
+            system=System.JOINT,
+            config=GenerationConfig(model="stub", temperature=0.0, guided_decoding=True),
+            seed=42,
+            run_id="run-test-123",
+            query_id="query-456",
+            complete=retry_completer,
+        )
+        assert gen.record.run_id == "run-test-123"
+        assert gen.record.query_id == "query-456"
+        assert gen.record.seed == 42
+        assert gen.costs[0].run_id == "run-test-123"
+        assert gen.costs[0].query_id == "query-456"
+        assert gen.costs[0].attempt == 1
+        assert gen.costs[0].is_retry is False
+        assert gen.costs[1].run_id == "run-test-123"
+        assert gen.costs[1].query_id == "query-456"
+        assert gen.costs[1].attempt == 2
+        assert gen.costs[1].is_retry is True

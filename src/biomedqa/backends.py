@@ -224,6 +224,7 @@ def _vllm_complete(
         output_tokens=output_tokens,
         usd=None,          # local inference — no per-token USD cost
         wall_s=wall_s,
+        temperature=config.temperature,
     )
     return text, cost
 
@@ -314,5 +315,6 @@ def _anthropic_complete(
         output_tokens=output_tokens,
         usd=usd,
         wall_s=wall_s,
+        temperature=config.temperature,
     )
     return text, cost

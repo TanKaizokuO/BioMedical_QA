@@ -227,7 +227,9 @@ class CostRecord:
     output_tokens: int | None = None
     usd: float | None = None
     wall_s: float | None = None
-
+    is_retry: bool = False
+    attempt: int = 1
+    temperature: float | None = None
 
 # ---------------------------------------------------------------------------------------------
 # Serialisation. JSONL in, JSONL out, byte-stable — the round-trip is what makes the schema frozen

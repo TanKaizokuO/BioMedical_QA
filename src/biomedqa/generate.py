@@ -137,15 +137,24 @@ def generate_one(
     costs: list[CostRecord] = []
     call_failures: list[str] = []
 
-    def call(prompt: str, response_format: dict[str, Any] | None = None) -> str:
+    def call(
+        prompt: str,
+        response_format: dict[str, Any] | None = None,
+        config_override: GenerationConfig | None = None,
+        is_retry: bool = False,
+        attempt: int = 1,
+    ) -> str:
         stage_num = len(texts) + 1
+        call_config = config_override if config_override is not None else config
         t0 = time.perf_counter()
         try:
             complete_kw = {"response_format": response_format} if response_format is not None else {}
             text, cost = complete(
-                prompt, config, seed=seed, run_id=run_id, query_id=query_id, **complete_kw
+                prompt, call_config, seed=seed, run_id=run_id, query_id=query_id, **complete_kw
             )
-        except (httpx.HTTPStatusError, httpx.TransportError) as exc:
+        except (httpx.HTTPStatusError, httpx.TransportError, ValueError) as exc:
+            if isinstance(exc, ValueError) and "Prompt window exceeded" not in str(exc):
+                raise
             wall_s = time.perf_counter() - t0
             exc_str = str(exc)
             if len(exc_str) > 400:
@@ -157,14 +166,23 @@ def generate_one(
                     run_id=run_id,
                     query_id=query_id,
                     component="generate",
-                    backend=f"vllm:{config.model}",
+                    backend=f"vllm:{call_config.model}",
                     input_tokens=None,
                     output_tokens=None,
                     wall_s=wall_s,
+                    is_retry=is_retry,
+                    attempt=attempt,
+                    temperature=call_config.temperature,
                 )
             )
             return ""
         else:
+            cost = replace(
+                cost,
+                is_retry=is_retry,
+                attempt=attempt,
+                temperature=call_config.temperature,
+            )
             texts.append(text)
             costs.append(cost)
             return text
@@ -306,14 +324,15 @@ def generate_one(
             if needs_retry:
                 original_errors = parsed.errors
                 retry_notes: list[str] = []
-                for retry_temperature in (0.3, 0.7):
+                for attempt_idx, retry_temperature in enumerate((0.3, 0.7), start=2):
                     retry_config = replace(config, temperature=retry_temperature)
-                    retry_text, retry_cost = complete(
-                        prompt_joint, retry_config, seed=seed, run_id=run_id, query_id=query_id,
+                    retry_text = call(
+                        prompt_joint,
                         response_format=guided_format,
+                        config_override=retry_config,
+                        is_retry=True,
+                        attempt=attempt_idx,
                     )
-                    texts.append(retry_text)
-                    costs.append(retry_cost)
                     if retry_text.startswith('"'):
                         try:
                             unwrapped = json.loads(retry_text)
@@ -368,9 +387,9 @@ def generate_one(
         raw_generation=STAGE_SEPARATOR.join(texts),
         final_decision=parsed.decision,
         gold_final_decision=gold_final_decision,
-        latency_s=_total(c.wall_s for c in costs),
-        prompt_tokens=_total(c.input_tokens for c in costs),
-        completion_tokens=_total(c.output_tokens for c in costs),
+        latency_s=_total(c.wall_s for c in costs if not c.is_retry),
+        prompt_tokens=_total(c.input_tokens for c in costs if not c.is_retry),
+        completion_tokens=_total(c.output_tokens for c in costs if not c.is_retry),
     )
     return Generation(
         record,
