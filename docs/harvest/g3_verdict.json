@@ -1,11 +1,11 @@
 {
   "script": "scripts/g3_report.py",
-  "finished_at": "2026-08-23T10:56:31.181821+00:00",
+  "finished_at": "2026-08-23T11:01:24.883042+00:00",
   "records_source": "docs/harvest/generate_fp05_n100_guided_v4.verifier_scored.records.jsonl",
   "records_sha256": "1a900478e3ded78ffeb65ae16510dfb2e19d3ebb5ffd318e7ca1207274803f3b",
   "annotations_source": null,
   "annotations_sha256": null,
-  "git_commit": "c681045049896867bc85a89196aa655ca1cf5475-dirty",
+  "git_commit": "dd0e684d8e1fa924de44ccbeae87fa5739d667a7-dirty",
   "verifier": "lytang/MiniCheck-Flan-T5-Large",
   "thresholds": {
     "auroc_min": 0.75,
@@ -15,15 +15,15 @@
     "n_records": 300,
     "n_claims": 1589,
     "n_citations": 1257,
-    "n_scored": 1009,
+    "n_scored": 1257,
     "n_missing_scores": 0,
-    "n_missing_annotations": 1009,
+    "n_missing_annotations": 1257,
     "n_no_majority": 0,
     "no_majority_rate": 0.0,
-    "n_extra_citations": 248
+    "n_extra_citations": 0
   },
   "gate": {
-    "auroc": NaN,
+    "auroc": null,
     "auroc_min": 0.75,
     "auroc_passes": false,
     "auroc_ci": null,
@@ -39,7 +39,7 @@
     "passes": false,
     "reason": "missing_human_labels; cost_ratio_missing"
   },
-  "auroc": NaN,
+  "auroc": null,
   "auroc_min": 0.75,
   "auroc_passes": false,
   "auroc_ci": null,

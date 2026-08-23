@@ -115,6 +115,17 @@ def load_and_apply_annotations(records: list[QueryRecord], annotations_path: Pat
                     )
 
 
+def sanitize_nans_for_json(obj: Any) -> Any:
+    """Recursively replace float('nan') with None so JSON serialization emits null without bare NaN."""
+    if isinstance(obj, float) and math.isnan(obj):
+        return None
+    if isinstance(obj, dict):
+        return {k: sanitize_nans_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize_nans_for_json(v) for v in obj]
+    return obj
+
+
 def score_records(
     records: list[QueryRecord], verifier_name: str = DEFAULT_VERIFIER_NAME
 ) -> tuple[list[float], list[bool], list[str], dict[str, Any]]:
@@ -125,22 +136,24 @@ def score_records(
     n_scored = 0
     n_missing_scores = 0
     n_missing_annotations = 0
-    n_extra_citations = sum(
-        max(0, len(c.citations) - 1) for r in records for c in r.claims if c.citations
-    )
 
     for r in records:
         for c in r.claims:
             if not c.citations:
                 continue
-            has_score = any(v.name == verifier_name for v in c.verifier_scores)
-            if has_score:
-                n_scored += 1
-            else:
-                n_missing_scores += 1
+            matching_scores = [v for v in c.verifier_scores if v.name == verifier_name]
+            for cit_idx in range(len(c.citations)):
+                if cit_idx < len(matching_scores):
+                    n_scored += 1
+                else:
+                    n_missing_scores += 1
 
-            if not c.human_labels:
-                n_missing_annotations += 1
+                matching_labels = [
+                    h for h in c.human_labels if h.citation_index == cit_idx or (h.citation_index is None and cit_idx == 0)
+                ]
+                if not matching_labels:
+                    n_missing_annotations += 1
+    n_extra_citations = n_citations - (n_scored + n_missing_scores)
     scores: list[float] = []
     labels: list[bool] = []
     clusters: list[str] = []
@@ -296,8 +309,11 @@ def main() -> int:
     report = build_report(args, diagnostics, verdict, finished_at, verifier_name=verifier_name)
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"\nWritten to {args.out}")
+    clean_report = sanitize_nans_for_json(report)
+    args.out.write_text(
+        json.dumps(clean_report, indent=2, ensure_ascii=False, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
     return 0
 
 

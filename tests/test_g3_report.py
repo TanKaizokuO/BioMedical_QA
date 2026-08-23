@@ -257,7 +257,10 @@ def test_reconciliation_identity(tmp_path: Path) -> None:
         text="Claim with 2 citations",
         citations=[Citation("p1", 0, 5), Citation("p2", 0, 5)],
         verifier_scores=[VerifierScore("minicheck", 0.9), VerifierScore("minicheck", 0.8)],
-        human_labels=[HumanLabel("a1", SupportLabel.SUPPORTED, True)],
+        human_labels=[
+            HumanLabel("a1", SupportLabel.SUPPORTED, True, citation_index=0),
+            HumanLabel("a1", SupportLabel.SUPPORTED, True, citation_index=1),
+        ],
     )
     c2 = Claim(
         claim_id="c2",
@@ -275,10 +278,28 @@ def test_reconciliation_identity(tmp_path: Path) -> None:
     data = json.loads(out_path.read_text(encoding="utf-8"))
     diag = data["diagnostics"]
 
-    # Identity: citations (3) == scored (2) + missing_scores (0) + n_extra_citations (1)
+    # Identity: citations (3) == scored (3) + missing_scores (0) + n_extra_citations (0)
     assert diag["n_citations"] == 3
-    assert diag["n_scored"] == 2
+    assert diag["n_scored"] == 3
     assert diag["n_missing_scores"] == 0
-    assert diag["n_extra_citations"] == 1
+    assert diag["n_extra_citations"] == 0
     assert diag["n_citations"] == diag["n_scored"] + diag["n_missing_scores"] + diag["n_extra_citations"]
     assert data["diagnostics"]["n_missing_annotations"] == 0
+
+def test_nan_serialization_emits_null_and_strict_json(tmp_path: Path) -> None:
+    rec_path = make_records_file(tmp_path / "nan.records.jsonl", scores=None, labels=None)
+    out_path = tmp_path / "nan_out.json"
+
+    res = run_driver(["--records", str(rec_path), "--out", str(out_path)])
+    assert res.returncode == 0
+
+    raw_text = out_path.read_text(encoding="utf-8")
+    assert "NaN" not in raw_text
+    assert "Infinity" not in raw_text
+
+    def _reject_constant(val: str) -> float:
+        raise ValueError(f"Constant {val!r} not allowed in strict JSON")
+
+    data = json.loads(raw_text, parse_constant=_reject_constant)
+    assert data["auroc"] is None
+    assert data["gate"]["auroc"] is None

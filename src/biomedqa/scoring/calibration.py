@@ -258,74 +258,80 @@ def join_scores_and_labels(
                 raise ValueError(
                     f"Missing verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
                 )
-            target_idx = citation_index if citation_index is not None else 0
             if len(matching_scores) > max(1, len(claim.citations)):
                 raise ValueError(
                     f"Duplicate verifier score {verifier_name!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
                 )
-            if target_idx >= len(matching_scores):
-                raise ValueError(
-                    f"Missing verifier score at citation_index={target_idx} for {verifier_name!r} on query_id={qid!r}, claim_id={claim.claim_id!r}"
-                )
-            score = matching_scores[target_idx].score
 
-            matching_labels = [
-                h for h in claim.human_labels if h.citation_index == citation_index
-            ]
-            if not matching_labels:
-                raise ValueError(
-                    f"Missing human label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={citation_index}"
-                )
-
-            for hl in matching_labels:
-                if not isinstance(hl.support_label, SupportLabel):
-                    raise ValueError(
-                        f"Invalid label value {hl.support_label!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
-                    )
-
-            annotators = [hl.annotator_id for hl in matching_labels]
-            if len(annotators) != len(set(annotators)):
-                raise ValueError(
-                    f"Duplicate annotator label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={citation_index}"
-                )
-
-            if len(matching_labels) == 1:
-                is_supp = matching_labels[0].support_label.is_supporting
-            else:
-                pos = sum(1 for hl in matching_labels if hl.support_label.is_supporting)
-                neg = len(matching_labels) - pos
-                if pos > neg:
-                    is_supp = True
-                elif neg > pos:
-                    is_supp = False
-                else:
-                    if primary_annotator is not None:
-                        prim = [
-                            hl for hl in matching_labels if hl.annotator_id == primary_annotator
-                        ]
-                        if len(prim) == 1:
-                            is_supp = prim[0].support_label.is_supporting
-                            n_no_majority += 1
-                        else:
-                            raise ValueError(
-                                f"No majority and primary annotator {primary_annotator!r} not found for query_id={qid!r}, claim_id={claim.claim_id!r}"
-                            )
-                    else:
-                        raise ValueError(
-                            f"Ambiguous multi-annotator ratings with no majority for query_id={qid!r}, claim_id={claim.claim_id!r}"
-                        )
-
-            joined.append(
-                JoinedEvalRecord(
-                    score=score,
-                    is_supporting=is_supp,
-                    question_id=qid,
-                    claim_id=claim.claim_id,
-                    citation_index=citation_index,
-                    raw_labels=tuple(matching_labels),
-                )
+            target_indices = (
+                range(len(claim.citations))
+                if citation_index is None
+                else [citation_index]
             )
 
+            for idx in target_indices:
+                if idx >= len(matching_scores):
+                    raise ValueError(
+                        f"Missing verifier score at citation_index={idx} for {verifier_name!r} on query_id={qid!r}, claim_id={claim.claim_id!r}"
+                    )
+                score = matching_scores[idx].score
+
+                matching_labels = [
+                    h for h in claim.human_labels if h.citation_index == idx or (h.citation_index is None and idx == 0)
+                ]
+                if not matching_labels:
+                    raise ValueError(
+                        f"Missing human label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={idx}"
+                    )
+
+                for hl in matching_labels:
+                    if not isinstance(hl.support_label, SupportLabel):
+                        raise ValueError(
+                            f"Invalid label value {hl.support_label!r} for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                        )
+
+                annotators = [hl.annotator_id for hl in matching_labels]
+                if len(annotators) != len(set(annotators)):
+                    raise ValueError(
+                        f"Duplicate annotator label for query_id={qid!r}, claim_id={claim.claim_id!r}, citation_index={idx}"
+                    )
+
+                if len(matching_labels) == 1:
+                    is_supp = matching_labels[0].support_label.is_supporting
+                else:
+                    pos = sum(1 for hl in matching_labels if hl.support_label.is_supporting)
+                    neg = len(matching_labels) - pos
+                    if pos > neg:
+                        is_supp = True
+                    elif neg > pos:
+                        is_supp = False
+                    else:
+                        if primary_annotator is not None:
+                            prim = [
+                                hl for hl in matching_labels if hl.annotator_id == primary_annotator
+                            ]
+                            if len(prim) == 1:
+                                is_supp = prim[0].support_label.is_supporting
+                                n_no_majority += 1
+                            else:
+                                raise ValueError(
+                                    f"No majority and primary annotator {primary_annotator!r} not found for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                                )
+                        else:
+                            raise ValueError(
+                                f"Ambiguous multi-annotator ratings with no majority for query_id={qid!r}, claim_id={claim.claim_id!r}"
+                            )
+
+                joined.append(
+                    JoinedEvalRecord(
+                        score=score,
+                        is_supporting=is_supp,
+                        question_id=qid,
+                        claim_id=claim.claim_id,
+                        citation_index=idx,
+                        raw_labels=tuple(matching_labels),
+                    )
+                )
     n_total = len(joined)
     no_majority_rate = float(n_no_majority / n_total) if n_total > 0 else 0.0
     return JoinedEvalList(
