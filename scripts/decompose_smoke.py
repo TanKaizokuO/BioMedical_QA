@@ -6,7 +6,7 @@ Mirrors `generate_smoke.py`'s reasoning exactly (read that docstring first): eve
 has only ever seen an injected completer, and the question this answers has never been asked of real
 hardware — does an 8B model honour the `CLAIM <n>` grammar one sentence at a time, does the `atomic`
 row actually stay bare, and does the re-citation call (`generate.cite_claims`, Option A per
-`HANDOFF.md`) survive contact with the model once per five claims for the two model-driven rows?
+`STATUS.md`) survive contact with the model once per five claims for the two model-driven rows?
 
 Three things it measures that a stub cannot:
 

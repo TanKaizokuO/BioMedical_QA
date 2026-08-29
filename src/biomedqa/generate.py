@@ -451,7 +451,7 @@ def cite_claims(
     guided_decoding: bool = True,
 ) -> Recitation:
     """Attach fresh citations to an already re-cut answer — chosen as Option A over mapping the
-    original citations onto the new claim boundaries (HANDOFF.md): the old citations were located
+    original citations onto the new claim boundaries (STATUS.md): the old citations were located
     against units that no longer exist, so a real citation-F1 for C7 needs a real second pass, at
     the cost of one extra call per row.
 

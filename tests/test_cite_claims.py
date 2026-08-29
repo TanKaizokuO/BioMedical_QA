@@ -2,7 +2,7 @@
 
 `decompose.py` deliberately does not do this (its own docstring says so): a re-cut claim's span
 points at its source sentence, not at a quotable region of the new claim text, so citations belong
-to a second model call. This is Option A from `HANDOFF.md` — re-run the cite stage for real
+to a second model call. This is Option A from `STATUS.md` — re-run the cite stage for real
 citation-F1, rather than mapping the old citations onto claim boundaries that no longer exist.
 """
 

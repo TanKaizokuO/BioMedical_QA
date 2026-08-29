@@ -792,5 +792,5 @@ things that cannot be compressed later.**
 5. **Create `paper/skeleton.md`** — nine sections, the cut claim ledger, **five** empty tables with
    real captions. *(Aug 2)*
 6. **Freeze the splits** and commit the ID lists. *(Aug 7)*
-7. **File these as GitHub issues** per `CLAUDE.md` — one per gate (G0–G5), plus one each for actions
+7. **File these as GitHub issues** — one per gate (G0–G5), plus one each for actions
    1 and 2, labeled `ready-for-agent` where mechanical. *(Aug 3)*

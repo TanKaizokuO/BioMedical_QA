@@ -1,10 +1,10 @@
-# HANDOFF — 2026-08-23 (end of twenty-third session)
+# Project status — 2026-08-23
 
-Snapshot for resuming in a fresh session. Regenerate wholesale; **do not append** — a stale line
-here is worse than a missing one, because the next session will trust it.
+Current state of the experiment: what is signed off, what is frozen, and what is still open.
+This file is regenerated wholesale rather than appended to, so a stale line never survives here.
 
-`main`. **Gate G2 is signed off on `generate_fp05_n100_guided_v4`.** This session found that the
-previous four sessions had been tuning against a criterion that is not in Gate G2, using a prompt
+`main`. **Gate G2 is signed off on `generate_fp05_n100_guided_v4`.** The Aug 23 review found that the
+four previous rounds of work had been tuning against a criterion that is not in Gate G2, using a prompt
 lever ADR-0009 forbids. Five joint-side granularity edits are reverted, `v5`–`v9` are void as
 evidence, and the run of record moves back to `v4`, which clears both real G2 criteria: joint valid
 parse rate **97/100** and citation-F1 delta **+0.1403 [+0.0751, +0.2066]**, excluding zero.
@@ -13,7 +13,7 @@ Tests: `uv run python -m pytest tests/ -q` → **495 passed** in ~19 s. `pyproje
 `pythonpath` is `["src", "scripts"]`. **Use `python -m pytest`** — bare `uv run pytest` fails with
 `Failed to spawn: pytest`.
 
-Frozen digests (unchanged this session):
+Frozen digests (unchanged since Aug 17):
 
 | pin | value |
 |---|---|
@@ -52,12 +52,12 @@ Previous handoffs asserted a **third** precondition — that the ADR-0009 §5 W9
 *pass* — and attributed it to "ADR-0009 §5". **§5 says no such thing.** §5's one-sided fallback makes
 the check mandatory to *run and disclose* when the residual favours C2. §1 lists parity as "one
 quantity measured and disclosed whatever it says"; §3 states outright: "**The tolerance does not need
-to be achievable.** Missing it is survivable by design." Sessions 19–22 were spent chasing a
+to be achievable.** Missing it is survivable by design." Four rounds of work were spent chasing a
 non-criterion.
 
 ---
 
-## 2. What happened this session
+## 2. What changed on Aug 23
 
 ### 2.1 Reverted five joint-side granularity edits (ADR-0009 §4/§6 violation)
 
@@ -139,12 +139,12 @@ Two correctness properties the script asserts or verifies:
 
 ## 3. Open items, in priority order
 
-1. **Commit and push** this session's work: the `JOINT_JSON_TEMPLATE` revert, the
+1. **Commit and push** the Aug 23 work: the `JOINT_JSON_TEMPLATE` revert, the
    `CLAIM_LENGTH_BANDS` extraction, `scripts/w9_length_standardized_contrast.py`, ADR-0009's Fourth
    amendment, the two `v4` reports, and this file.
 2. **Decide the fate of `v5`–`v9` artifacts.** They are void as evidence but currently untracked in
    `docs/harvest/` (20 files). Either delete them or keep them with a `VOID` marker; leaving them
-   untracked risks a future session treating one as a run of record. Recommend deleting `v6`–`v9`
+   untracked risks one later being treated as a run of record. Recommend deleting `v6`–`v9`
    and keeping `v5` (already tracked, cited in the reports).
 3. **Paper methods section** gains the length-standardised contrast alongside the pre-registered
    asymmetric rule, and reports parity as a disclosed miss with its transmission measured.
@@ -165,8 +165,7 @@ Two correctness properties the script asserts or verifies:
 - **All prompts are now frozen.** ADR-0009 §8 freezes the decomposer and post-hoc templates; the
   Fourth amendment closes the `JOINT_JSON_TEMPLATE` loophole for granularity-motivated edits. A
   guided-decoding *parse* defect fix remains legitimate, but must not change claim-length guidance.
-- **`Upcoming_goals.md` is the live target list.** Keep it current, in ASD-STE100 STE.
-- Pushing to `origin/main` needs no permission (`CLAUDE.md`); always `git pull --rebase` first.
+- **`TODO.md` is the live target list. Keep it current, in ASD-STE100 STE.
 
 ---
 

@@ -17,7 +17,7 @@ batch.** That condition is met today:
   ("fix(prompts): guard guided-JSON repair state and record recovery
   provenance"). Inspected: this touches only JSON-repair state initialization in
   `parse_response`, not `JOINT_JSON_TEMPLATE`, not `_claim_rules()`, not any
-  claim-length or granularity guidance. It is the class of change HANDOFF.md:167
+  claim-length or granularity guidance. It is the class of change STATUS.md:167
   pre-authorized as legitimate post-freeze ("a guided-decoding parse defect fix
   remains legitimate, but must not change claim-length guidance").
 - The granularity parity loop (ADR-0009) closed 2026-08-14 at `parity_iter1b`.

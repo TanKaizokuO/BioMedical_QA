@@ -351,8 +351,8 @@ This is three separate violations of this ADR, and none of them was caught by a 
 3. **§5's check was treated as a gate.** *What survives termination* states: "A pre-registered
    asymmetric check is not retracted because the iteration that closed the loop passed; that
    retraction is the post-hoc steering §3 and §6 exist to prevent." Tuning the check into passing is
-   that retraction by another route. The compounding error was a belief — recorded in `HANDOFF.md`
-   and `Upcoming_goals.md`, and attributed to "ADR-0009 §5" — that W9 passing was a Gate G2
+   that retraction by another route. The compounding error was a belief — recorded in `STATUS.md`
+   and `TODO.md`, and attributed to "ADR-0009 §5" — that W9 passing was a Gate G2
    precondition. **§5 says nothing of the kind, and neither does Gate G2.** §1 lists parity as "one
    quantity measured and disclosed whatever it says"; §3 states "the tolerance does not need to be
    achievable. Missing it is survivable by design"; §5's fallback makes the stratified check

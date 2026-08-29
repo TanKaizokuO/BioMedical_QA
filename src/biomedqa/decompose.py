@@ -48,7 +48,7 @@ Three decisions that the docstring above did not settle, made here:
 **Citations are not this module's business.** A re-cut claim has no citations: the spans belonged to
 units that no longer exist. Re-attaching them is a generation-stage question — `generate.cite_claims`
 re-runs post-hoc's cite-stage prompt over the new units, positionally, at the cost of one call per
-row (chosen over mapping the old citations onto the new claim boundaries; `HANDOFF.md`).
+row (chosen over mapping the old citations onto the new claim boundaries; `STATUS.md`).
 
 `notebooks/04_3_decompose_then_verify.ipynb` promoted here in shape only — it splits toy sentences on
 punctuation and never decontextualizes, which is the hard part and the one this module pays a model

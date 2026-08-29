@@ -1,6 +1,6 @@
 # Upcoming Goals
 
-This document lists the upcoming targets for the project. The project uses evidence-grounded, claim-attributable biomedical question answering. All terms match `CONTEXT.md`. Future agents MUST update this document when targets are completed, changed, or added. Write all updates in ASD-STE100 Simplified Technical English.
+This document lists the upcoming targets for the project. The project uses evidence-grounded, claim-attributable biomedical question answering. All terms match `CONTEXT.md`. Update this document when targets are completed, changed, or added. Write all updates in ASD-STE100 Simplified Technical English.
 
 ---
 
