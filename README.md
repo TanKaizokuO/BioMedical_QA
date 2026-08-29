@@ -4,9 +4,37 @@ A biomedical question-answering system that answers as a set of atomic, decontex
 each attributed to the retrieved passage(s) that support it, with a lightweight faithfulness
 verifier. Evaluation leads on attribution quality and faithfulness; accuracy is secondary.
 
-The headline claim: joint per-claim grounding (generating claims and their citations together)
-produces higher citation recall than post-hoc attribution (generate, then attach citations) at
-comparable precision, measured against ~2M PubMed abstracts with a real distractor pool.
+## The result
+
+**Joint per-claim grounding — generating claims and their citations in one call — beats post-hoc
+attribution on citation F1 by +0.140, 95% CI [+0.075, +0.207].** The interval excludes zero on a
+query-clustered paired bootstrap (99 queries, 10,000 draws, seed 0).
+
+| citation metric (φ = MiniCheck-Flan-T5-Large, τ = 0.5) | joint | post-hoc |
+|---|---|---|
+| precision | 0.956 | 0.955 |
+| recall | **0.510** | 0.362 |
+| **F1** | **0.665** | 0.525 |
+
+Precision is a tie; the entire contrast is recall. That is the shape the hypothesis predicts —
+joint grounding changes *whether a claim ends up supported by what was cited*, not whether the
+citations it emits are relevant. The gap is not an artifact of joint emitting shorter claims:
+standardizing on claim length **widens** it to +0.150 [+0.079, +0.224].
+
+Measured on 100 held-out PubMedQA dev questions against a ~2M-abstract PubMed distractor pool,
+with both arms under identical guided decoding and no granularity target in either prompt
+(run `generate_fp05_n100_guided_v4`, git `054ec6b`, config `1.5.0`). Joint clean-parse rate
+97/100. Full write-up: [`docs/harvest/joint_citation_f1_fp05_guided_v4.md`](docs/harvest/joint_citation_f1_fp05_guided_v4.md).
+
+The retrieval cascade underneath it, on the same 100 questions:
+
+| cascade | hit@5 | hit@10 | MRR | nDCG@10 |
+|---|---|---|---|---|
+| BM25 only | 0.71 | 0.77 | 0.620 | 0.293 |
+| BM25 + dense + RRF + MedCPT rerank | **0.86** | **0.94** | **0.785** | **0.375** |
+
+Every number on this page is produced by a script in `scripts/` from a run manifest in
+`docs/harvest/`, and `harness.py` writes the manifest before the run starts.
 
 ---
 
