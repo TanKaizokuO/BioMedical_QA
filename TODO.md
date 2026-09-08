@@ -108,6 +108,7 @@ This document lists the upcoming targets for the project. The project uses evide
 * **Select Claim Set:** You must select the labeled claim set that gives the AUROC reading.
 * **Measure Verifier AUROC:** You must measure the MiniCheck ($\phi$) and AlignScore AUROC on that set.
 * **Measure Verifier Cost:** You must measure the cost per claim of each verifier against the Opus 5 judge baseline.
+* **Record the Timing Host:** You must record the box that gives the verifier timing. Two A4000 boxes are available and they have the same GPU model on different substrates. You must not compare a time from one box with a time from the other box (ADR-0022 §3).
 
 ---
 
@@ -136,6 +137,17 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ---
 
+## 12. Second A4000 Box Preparation
+
+**Target Date:** Before the Gate G3 timing run (September 20, 2026)
+**Context:** A second A4000 box is available from 2026-09-08. The box is `user-DIT400TR-55RL` (alias `a4000-linux`, 172.16.84.58). It has Ubuntu 22.04, a native RTX A4000 (driver 590.48.01), 64 threads, 125 GB of RAM, and 572 GB of free disk. Both boxes accept key-based SSH from the agent environment. ADR-0022 gives the rules: box A stays the generation box of record, box B takes verifier, scoring, and index work, and every timing names its box. The owner of box B also uses it, so the GPU is not exclusive.
+
+* **Install the Toolchain:** You must install `uv` on box B and make a project checkout from `origin/main`. The box has no `uv`, no CUDA toolkit, and no project checkout.
+* **Verify the Checkout:** You must run `uv run python -m pytest tests/ -q` on box B and confirm that the suite passes there.
+* **Select the Work to Move:** You must select which Gate G3 work runs on box B. Verifier scoring, scoring passes, and index builds are permitted. Generation for a gate is not permitted.
+
+---
+
 ## Priority Order
 
 1. ~~**Goal 4:** Fix the joint arm's malformed-JSON call failures so the valid claim parse rate reaches $\ge 95\%$.~~ *(Completed Aug 20, 2026 — $97/100$ on `generate_fp05_n100_guided_v4`).*
@@ -143,8 +155,9 @@ This document lists the upcoming targets for the project. The project uses evide
 3. ~~**Goal 8:** Sign off Gate G2 once the citation-F1 contrast and the parse-rate bar both pass on the same run.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4`, two weeks before the Sep 6 date).*
 4. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. *(Machinery ready, evidence pending).*
 5. **Goal 10:** Annotate human gold set for Gate G4.
+6. **Goal 12:** Prepare the second A4000 box before the Gate G3 timing run.
 
-Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20: machinery ready, evidence pending) and goal 10 (Gate G4, Sep 27) are open. Gate G2 closed two weeks early, so that time is now available to them.
+Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20: machinery ready, evidence pending), goal 10 (Gate G4, Sep 27), and goal 12 (second box preparation) are open. Gate G2 closed two weeks early, so that time is now available to them.
 
 One rule carries forward. Do not edit any arm's prompt to move a granularity number. ADR-0009 §4
 permits that lever only on the post-hoc template, and §6's blind lifted on Aug 14, so no legitimate

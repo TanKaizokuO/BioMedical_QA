@@ -8,6 +8,7 @@ The judge benchmark run must emit a `costs.jsonl` containing `CostRecord` entrie
 2. **Schema & Fields**: Each `CostRecord` must populate `run_id`, `query_id` (matching the record query ID), `backend` (`"anthropic:claude-opus-5"`), `input_tokens` (int), `output_tokens` (int), `usd` (float computed at listed rate), and `wall_s` (float).
 3. **Population Coverage**: Must cover all 1,257 (claim, cited span) evaluation units across all questions in the gold evaluation set (`records.jsonl`), evaluated by `JudgeVerifier` (`src/biomedqa/verify.py`).
 4. **Hardware/Pricing Provenance**: USD costs MUST reflect published Anthropic rates ([ADR-0004](../../adr/0004-local-generator-frontier-judge.md)); local verifier costs reflect NVIDIA A4000 timing ([ADR-0008](../../adr/0008-a4000-is-a-windows-box-vllm-runs-in-wsl2.md), `research_roadmap.md:519`).
+5. **Timing Host**: The timed MiniCheck pass MUST record which A4000 box produced it — `vllm-box` (Windows/WSL2) or `a4000-linux` (native Ubuntu). Two hosts now carry the same GPU model on different substrates, and a `wall_s` from one MUST NOT be compared with, or averaged into, a `wall_s` from the other ([ADR-0022](../../adr/0022-second-a4000-is-a-shared-linux-box-ssh-replaces-copy-paste.md) §3, [access runbook](a4000-boxes-access.md)).
 
 ## Verifier Side Cost Pricing Specification
 
