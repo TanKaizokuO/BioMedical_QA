@@ -260,9 +260,17 @@ Source: `docs/harvest/parity_iter1b.md`. Parity loop closed 2026-08-14; granular
 ### vLLM is a network boundary, not a dependency ([`pyproject.toml`](pyproject.toml), [`docs/adr/0004-local-generator-frontier-judge.md`](docs/adr/0004-local-generator-frontier-judge.md))
 
 vLLM pins torch to an exact version, conflicting with `torch>=2.13.0` and backtracking the
-resolver to vllm 0.2.5 with pydantic 1.10.x. Instead, vLLM runs on the A4000 in its own
+resolver to vllm 0.2.5 with pydantic 1.10.x. Instead, vLLM runs on the generation box in its own
 environment as an OpenAI-compatible server; `backends.py` talks to it over HTTP. The generator
 backend is a network boundary, not an import.
+
+### Two A4000 boxes, one of them the box of record ([`docs/adr/0022-second-a4000-is-a-shared-linux-box-ssh-replaces-copy-paste.md`](docs/adr/0022-second-a4000-is-a-shared-linux-box-ssh-replaces-copy-paste.md))
+
+Both machines carry an RTX A4000 (16 GB). `DESKTOP-5C6NFL8` runs vLLM under WSL2 and produced every
+committed generation artifact, so it stays the generation box of record; the second box is native
+Ubuntu, shared with its owner, and takes verifier, scoring and index work. Wall-clock numbers name
+their host and are never compared across the two. Access and inventory:
+[`docs/harvest/runbooks/a4000-boxes-access.md`](docs/harvest/runbooks/a4000-boxes-access.md).
 
 ### The attribution unit is the decontextualized atomic claim ([`docs/adr/0005-attribution-unit-decontextualized-atomic-claim.md`](docs/adr/0005-attribution-unit-decontextualized-atomic-claim.md))
 
@@ -320,7 +328,7 @@ The generator backend (`backends.py`) expects a vLLM server at `VLLM_BASE_URL`
 (default `http://localhost:8000`). An Anthropic key is required for `JudgeVerifier` and for
 post-hoc generation using the Opus 5 judge.
 
-Building the corpus index is a multi-hour operation on the A4000 (RTX A4000, 16 GB VRAM):
+Building the corpus index is a multi-hour operation on an A4000 (16 GB VRAM):
 `encode_corpus.py` benchmarks MedCPT throughput first; `scripts/g0_medcpt_throughput.py` is
 the reference for that measurement.
 
