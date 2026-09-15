@@ -153,8 +153,15 @@ Thresholds swept on dev, fixed once. **Populated by `scoring/calibration.py::aur
 | Opus 5 judge *(reference ceiling)* | | | | | |
 | *human–human agreement* | — | — | — | — | |
 
-> **G3:** AUROC ≥ 0.75. **G4:** ≥250 claims labeled, α ≥ 0.6 on the binary collapse of the overlap
-> subset. Degradation on biomedical text is **expected** (MiniCheck is ANLI-trained) — report it,
+> **G3:** AUROC ≥ 0.75. **G4:** ≥250 claims labeled, α ≥ 0.6 on the binary collapse of the
+> triple-labeled common prefix (ADR-0016 — all three annotators label the full gold set, so the
+> population is a prefix of one shared question order, not a sampled overlap subset).
+> **α is reported with pairwise percent agreement and supported prevalence beside it**, from
+> `agreement.py::agreement_context` — α is `1 − D_o/D_e` and `D_e` is a function of the label
+> marginals, so a skewed corpus and a careless rater are indistinguishable from the point estimate
+> alone (Feinstein & Cicchetti 1990). Note also that 0.6 is below Krippendorff's own 0.667 floor
+> for tentative conclusions; the relaxation is stated as one, as with G1's *k*.
+> Degradation on biomedical text is **expected** (MiniCheck is ANLI-trained) — report it,
 > then mitigate.
 
 ### Table 4 — Cost and overhead → **C5**

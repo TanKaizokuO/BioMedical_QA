@@ -16,6 +16,7 @@ from biomedqa.schema import HumanLabel, SupportLabel
 from biomedqa.scoring.agreement import (
     G4_ALPHA_MIN,
     G4_MIN_CLAIMS,
+    agreement_context,
     gate_g4,
     krippendorff_alpha_binary,
     krippendorff_alpha_ordinal,
@@ -144,3 +145,71 @@ def test_gate_counts_units_and_ratings_separately_from_claims():
     assert result["n_units"] == 4
     assert result["n_ratings"] == 12
     assert result["n_claims"] == 250  # passed in, never derived from the span-level unit count
+
+
+# --- agreement context: PA, prevalence, and the D_o / D_e pair --------------------------------------
+
+def test_agreement_context_is_hand_computable_and_reproduces_alpha():
+    # 3 units x 3 raters. U1 all SUPPORTED(1), U2 = [1,1,0], U3 all NOT_SUPPORTED(0).
+    # Pairs: 3 per unit = 9. Agreeing: 3 + 1 + 3 = 7 -> PA = 7/9.
+    # Ratings: n = 9, supporting = 3 + 2 = 5 -> prevalence 5/9.
+    # Coincidence: only U2 is off-diagonal, o[1][0] = o[0][1] = 2·1/(3-1) = 1 -> Σ = 2, D_o = 2/9.
+    # Marginals m0 = 4, m1 = 5 -> D_e = 2·4·5/(9·8) = 5/9. α = 1 − (2/9)/(5/9) = 0.6.
+    labels = [
+        _unit(S.SUPPORTED, S.SUPPORTED, S.SUPPORTED),
+        _unit(S.SUPPORTED, S.SUPPORTED, S.NOT_SUPPORTED),
+        _unit(S.NOT_SUPPORTED, S.NOT_SUPPORTED, S.NOT_SUPPORTED),
+    ]
+    ctx = agreement_context(labels)
+    assert ctx["pairwise_percent_agreement"] == pytest.approx(7 / 9)
+    assert ctx["n_pairs"] == 9
+    assert ctx["supported_prevalence"] == pytest.approx(5 / 9)
+    assert ctx["observed_disagreement"] == pytest.approx(2 / 9)
+    assert ctx["expected_disagreement"] == pytest.approx(5 / 9)
+    # α is reproducible from the dict by hand, which is the point of carrying both terms.
+    alpha = 1 - ctx["observed_disagreement"] / ctx["expected_disagreement"]
+    assert alpha == pytest.approx(krippendorff_alpha_binary(labels))
+    # This population sits exactly on the gate, so D_o sits exactly on its budget.
+    assert alpha == pytest.approx(G4_ALPHA_MIN)
+    assert ctx["disagreement_budget"] == pytest.approx(ctx["observed_disagreement"])
+
+
+def test_context_separates_prevalence_skew_from_rater_error():
+    # Two populations with **identical** raw agreement (26/30 pairs) and identical D_o (4/30),
+    # differing only in prevalence. Balanced: 4 unanimous SUPPORTED units, 4 unanimous
+    # NOT_SUPPORTED, 2 split. Skewed: 8 unanimous SUPPORTED, the same 2 split.
+    split = _unit(S.SUPPORTED, S.SUPPORTED, S.NOT_SUPPORTED)
+    yes, no = _unit(*[S.SUPPORTED] * 3), _unit(*[S.NOT_SUPPORTED] * 3)
+    balanced = [yes] * 4 + [no] * 4 + [split] * 2
+    skewed = [yes] * 8 + [split] * 2
+
+    b, s = agreement_context(balanced), agreement_context(skewed)
+    assert b["pairwise_percent_agreement"] == pytest.approx(26 / 30)
+    assert s["pairwise_percent_agreement"] == pytest.approx(26 / 30)
+    assert b["observed_disagreement"] == pytest.approx(s["observed_disagreement"])
+    # Only D_e moves: 2·16·14/(30·29) against 2·28·2/(30·29).
+    assert b["expected_disagreement"] == pytest.approx(448 / 870)
+    assert s["expected_disagreement"] == pytest.approx(112 / 870)
+    # And α follows D_e off a cliff — same raters, same mistakes, opposite verdicts.
+    assert krippendorff_alpha_binary(balanced) == pytest.approx(1 - (4 / 30) / (448 / 870))
+    assert krippendorff_alpha_binary(skewed) < 0.0
+    # The budget is what makes the attribution legible: the skewed corpus could never afford
+    # the very disagreement the balanced one absorbed.
+    assert b["disagreement_budget"] > b["observed_disagreement"]
+    assert s["disagreement_budget"] < s["observed_disagreement"]
+
+
+def test_context_is_nan_without_a_pairable_unit():
+    ctx = agreement_context([_unit(S.SUPPORTED), _unit(S.NOT_SUPPORTED)])
+    assert ctx["n_pairs"] == 0
+    assert math.isnan(ctx["pairwise_percent_agreement"])
+    assert math.isnan(ctx["supported_prevalence"])
+    assert math.isnan(ctx["disagreement_budget"])
+
+
+def test_gate_carries_the_context_next_to_the_verdict():
+    result = gate_g4(_agreeing(4), n_claims=250)
+    assert result["pairwise_percent_agreement"] == pytest.approx(1.0)
+    assert result["supported_prevalence"] == pytest.approx(0.5)
+    assert result["n_pairs"] == 12
+    assert result["observed_disagreement"] == pytest.approx(0.0)

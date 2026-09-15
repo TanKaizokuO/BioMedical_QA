@@ -169,6 +169,68 @@ def label_distribution(labels: Sequence[Sequence[HumanLabel]]) -> dict[str, int]
     return {label.value: counts[label] for label in ORDINAL_SCALE}
 
 
+def agreement_context(labels: Sequence[Sequence[HumanLabel]]) -> dict:
+    """The three numbers α cannot honestly be read without, on the **binary collapse**.
+
+    α is `1 − D_o / D_e`, and `D_e` is a function of the label marginals alone. So a corpus whose
+    raters agree on 90% of pairs scores α = 0.61 at 50% supported and α = 0.29 at 90% supported —
+    same raters, same care, same guidelines. Feinstein & Cicchetti (1990) named this the prevalence
+    paradox for κ; it is arithmetic, and it applies unchanged here. Reporting α alone invites the
+    reader to charge a skewed corpus to the annotators.
+
+    Returned, all over pairable units only (a single-rating unit says nothing about agreement, and
+    is exactly what `_coincidence` drops):
+
+    * `pairwise_percent_agreement` — the raw, chance-uncorrected rate: agreeing rater pairs over
+      all rater pairs. What the annotators actually did, before the skew correction.
+    * `supported_prevalence` — the share of ratings on the supporting side of the collapse. The
+      driver of `D_e`, hence of how much α discounts the line above.
+    * `observed_disagreement` / `expected_disagreement` — `D_o` and `D_e` themselves, so
+      `alpha_binary` is reproducible from this dict by hand: `1 − D_o / D_e`, exactly.
+    * `disagreement_budget` — `(1 − 0.6) · D_e`, the largest `D_o` that still clears G4. A miss is
+      then attributable on sight: `observed_disagreement` over budget is raters, a budget that was
+      never reachable is prevalence.
+
+    **Pre-registered before any human label exists** (2026-08-27, annotation opens 2026-09-07).
+    Adding a prevalence defence after reading a failing α would be indistinguishable from
+    excusing it.
+    """
+    codes = _codes(labels, lambda x: int(x.support_label.is_supporting))
+    agreeing = pairs = 0
+    for unit in codes:
+        m = len(unit)
+        if m < 2:
+            continue
+        pairs += m * (m - 1) // 2
+        for count in Counter(unit).values():
+            agreeing += count * (count - 1) // 2
+
+    o = _coincidence(codes, 2)
+    marginals = [sum(row) for row in o]
+    n = sum(marginals)
+    if not pairs or n < 2:
+        nan = float("nan")
+        return {
+            "pairwise_percent_agreement": nan,
+            "n_pairs": pairs,
+            "supported_prevalence": nan,
+            "observed_disagreement": nan,
+            "expected_disagreement": nan,
+            "disagreement_budget": nan,
+        }
+
+    observed = (o[0][1] + o[1][0]) / n
+    expected = 2 * marginals[0] * marginals[1] / (n * (n - 1))
+    return {
+        "pairwise_percent_agreement": agreeing / pairs,
+        "n_pairs": pairs,
+        "supported_prevalence": marginals[1] / n,
+        "observed_disagreement": observed,
+        "expected_disagreement": expected,
+        "disagreement_budget": (1.0 - G4_ALPHA_MIN) * expected,
+    }
+
+
 def gate_g4(
     labels: Sequence[Sequence[HumanLabel]],
     *,
@@ -188,6 +250,9 @@ def gate_g4(
     reported with its cluster count and never used to soften the verdict — `passes` is a function
     of the point estimate alone. Omitting `clusters` omits the interval rather than silently
     computing the narrower unclustered one, which would be the wrong number under a familiar name.
+    Every reading also carries `agreement_context()` — pairwise percent agreement, supported
+    prevalence, and the `D_o` / `D_e` pair α is built from — because α on its own cannot separate a
+    careless rater from a skewed corpus, and the verdict is charged to one of them.
     """
     alpha = krippendorff_alpha_binary(labels)
     ci: dict[str, Any] | None = None
@@ -206,6 +271,7 @@ def gate_g4(
         "n_claims": n_claims,
         "n_ratings": sum(len(unit) for unit in labels),
         "label_distribution": label_distribution(labels),
+        **agreement_context(labels),
         "alpha_min": G4_ALPHA_MIN,
         "min_claims": G4_MIN_CLAIMS,
         "passes": (

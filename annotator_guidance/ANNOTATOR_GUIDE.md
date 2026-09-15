@@ -126,49 +126,70 @@ they can be `SUPPORTED`. Record that.
 
 ---
 
-## 4. Using the form
+## 4. Using the form (Step-by-Step Annotation Protocol)
 
-1. **Open your file** in a browser. Use **one browser on one machine** for the whole task.
-2. Work top to bottom. Answer every question on every claim in the current question.
-3. Press **Mark question complete →**. It stays disabled until nothing is unanswered.
-4. **Press "Download my labels (JSONL)" at the end of every session** and send that file in. It is
-   your own copy as well as our data.
+### Phase 1: Setup & Initial Opening on Your PC
+1. **File distribution:** Each annotator receives their assigned static file (`annotate_a1.html` for Annotator 1, `annotate_a2.html` for Annotator 2, `annotate_a3.html` for Annotator 3). Download this file to your computer.
+2. **Open in browser:** Double-click or open your assigned `.html` file directly in a modern web browser (Chrome, Firefox, Safari, Edge) on your PC. No server, internet connection, or login is required.
+   - Use **one dedicated browser on your PC** for the task.
+   - **Do NOT** open your form on multiple computers or in multiple browser tabs simultaneously (progress across separate sessions cannot be merged).
+3. **Verify header status:**
+   - Status bar example: `Annotator a1 · Question 1 of 62 · 0 complete · saved 14:22:28`.
+   - `saved` — confirms your answers are saved immediately into your PC browser's `localStorage` on every click.
+   - `backed up` / `working offline` — indicates whether your PC can reach the optional LAN collector server. **If it says "working offline", this is expected when working on remote/separate PCs.** Your work is 100% safe in your local browser storage.
 
-The header tells you where you stand:
+### Phase 2: Restoring Progress or Switching PCs
+If you need to switch to a different PC (or restore progress after clearing browser data):
+1. Transfer your assigned `.html` file and your latest exported `.jsonl` file to the new PC.
+2. Open your `.html` file in the browser on the new PC.
+3. Click **Restore…** in the header.
+4. Select **"A file you exported"** and upload your downloaded `.jsonl` file (or choose the browser/collector snapshot with the highest completed question count).
+5. Confirm restore. (*Note: The restored state completely replaces local storage; no merging occurs.*)
+### Phase 3: Step-by-Step Question & Claim Annotation
+Work strictly top to bottom in question order. Do not skip questions or claims.
+- **Pilot Phase Note:** Complete **Question 1 ONLY** (`order_index 0`, 11 claims) and STOP. Do not proceed to Question 2 until cleared by the maintainer.
+- **Main Pass Phase Note:** Work sequentially through all remaining questions.
 
-```
-Annotator a1   Question 7 of 62 · 6 complete        backed up 14:22:31   saved 14:22:28
-```
+For each question:
+1. **Read Question Context:** Read the question text at the top of the card for domain context.
+2. **For each Claim in the Question:**
+   - **Step A: Evaluate Claim Validity (`claim_validity`)**
+     - Ask: *Is this sentence well-formed and judgeable on its own?*
+     - Select **Well-formed** or **Not well-formed** (mark not well-formed if it has unresolved pronouns like "It"/"This", is a fragment, or crams two assertions together).
+     - *Crucial Rule:* Always complete the support evaluations below even if marked Not well-formed.
+   - **Step B: Evaluate Support for Each Passage Span (`span_evaluations`)**
+     - For each quoted span highlighted inside its passage:
+       1. Read the highlighted text and its surrounding passage context.
+       2. Compare what the passage span asserts against the claim statement.
+       3. Select exactly ONE label:
+          - `SUPPORTED`: Passage span fully asserts the claim.
+          - `PARTIAL`: Passage span asserts part of the claim, or asserts it more weakly/narrowly, or has numeric/population differences.
+          - `NOT_SUPPORTED`: Passage span is un-addressed or irrelevant.
+          - `CONTRADICTED`: Passage span asserts the opposite.
+       4. Apply the core traps:
+          - *Numbers Trap:* Different dose, percentage, or sample size $\rightarrow$ `PARTIAL`.
+          - *Population Trap:* Narrower or different population subgroup $\rightarrow$ `PARTIAL`.
+          - *Strength Trap:* "May cause" vs "Causes" or "Associated with" vs "Causes" $\rightarrow$ `PARTIAL`.
+   - **Step C: Evaluate Support for All Spans Combined (`union_evaluation`)**
+     - Read all cited spans for the claim together as a unified piece of evidence.
+     - Select the overall support label for the union (`SUPPORTED`, `PARTIAL`, `NOT_SUPPORTED`, or `CONTRADICTED`).
+     - *Note:* Spans that are individually `PARTIAL` may combine to form a `SUPPORTED` union if together they cover the entire claim.
+   - **Step D: Add Rationale Notes (Optional / Encouraged on Edge Cases)**
+     - If you picked a weaker label due to ambiguity, or marked a claim invalid, type your reasoning in the Notes box.
+3. **Complete the Question:**
+   - Verify every claim card in the question has all fields answered (validity, per-span support, union support).
+   - Click **Mark question complete →** at the bottom of the question block. The button enables only when all required answers are present.
 
-- `saved` — written into this browser. This happens on every click.
-- `backed up` — also copied to the lab machine on the LAN. If it says **no backup — working
-  offline**, keep going: nothing is lost, and it will catch up when the machine is reachable.
+### Phase 4: Session End & Submitting Data
+1. At the end of **every work session**, click **"Download my labels (JSONL)"** in the top navigation header.
+2. Save the downloaded `.jsonl` file locally as your personal backup.
+3. Email/send the `.jsonl` file to the maintainer.
 
-The form measures how long you actually spend on each question. That is for costing the task
-honestly, never for judging your pace. Take breaks; the clock stops when you leave a question.
-
-### If something goes wrong
-
-Press **Restore…**. You get every copy we can find, each labelled with how many questions it holds
-and when it was saved:
-
-- **This browser's copy**
-- **The copy on the collector** — what the lab machine has
-- **A file you exported** — any JSONL you downloaded earlier
-
-Pick one. **The copy you pick replaces the others — nothing is merged for you.** Read the counts
-before choosing. If two copies look close, take the one with more completed questions.
-
-This is also how you move to a different machine: open your form there and restore.
-
-### Please do not
-
-- Do not open your form in two browsers or two machines at once. Two half-passes cannot be joined.
-- Do not edit the HTML file, or rename it.
-- Do not send your file to the other annotators.
-- If you are ever handed a `keyfile.jsonl`, you were sent it by mistake. Do not open it, and say so.
-
----
+### Phase 5: Protocols & Rules
+- **Do NOT** discuss specific claims, spans, or label choices with other annotators.
+- **Do NOT** edit, modify, or rename the `.html` file.
+- Direct all rule clarifications to the maintainer (answers will be shared with all three annotators).
+- If you are handed a `keyfile.jsonl` by mistake, do not open it—notify the maintainer immediately.
 
 ## 5. Time, and the schedule
 

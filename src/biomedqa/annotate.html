@@ -302,7 +302,6 @@ function render() {
   document.getElementById("hint").textContent = done
     ? (st.completed_at ? "Completed " + new Date(st.completed_at).toLocaleString() : "")
     : "Answer every question on every claim to continue.";
-  window.scrollTo(0, 0);
 }
 
 // The per-question clock. `accrue` folds elapsed time in and stops counting; `resume` starts it
