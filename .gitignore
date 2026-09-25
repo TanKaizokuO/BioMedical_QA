@@ -148,3 +148,6 @@ annotation/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Baseline local tooling
+node_modules/

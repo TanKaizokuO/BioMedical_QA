@@ -102,10 +102,10 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ## 9. Gate G3 Cheap Verifier Preparation
 
-**Target Date:** September 20, 2026  
+**Target Date:** September 20, 2026 — **late 5 days on September 25, 2026**  
 **Context:** Gate G3 requires a verifier AUROC of $\ge 0.75$ for unsupported claim detection, at a cost $10\times$ lower than the Opus 5 judge baseline. **Status: machinery ready, evidence pending.** Machinery (`gate_g3`, `join_scores_and_labels`, annotation ingest, `scripts/g3_report.py`) is implemented and exercised end-to-end; evaluation run on real MiniCheck scores gives verdict `passes: false` blocked on: (a) human labels (annotation opens 2026-09-07), (b) judge cost evidence, (c) verifier pricing pending wall_s timing + cited GPU-hour rate. Judge sweep estimate ($1.02–$1.21 floor/ceiling, `docs/harvest/runbooks/judge_cost_estimate.json`) is an estimate, not measured cost. Canonical runbook pointer: `docs/harvest/runbooks/g3_runbook.md`.
 
-* **Select Claim Set:** You must select the labeled claim set that gives the AUROC reading.
+* **Select Claim Set:** You must select the labeled claim set that gives the AUROC reading. *(Planned: the 50-question triple-labeled common prefix, $511$ claims. See goal 10).*
 * **Measure Verifier AUROC:** You must measure the MiniCheck ($\phi$) and AlignScore AUROC on that set.
 * **Measure Verifier Cost:** You must measure the cost per claim of each verifier against the Opus 5 judge baseline.
 * **Record the Timing Host:** You must record the box that gives the verifier timing. Two A4000 boxes are available and they have the same GPU model on different substrates. You must not compare a time from one box with a time from the other box (ADR-0022 §3).
@@ -118,8 +118,10 @@ This document lists the upcoming targets for the project. The project uses evide
 **Context:** Gate G4 requires $\ge 250$ labeled claims and a Krippendorff $\alpha$ point estimate of $\ge 0.6$ on the binary collapse over the triple-labeled set (ADR-0016). The decomposer freeze is declared (`docs/harvest/w6_decomposer_freeze.md`, 2026-08-23, 8 days ahead of the Sep 3 target), so claim boundaries are stable. The annotation batch is built. The two remaining prerequisites before opening the pilot are closed: pilot claim set selected (`docs/harvest/w6_pilot_claims.md` — the literal first question of the shared order, 11 claims) and the decomposer freeze recorded above. Still open: annotators actually running the pilot and the maintainer's $\alpha$/qualitative review before the guideline freeze that gates the main pass.
 
 * ~~**Build Annotation Batch:** You must build the annotation batch from the frozen decomposer output.~~ *(Completed Aug 23, 2026 — `scripts/build_annotation_ui.py --records docs/harvest/generate_fp05_n100_guided_v4.records.jsonl`. The batch holds $100$ questions, $1009$ claims, and $1257$ span labels for each annotator. The order hash `42a52170009b` is the same in all three forms (ADR-0016 §2). The three forms show no system, model, or run identity (ADR-0016 §4). `annotation/keyfile.jsonl` holds the $1009$ de-blinding rows and stays with the maintainer, because `.gitignore` excludes `annotation/`. Do not rebuild the forms after an annotator starts: a new order makes ADR-0016 §2 invalid and clears the saved progress).*
-* **Start Gold Annotation:** You must start the three non-expert annotators on the full gold set.
-* **Monitor Annotator Agreement:** You must monitor inter-annotator agreement during the annotation.
+* ~~**Start Gold Annotation:** You must start the three non-expert annotators on the full gold set.~~ *(Started — the annotators are at question $40$ of the shared order on Sep 25, 2026, maintainer report. No export is in the repo yet).*
+* **Stop At Question 50:** The annotators stop at question $50$, not $100$, because of unforeseen circumstances. The $50$-question common prefix holds $511$ claims ($193$ joint, $318$ post-hoc), so the $\ge 250$ claim bar is met. ADR-0016 §2 permits this stop: a common prefix of the shared order is an unbiased random subsample. You must make sure that all three annotators stop at the same question and that no question is half-labeled.
+* **Collect Annotator Exports:** You must collect the three exports at question $40$, and again at question $50$.
+* **Monitor Annotator Agreement:** You must monitor inter-annotator agreement during the annotation. Compute Krippendorff's $\alpha$ on the binary collapse at question $40$ with `src/biomedqa/scoring/agreement.py` (`f841192`), so that an $\alpha$ under $0.6$ is found before questions $41$–$50$.
 
 ---
 
@@ -139,7 +141,7 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ## 12. Second A4000 Box Preparation
 
-**Target Date:** Before the Gate G3 timing run (September 20, 2026)
+**Target Date:** Before the Gate G3 timing run (September 20, 2026) — **late 5 days on September 25, 2026.** Box B did not answer on SSH or ping on September 25, 2026.
 **Context:** A second A4000 box is available from 2026-09-08. The box is `user-DIT400TR-55RL` (alias `a4000-linux`, 172.16.84.58). It has Ubuntu 22.04, a native RTX A4000 (driver 590.48.01), 64 threads, 125 GB of RAM, and 572 GB of free disk. Both boxes accept key-based SSH from the agent environment. ADR-0022 gives the rules: box A stays the generation box of record, box B takes verifier, scoring, and index work, and every timing names its box. The owner of box B also uses it, so the GPU is not exclusive.
 
 * **Install the Toolchain:** You must install `uv` on box B and make a project checkout from `origin/main`. The box has no `uv`, no CUDA toolkit, and no project checkout.
@@ -153,8 +155,8 @@ This document lists the upcoming targets for the project. The project uses evide
 1. ~~**Goal 4:** Fix the joint arm's malformed-JSON call failures so the valid claim parse rate reaches $\ge 95\%$.~~ *(Completed Aug 20, 2026 — $97/100$ on `generate_fp05_n100_guided_v4`).*
 2. ~~**Goal 11:** Run the W9 stratified check on the Gate G2 run of record and discharge it.~~ *(Completed Aug 23, 2026 — FAIL at $+30.8\%$, disclosed, and discharged by length standardisation).*
 3. ~~**Goal 8:** Sign off Gate G2 once the citation-F1 contrast and the parse-rate bar both pass on the same run.~~ *(Completed Aug 23, 2026 on `generate_fp05_n100_guided_v4`, two weeks before the Sep 6 date).*
-4. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. *(Machinery ready, evidence pending).*
-5. **Goal 10:** Annotate human gold set for Gate G4.
+4. **Goal 10:** Annotate human gold set for Gate G4. *(In progress — question $40$ of $50$. This blocks goal 9).*
+5. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. *(Machinery ready, evidence pending. Late 5 days).*
 6. **Goal 12:** Prepare the second A4000 box before the Gate G3 timing run.
 
 Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20: machinery ready, evidence pending), goal 10 (Gate G4, Sep 27), and goal 12 (second box preparation) are open. Gate G2 closed two weeks early, so that time is now available to them.

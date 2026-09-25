@@ -1,15 +1,19 @@
-# Project status — 2026-08-23
+# Project status — 2026-09-25
 
 Current state of the experiment: what is signed off, what is frozen, and what is still open.
 This file is regenerated wholesale rather than appended to, so a stale line never survives here.
 
-`main`. **Gate G2 is signed off on `generate_fp05_n100_guided_v4`.** The Aug 23 review found that the
+`main`. **Gold annotation is in progress: all three annotators are at question 40 of the shared order
+and stop at question 50** (maintainer report, 2026-09-25). The 50-question common prefix holds
+**511 claims**, above the Gate G4 bar of 250. Gate G3 is 5 days late and waits for the exports.
+
+**Gate G2 is signed off on `generate_fp05_n100_guided_v4`.** The Aug 23 review found that the
 four previous rounds of work had been tuning against a criterion that is not in Gate G2, using a prompt
 lever ADR-0009 forbids. Five joint-side granularity edits are reverted, `v5`–`v9` are void as
 evidence, and the run of record moves back to `v4`, which clears both real G2 criteria: joint valid
 parse rate **97/100** and citation-F1 delta **+0.1403 [+0.0751, +0.2066]**, excluding zero.
 
-Tests: `uv run python -m pytest tests/ -q` → **495 passed** in ~19 s. `pyproject.toml`'s
+Tests: `uv run python -m pytest tests/ -q` → **571 passed, 1 skipped** in ~28 s (2026-09-25). `pyproject.toml`'s
 `pythonpath` is `["src", "scripts"]`. **Use `python -m pytest`** — bare `uv run pytest` fails with
 `Failed to spawn: pytest`.
 
@@ -37,8 +41,9 @@ half. See §2.1. Its text now matches commit `054ec6b` byte-for-byte
 | **G0** — 8B AWQ generator chosen | Aug 4 | **PASSED 2026-08-04.** |
 | **G1** — hit@10 ≥ 0.90, Wilson lower > 0.85 (ADR-0015) | Aug 23 | **PASSED 2026-08-10.** hit@10 = 0.9400, Wilson lower 0.8752. |
 | **G2** — citation-F1 contrast + ≥95% valid claim parse | **Sep 6** | **PASSED 2026-08-23**, two weeks early, on `generate_fp05_n100_guided_v4`. Citation F1 joint **0.6651** vs post-hoc **0.5248**, delta **+0.1403 [+0.0751, +0.2066]**, excludes zero. Valid claim parse rate: record-level **97/100 (97%)**, claim-level **399/406 (98.3%)** (preregistered criterion ADR-0019), `quote_not_found = 0`. Both MET. See definitions in `docs/harvest/joint_citation_f1_fp05_guided_v4.md`. |
-| **G3** — Cheap Verifier Gate | **Sep 20** | **Machinery ready, evidence pending** (`passes: false` blocked on labels, judge cost evidence, verifier timing/rate). See `docs/harvest/runbooks/g3_runbook.md`. |
-| G4 · G5 | Sep 27 · Oct 11 | Unstarted, with due weeks. |
+| **G3** — Cheap Verifier Gate | **Sep 20** | **Late 5 days. Machinery ready, evidence pending** (`passes: false` blocked on labels, judge cost evidence, verifier timing/rate). The labeled claim set will be the 50-question common prefix. See `docs/harvest/runbooks/g3_runbook.md`. |
+| **G4** — ≥250 claims, α ≥ 0.6 (ADR-0016) | **Sep 27** | **In progress.** Common prefix at 40 questions (407 claims), planned stop at 50 (511 claims). The claim count is met; α is not yet computed, because no export is in the repo. The stop at 50 is valid under ADR-0016 §2: a common prefix of the shared order is an unbiased random subsample. |
+| G5 | Oct 11 | Unstarted. |
 
 ### The correction that unblocked G2
 
@@ -139,16 +144,22 @@ Two correctness properties the script asserts or verifies:
 
 ## 3. Open items, in priority order
 
-1. **Commit and push** the Aug 23 work: the `JOINT_JSON_TEMPLATE` revert, the
-   `CLAIM_LENGTH_BANDS` extraction, `scripts/w9_length_standardized_contrast.py`, ADR-0009's Fourth
-   amendment, the two `v4` reports, and this file.
-2. **Decide the fate of `v5`–`v9` artifacts.** They are void as evidence but currently untracked in
-   `docs/harvest/` (20 files). Either delete them or keep them with a `VOID` marker; leaving them
-   untracked risks one later being treated as a run of record. Recommend deleting `v6`–`v9`
-   and keeping `v5` (already tracked, cited in the reports).
-3. **Paper methods section** gains the length-standardised contrast alongside the pre-registered
-   asymmetric rule, and reports parity as a disclosed miss with its transmission measured.
-4. Goal 9 (G3 verifier AUROC, Sep 20): machinery ready, evidence pending (`passes: false` blocked on human labels [annotation opens 2026-09-07], judge cost evidence, verifier pricing). Goal 10 (G4 gold annotation, Sep 27) remains unstarted. Canonical G3 runbook pointer: `docs/harvest/runbooks/g3_runbook.md`.
+1. **Collect the three annotator exports** at question 40, before the annotators continue. Then
+   compute the common prefix and Krippendorff's α on the binary collapse
+   (`src/biomedqa/scoring/agreement.py`). An early α under 0.6 still leaves questions 41–50 to act on.
+2. **Confirm that all three annotators stop at question 50, and that no question is half-labeled**
+   (ADR-0016 §2). The common prefix is the shortest of the three.
+3. **Gate G3** (late 5 days): AUROC and cost on the labeled common prefix. Record the timing box
+   (ADR-0022 §3). See `docs/harvest/runbooks/g3_runbook.md`.
+4. **Box B (`a4000-linux`)** did not answer on SSH or ping on 2026-09-25; box A (`vllm-box`) answered.
+   Box B has no project checkout yet (TODO goal 12).
+5. **Issue #9** (`score_compliance` penalises correct abstention) and **issue #10** (six
+   `corpus.py` review findings).
+6. **Gate G5** (Oct 11): every table cell traces to a run manifest, with CIs.
+
+Done since Aug 23: the Aug 23 work is committed (`c745ce9` and later). `v6`–`v9` artifacts are
+deleted and `v5` is kept (tracked, cited). The paper methods section reports parity as a disclosed
+miss with its transmission measured (`6801739`).
 
 **No further dev-set generation run is needed for G2.** Everything above is re-derived from stored
 `v4` records with a complete MiniCheck cache — no inference, no A4000 server, no WSL2 keep-alive.
@@ -161,7 +172,8 @@ Two correctness properties the script asserts or verifies:
   untracked files and a Gate G2 manifest must be reproducible from a commit. `v4`'s manifest
   `git_sha` is `054ec6b6adb5f73cff0e61451850711733a74d9a`, clean.
 - The box: repo at `/home/user/BioMedical_QA`, vLLM in `~/venvs/vllm-server`, `vllm-8b.service` runs
-  `/home/user/serve_8b.sh` (`--max-model-len 14336`). Copy-paste only, **one line per command**.
+  `/home/user/serve_8b.sh` (`--max-model-len 14336`). Both boxes accept key-based SSH from the agent
+  environment (ADR-0022); **one line per command**. See `docs/harvest/runbooks/a4000-boxes-access.md`.
 - **All prompts are now frozen.** ADR-0009 §8 freezes the decomposer and post-hoc templates; the
   Fourth amendment closes the `JOINT_JSON_TEMPLATE` loophole for granularity-motivated edits. A
   guided-decoding *parse* defect fix remains legitimate, but must not change claim-length guidance.
