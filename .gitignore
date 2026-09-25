@@ -133,6 +133,8 @@ docs/*
 # the retired base pipeline (ADR-0007) — the source repo may be deleted, so this is the backup.
 !docs/adr/
 !docs/harvest/
+# Venue shortlist behind the named-venue decision (research_roadmap.md §6).
+!docs/venues/
 
 # ---- Teaching workspace (/teach skill — local study materials, not tracked) ----
 teach/

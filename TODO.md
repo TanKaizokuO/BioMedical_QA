@@ -150,6 +150,20 @@ This document lists the upcoming targets for the project. The project uses evide
 
 ---
 
+## 13. Venue Submission: EACL 2027 SRW (Archival)
+
+**Target Date:** December 15, 2026 (direct submission, AoE).
+**Context:** The venue is the EACL 2027 Student Research Workshop, long paper, archival. See `research_roadmap.md` §6. Authors 1 to 3 are students and author 4 is the professor. These positions are final. Authors 5 and 6 are optional. All committed results use the dev split, and the prompts were tuned on the dev split. Reviewers will find this problem first.
+
+* **Set the Template:** You must use the ACL two-column template. Record this decision by October 5, 2026.
+* **Run the Test Split:** You must run the joint, post-hoc, and vanilla systems on the test split with a minimum of $3$ seeds. Use the generation box of record (`vllm-box`). The estimate is $13$ GPU-hours.
+* **Re-Score With Human Labels:** You must calculate the joint minus post-hoc citation-F1 difference again with the human labels on the annotated dev questions.
+* **Check the Workshop List:** On approximately October 13, 2026, you must examine the accepted EACL workshops for a biomedical or health workshop.
+* **Send the Mentoring Draft:** You must send an anonymised draft to the pre-submission mentoring programme by November 6, 2026.
+* **Lock the Author List:** You must add authors 5 and 6 (if any) before December 15, 2026. Do not change the positions of authors 1 to 4. Author 1 must be a current student on December 15, 2026.
+
+---
+
 ## Priority Order
 
 1. ~~**Goal 4:** Fix the joint arm's malformed-JSON call failures so the valid claim parse rate reaches $\ge 95\%$.~~ *(Completed Aug 20, 2026 — $97/100$ on `generate_fp05_n100_guided_v4`).*
@@ -158,6 +172,7 @@ This document lists the upcoming targets for the project. The project uses evide
 4. **Goal 10:** Annotate human gold set for Gate G4. *(In progress — question $40$ of $50$. This blocks goal 9).*
 5. **Goal 9:** Prepare cheap verifier AUROC benchmark for Gate G3. *(Machinery ready, evidence pending. Late 5 days).*
 6. **Goal 12:** Prepare the second A4000 box before the Gate G3 timing run.
+7. **Goal 13:** Submit to EACL 2027 SRW (archival) by December 15, 2026. The test-split runs are the largest open item.
 
 Goals 1 to 8 and goal 11 are complete. Goal 9 (Gate G3, Sep 20: machinery ready, evidence pending), goal 10 (Gate G4, Sep 27), and goal 12 (second box preparation) are open. Gate G2 closed two weeks early, so that time is now available to them.
 

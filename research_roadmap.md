@@ -709,6 +709,34 @@ the full 23.9M MedRAG corpus (ADR-0003).
 **Decide the column format by Oct 5** — Tables 1 and 4 are wide, and a single-column template forces
 restructuring if discovered late.
 
+### Named venue — **EACL 2027 Student Research Workshop, archival** (decided 2026-09-25)
+
+The shortlist is in `docs/venues/conference_options_2027.pdf` (Jan/Mar/Apr 2027, Europe, AU/NZ and
+SEA, compiled 2026-09-25). The target is the **EACL 2027 SRW, long paper, archival**: Athens, 9–14
+Mar 2027, ACL two-column template, 8 pages (+1 on acceptance).
+
+| Date | Item |
+|---|---|
+| **Oct 5** | Column format: **ACL two-column**. This also rules out MIE 2027 (IOS Press template, 5 pp). |
+| ~Oct 13 | EACL workshop CfPs appear. A biomedical/health workshop stays a second option; SRW remains the target. |
+| **Nov 6** | Optional pre-submission mentoring: anonymised draft. Matches W13's submission-ready date. |
+| **Dec 15** | Direct submission (AoE). Notification Jan 5, 2027. |
+
+**Why SRW:** its deadline is fixed (the workshop list is not), it is after the W13 date, and the
+format fits the 5-table budget. Base rate ≈ 40% (EACL 2026 SRW: 77 of 185 accepted).
+
+**Authorship (final for positions 1–4):** authors 1–3 are students, author 4 is the professor. A 5th
+and 6th author may be added after them, **before Dec 15** — ACL events generally do not allow adding
+authors after the deadline. SRW requires only the first author to be a student, and that author must
+be a current student on Dec 15.
+
+**Archival consequences:** the paper appears in the ACL Anthology, so the same work cannot go to
+BioNLP 2027. The 2027 journal extension must add substantial new material (C7, C8, larger gold set).
+
+**What decides acceptance:** every committed number is on the 100-question dev split, where the
+prompts were iterated. The Phase 5 test-split runs (≥3 seeds) and a human-label re-score of the C2
+contrast on the annotated dev questions must land before writing Results.
+
 ---
 
 ## 7. Risk register
